@@ -1,23 +1,16 @@
-package main
+package lexer
 
 import (
 	"fmt"
 	"unicode"
 
-	"github.com/fatih/color"
+	"Flower/util"
 )
 
 type Token struct {
-	tok   TokenType
-	str   string
-	where Range
-}
-
-func (t Token) Print() string {
-	if checkKeyword(t.str) != UnknownToken {
-		return color.BlueString("%s", t.str)
-	}
-	return t.str
+	Tok   TokenType
+	Str   string
+	Where util.Range
 }
 
 func Tokenize(str string) (chan Token, chan error) {
@@ -33,42 +26,6 @@ func Tokenize(str string) (chan Token, chan error) {
 
 	return tokens, errors
 }
-
-type LexerInternals struct {
-	src      []rune
-	position int
-	start    int
-	toks     *chan Token
-	errs     *chan error
-}
-
-func (l *LexerInternals) Take() rune {
-	l.position++
-	return l.src[l.position-1]
-}
-
-func (l *LexerInternals) Skip() rune {
-	l.position++
-	l.start = l.position
-	return l.src[l.position-1]
-}
-
-func (l *LexerInternals) Peek() rune {
-	return l.src[l.position]
-}
-func (l *LexerInternals) Emit(t TokenType) {
-	*l.toks <- Token{t, l.Get(), Range{l.start, l.position}}
-	l.start = l.position
-}
-func (l *LexerInternals) EmitError(err error) {
-	*l.errs <- err
-}
-
-func (l *LexerInternals) Get() string {
-	return string(l.src[l.start:l.position])
-}
-
-type StateFn func(*LexerInternals) StateFn
 
 type TokenType uint
 
@@ -130,117 +87,6 @@ const (
 	BooleanLiteralToken // true, false
 
 )
-
-func FindingState(l *LexerInternals) StateFn {
-	// We're done :)
-	if l.position == len(l.src) {
-		close(*l.toks)
-		close(*l.errs)
-		return nil
-	}
-	// fmt.Println("looking at: ", string(l.Peek()))
-
-	if l.Peek() == ' ' || l.Peek() == '\t' {
-		l.Skip()
-	}
-	if unicode.IsLetter(l.Peek()) {
-		l.Take()
-		return WordState
-	}
-	if l.Peek() == '\n' {
-		l.Take()
-		l.Emit(NewlineToken)
-		return FindingState
-	}
-	if l.Peek() == '"' {
-		l.Take()
-		return StringLiteralState
-	}
-	if isPunctuation(l.Peek()) {
-		return PunctState
-	}
-	if unicode.IsNumber(l.Peek()) {
-		return NumberState
-	}
-	l.Take()
-	l.EmitError(UnknwownCharacterError{Range{l.start, l.position}, l})
-	l.Emit(UnknownToken)
-	return FindingState
-}
-
-func isPunctuation(r rune) bool {
-	switch r {
-	case '(', ')', '[', ']', '{', '}':
-		return true
-	case '=', '!', '>', '<':
-		return true
-	case '+', '-', '*', '/':
-		return true
-	case '&', '|':
-		return true
-	case '.', ',', ':':
-		return true
-	}
-	return false
-}
-
-func isEndOfSymbol(r rune) bool {
-	switch r {
-	case ' ', '\t', '\n':
-		return true
-	case '\'', '"', ':', '.', ',':
-		return true
-	case '=', '+', '-', '*', '/':
-		return true
-	case '(', ')', '[', ']', '{', '}':
-		return true
-	case '!', '@', '#', '$', '%', '^', '&':
-		return true
-	}
-	return false
-}
-
-func PunctState(l *LexerInternals) StateFn {
-	r := l.Take()
-	switch r {
-	case '.':
-		l.Emit(DotToken)
-	case ',':
-		l.Emit(CommaToken)
-	case '*':
-		l.Emit(MultiplyToken)
-	case '/':
-		return DivideOrCommentState
-	case '{':
-		l.Emit(OpenCurlyToken)
-	case '}':
-		l.Emit(CloseCurlyToken)
-	case '[':
-		l.Emit(OpenSquareToken)
-	case ']':
-		l.Emit(CloseSquareToken)
-	case '(':
-		l.Emit(OpenParenToken)
-	case ')':
-		l.Emit(CloseParenToken)
-	case '=':
-		return EqualState
-	case '!':
-		return NotState
-	case '-':
-		return ReturnOrNegativeOrMinusState
-	case '+':
-		l.Emit(PlusToken)
-	case ':':
-		l.Emit(TypeSpecifierToken)
-	default:
-		l.EmitError(UnknwownCharacterError{Range{l.start, l.position}, l})
-		l.Emit(UnknownToken)
-
-	}
-
-	return FindingState
-}
 
 func DivideOrCommentState(l *LexerInternals) StateFn {
 	if l.Peek() == '/' {
@@ -315,19 +161,6 @@ func EqualState(l *LexerInternals) StateFn {
 	}
 	return FindingState
 }
-func checkKeyword(name string) TokenType {
-	switch name {
-	case "module":
-		return ModuleToken
-	case "import":
-		return ImportToken
-	case "fn":
-		return FnToken
-	case "return":
-		return ReturnKeywordToken
-	}
-	return UnknownToken
-}
 
 func WordState(l *LexerInternals) StateFn {
 	if isEndOfSymbol(l.Peek()) {
@@ -354,10 +187,10 @@ func (ucl UnclosedStringLiteral) Error() string {
 }
 
 type UnknwownCharacterError struct {
-	where Range
+	where util.Range
 	li    *LexerInternals
 }
 
 func (uc UnknwownCharacterError) Error() string {
-	return fmt.Sprintf("%s\nUnknown Character '%s'", HighlightedLine(uc.li.src, uc.where), string(uc.li.src[uc.where.Lo:uc.where.Hi]))
+	return fmt.Sprintf("%s\nUnknown Character '%s'", util.HighlightedLine(uc.li.src, uc.where), string(uc.li.src[uc.where.Lo:uc.where.Hi]))
 }

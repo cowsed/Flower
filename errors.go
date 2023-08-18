@@ -1,48 +1,51 @@
 package main
 
-import "fmt"
+import (
+	"Flower/util"
+	"fmt"
+)
 
 type SourceError interface {
 	SourceError(src []rune) string
 }
 type UnimplementedError struct {
-	where Range
+	where util.Range
 }
 
 func (u UnimplementedError) SourceError(src []rune) string {
-	return HighlightedLine(src, u.where) + "\n" + "I havent implemented that yet"
+	return util.HighlightedLine(src, u.where) + "\n" + "I havent implemented that yet"
 }
 
 type UnexpectedThingInReturn struct {
-	where Range
+	where util.Range
 }
 
 func (u UnexpectedThingInReturn) SourceError(src []rune) string {
-	return HighlightedLine(src, u.where) + "\n" + "I dont know whats going on here help. I was tryna parse a function return header tho"
+	return util.HighlightedLine(src, u.where) + "\n" + "I dont know whats going on here help. I was tryna parse a function return header tho"
 }
 
 type UnexpectedThingInParameterList struct {
-	where Range
+	where util.Range
 }
 
 func (u UnexpectedThingInParameterList) SourceError(src []rune) string {
-	return HighlightedLine(src, u.where) + "\n" + "I dont know whats going on here help. I was tryna parse a function header tho"
+	return util.HighlightedLine(src, u.where) + "\n" + "I dont know whats going on here help. I was tryna parse a function header tho"
 }
 
 type TypeMustBeAName struct {
-	where Range
+	where util.Range
 }
 
 func (t TypeMustBeAName) SourceError(src []rune) string {
-	return HighlightedLine(src, t.where) + "\n" + "type must be a name not whatever this is. like fn foo(a: Baz)"
+	return util.HighlightedLine(src, t.where) + "\n" + "type must be a name not whatever this is. like fn foo(a: Baz)"
 }
 
 type ExpectedNameForFuncParam struct {
-	where Range
+	where util.Range
 }
 
 func (e ExpectedNameForFuncParam) SourceError(src []rune) string {
-	return HighlightedLine(src, e.where) + "\n" + "expected parameter name like `fn foo(name: type)"
+	return util.HighlightedLine(src, e.where) + "\n" + "expected parameter name like `fn foo(name: type)"
 }
 
 type FunctionNeedsOpenningParen struct{}

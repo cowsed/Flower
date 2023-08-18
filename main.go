@@ -1,6 +1,7 @@
 package main
 
 import (
+	"Flower/lexer"
 	"fmt"
 )
 
@@ -16,7 +17,7 @@ fn main(b: u16) -> u16 {}
 `
 
 func main() {
-	toks, tok_errs := Tokenize(src)
+	toks, tok_errs := lexer.Tokenize(src)
 	if len(tok_errs) != 0 {
 		fmt.Println("tokenizer errors: ")
 		for err := range tok_errs {
