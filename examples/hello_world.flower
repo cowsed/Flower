@@ -1,0 +1,7 @@
+module main
+
+import "fmt"
+
+fn main(){
+    fmt.println("Hello World")
+}

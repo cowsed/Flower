@@ -1,0 +1,22 @@
+module json
+
+struct UnknownJSONField{
+    field_name: string
+}
+
+struct IncorrectJSONType{
+    wanted: string
+    got: string
+}
+
+fn meta::FieldAccess<Struct_T: any>(comptime name: string, Struct_T s){}
+
+fn Serialize<T: any>(val: T, prefix: string) -> string{
+    var s: string = ""
+    comptime for (field: meta::StructField in meta::Fields<T>()){
+        s += "\"" + field.name + "\":"
+        s += Serialize<field.type>(meta::FieldAccess(field.name, val))
+    }
+}
+
+fn Deserialize<T: any>(s: string) -> T throws UnknownJSONField, IncorrectJSONType{}
