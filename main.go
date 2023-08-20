@@ -2,6 +2,7 @@ package main
 
 import (
 	"Flower/lexer"
+	"Flower/parser"
 	"fmt"
 )
 
@@ -30,7 +31,7 @@ func main() {
 			return
 		}
 	}
-	pt := Parse(toks, tok_errs, []rune(src))
-	Validate(&pt)
+	pt := parser.Parse(toks, tok_errs, []rune(src))
+	parser.Validate(&pt)
 	pt.Print([]rune(src))
 }
