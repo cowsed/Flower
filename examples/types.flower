@@ -1,0 +1,83 @@
+module types
+
+
+
+type UnsignedInt = u8 or u16 or u32 or u64 
+type SignedInt = i8 or i16 or i32 or i64
+type FloatingPoint = f32 or f64 
+
+type Numeric = UnsignedInt or SignedInt or FloatingPoint
+
+
+
+
+
+T MaximumValue(type T: Numeric){
+    match T{
+        u8 -> 255
+        u16 -> 65_535
+        u32 -> 4_294_967_295
+        u64 -> 18_446_744_073_709_551_615
+        
+        i8 -> 127
+        i16 -> ...
+        i32 -> ...
+        i64 -> ...
+    
+        f32 -> ...
+        // unhandled case f64
+    }
+}
+
+// are ct only because they have type parameters or return types
+fn UintFits(type T: UnsignedInt, i IntegerConstant) -> bool{}
+fn SmallestUintToFit(i IntegerConstant) -> type UnsignedInt{}
+
+
+
+type Positive(T: Numeric) = T | T >= 0
+type Negative(T: Numeric) = T | T <= 0
+
+type StrictlyPositive(T: Numeric) = T | T > 0
+type StrictlyNegative(T: Numeric) = T | T < 0
+
+
+type Vector(T: Copyable) struct{
+    data: T&
+    size: u64
+    capacity: u64
+}
+
+
+
+// Static Interface
+type interface Shape{
+    Area() -> f64
+    Perimeter() -> f64 
+}
+
+// Dynamic Interface
+interface Shape{
+    Area() -> f64
+    Perimeter() -> f64
+}
+
+type interface Collection(T: Any){
+    T.value_type -> type // requires a type called value_type
+    T.append(T.value_type) // requires append method
+    T.operator[](UnsignedInt) -> T.value_type& // requires getting
+}
+
+struct Option(type T: Any){
+    exists: bool
+    value: T
+}
+
+struct Option(type Tref: Reference){
+    value_or_null: Tref
+}
+
+type Collection(T: Any) require(t: T, arg: T.value_type){
+    T.value_type
+    
+}

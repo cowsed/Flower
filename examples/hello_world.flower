@@ -1,7 +1,7 @@
 module main
 
-import "fmt"
+import "std"
 
 fn main(){
-    fmt.println("Hello World")
+    std.println("Hello World")
 }

@@ -1,16 +1,22 @@
 package main
 
-import "fmt"
+import (
+	"Flower/util"
+	"fmt"
+)
 
 type Expr interface {
 	Indent(ident string) string
+	Validate(ctx *ValidationContext)
 }
 
 var _ Expr = LiteralExpr{}
 var _ Expr = FunctionCall{}
+var _ Expr = NameLookup{}
 
 type FullName struct {
 	names []string
+	where util.Range
 }
 
 func (fn FullName) String() string {
@@ -29,6 +35,15 @@ type NameLookup struct {
 
 func (nl NameLookup) Indent(indent string) string {
 	return indent + "NameLookup{ " + nl.name.String() + " }"
+}
+
+func (nl NameLookup) Validate(ctx *ValidationContext) {
+	if !ctx.HasName(nl.name) {
+		ctx.EmitError(NameLookupFailed{
+			name:  FullName{},
+			where: util.Range{},
+		})
+	}
 }
 
 type LiteralType uint
@@ -50,6 +65,8 @@ type LiteralExpr struct {
 	str         string
 }
 
+func (l LiteralExpr) Validate(v *ValidationContext) {}
+
 func (l LiteralExpr) Indent(ident string) string {
 	return fmt.Sprintf(ident+"Literal Expr{ Type; %s, %s}", l.literalType.String(), l.str)
 }
@@ -59,6 +76,8 @@ type FunctionCall struct {
 	args   []Expr
 	closed bool
 }
+
+func (fc FunctionCall) Validate(v *ValidationContext) {}
 
 func (fc FunctionCall) Indent(ident string) string {
 	s := fmt.Sprintf(ident+"Function Call `%s` {\n", fc.name.String())

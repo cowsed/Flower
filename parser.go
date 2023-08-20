@@ -8,27 +8,6 @@ import (
 	"github.com/fatih/color"
 )
 
-type ReturnStatement struct {
-	value Expr
-}
-
-func (r ReturnStatement) String() string {
-	return "  ReturnStatement { " + r.value.Indent("  ") + " }"
-}
-
-type StandaloneExpr struct {
-	e Expr
-}
-
-func (s StandaloneExpr) String() string {
-	return "  StandaloneExpr {\n" + s.e.Indent("    ") + "\n  }"
-
-}
-
-type Statement interface {
-	String() string
-}
-
 type FunctionDefinition struct {
 	ftype      FunctionType
 	statements []Statement
@@ -42,13 +21,14 @@ func (fd FunctionDefinition) String() string {
 	return s
 }
 
-type AssignmentStatement struct {
-	to   string
-	from Expr
+func (f FunctionDefinition) Validate(ctx *ValidationContext) {
+	for _, statement := range f.statements {
+		statement.Validate(ctx)
+	}
+	// insure type of return statement matches that of function signature
 }
 
 type ProgramTree struct {
-	valid       bool
 	module_name string
 	imports     []string
 
@@ -62,8 +42,11 @@ type ProgramTree struct {
 
 	workingExpression util.Stack[Expr]
 
+	src []rune
+
 	fatal  bool
 	errors []SourceError
+	valid  bool
 }
 
 func (pt *ProgramTree) FinishFuncCall(where util.Range) {
@@ -103,7 +86,7 @@ func (pt ProgramTree) Print(src []rune) {
 		}
 		return
 	}
-	fmt.Print("Valid Program:\n\n")
+	fmt.Print("Parsed Program:\n\n")
 	fmt.Println("module:", pt.module_name)
 	fmt.Println("\nImports:")
 	for _, im := range pt.imports {
@@ -127,18 +110,20 @@ func (pt *ProgramTree) EmitErrorFatal(err SourceError) {
 
 type ParseFunc func(tok lexer.Token, pt *ProgramTree) ParseFunc
 
-func Parse(toks chan lexer.Token, lex_errs chan error) ProgramTree {
+func Parse(toks chan lexer.Token, lex_errs chan error, src []rune) ProgramTree {
 	var pt ProgramTree = ProgramTree{
-		valid:            true,
-		module_name:      "",
-		imports:          []string{},
-		globals:          map[string]Expr{},
-		global_structs:   map[string]RecordType{},
-		global_functions: map[string]FunctionDefinition{},
-		workingName:      "",
-		workingFunction:  FunctionDefinition{},
-		fatal:            false,
-		errors:           []SourceError{},
+		module_name:       "",
+		imports:           []string{},
+		globals:           map[string]Expr{},
+		global_structs:    map[string]RecordType{},
+		global_functions:  map[string]FunctionDefinition{},
+		workingName:       "",
+		workingFunction:   FunctionDefinition{},
+		workingExpression: util.Stack[Expr]{},
+		src:               src,
+		fatal:             false,
+		errors:            []SourceError{},
+		valid:             true,
 	}
 
 	var state ParseFunc = nil
@@ -277,7 +262,7 @@ func FDef_ParseFuncStatements(tok lexer.Token, pt *ProgramTree) ParseFunc {
 	} else if tok.Tok == lexer.SymbolToken {
 		color.Cyan("Just a standalone expression")
 		return NewParseExpr(func(e Expr) ParseFunc {
-			pt.workingFunction.statements = append(pt.workingFunction.statements, StandaloneExpr{e})
+			pt.workingFunction.statements = append(pt.workingFunction.statements, StandaloneExprStatement{e})
 			return FDef_ParseFuncStatements
 		})(tok, pt)
 	}

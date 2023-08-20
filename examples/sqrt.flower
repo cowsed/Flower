@@ -1,0 +1,35 @@
+package math
+
+fn abs(n: f64) -> f64 | return >= 0.0{
+    if (n < 0){
+        return -n
+    }
+    return n
+}
+
+
+
+// Calculate sqrt by newton's method
+fn sqrt(n: f64 | f64 >= 0) -> f64 | f64 >= 0{
+    type pos_f64 = f64 | f64 >= 0
+
+    const eps: pos_f64 = 0.0001
+    const iterations: u8 = 20;
+
+    // Assuming the sqrt of n as n only
+    var x: f64 = n; // inferred >= 0. LSP hint/compiler notification that says you can make this stricter
+  
+    for (var i = 0; i < iterations; i++) {
+        // Calculate more close x
+        const root: f64 = 0.5 * (x + (n / x)); // All are positive, all perserve positiveness
+ 
+        // Check for closeness
+        if (abs(root - x) < eps){
+            break;
+        }
+        // Update root
+        x = root;
+    }
+ 
+    return root;
+}

@@ -16,7 +16,8 @@ fn add(a: u8, b: u8) -> u8{
 }
 
 fn main(b: u16) -> u16 {
-    add(2, add(1, 3))
+    std.println("b = {}", b)
+    return add(2, add(1, 3))
 }
 `
 
@@ -29,7 +30,7 @@ func main() {
 			return
 		}
 	}
-	pt := Parse(toks, tok_errs)
-	// pt.Validate()
+	pt := Parse(toks, tok_errs, []rune(src))
+	Validate(&pt)
 	pt.Print([]rune(src))
 }
