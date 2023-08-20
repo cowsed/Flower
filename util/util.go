@@ -40,3 +40,26 @@ func HowFarToNextLine(src []rune, start int) int {
 	}
 	return count
 }
+
+type Stack[T any] struct {
+	underlying []T
+}
+
+func (s *Stack[T]) Push(val T) {
+	s.underlying = append(s.underlying, val)
+}
+
+func (s *Stack[T]) Pop() T {
+	var v T = s.underlying[len(s.underlying)-1]
+	s.underlying = s.underlying[:len(s.underlying)-1]
+	return v
+}
+
+func (s *Stack[T]) Peek() T {
+	var v T = s.underlying[len(s.underlying)-1]
+	return v
+}
+
+func (s Stack[T]) Size() int {
+	return len(s.underlying)
+}

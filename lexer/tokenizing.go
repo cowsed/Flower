@@ -54,6 +54,7 @@ func FindingState(l *LexerInternals) StateFn {
 
 	if l.Peek() == ' ' || l.Peek() == '\t' {
 		l.Skip()
+		return FindingState
 	}
 	if unicode.IsLetter(l.Peek()) {
 		l.Take()
@@ -75,7 +76,7 @@ func FindingState(l *LexerInternals) StateFn {
 		return NumberState
 	}
 	l.Take()
-	l.EmitError(UnknwownCharacterError{util.Range{l.start, l.position}, l})
+	l.EmitError(UnknwownCharacterError{util.Range{Lo: l.start, Hi: l.position}, l})
 	l.Emit(UnknownToken)
 	return FindingState
 }

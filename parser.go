@@ -2,25 +2,49 @@ package main
 
 import (
 	"Flower/lexer"
+	"Flower/util"
 	"fmt"
 
 	"github.com/fatih/color"
 )
 
 type ReturnStatement struct {
-	value Expression
+	value Expr
 }
 
-type Statement interface{}
+func (r ReturnStatement) String() string {
+	return "  ReturnStatement { " + r.value.Indent("  ") + " }"
+}
+
+type StandaloneExpr struct {
+	e Expr
+}
+
+func (s StandaloneExpr) String() string {
+	return "  StandaloneExpr {\n" + s.e.Indent("    ") + "\n  }"
+
+}
+
+type Statement interface {
+	String() string
+}
 
 type FunctionDefinition struct {
 	ftype      FunctionType
 	statements []Statement
 }
 
+func (fd FunctionDefinition) String() string {
+	s := "Function " + fd.ftype.String() + "\n"
+	for _, statement := range fd.statements {
+		s += statement.String() + "\n"
+	}
+	return s
+}
+
 type AssignmentStatement struct {
 	to   string
-	from Expression
+	from Expr
 }
 
 type ProgramTree struct {
@@ -29,15 +53,45 @@ type ProgramTree struct {
 	imports     []string
 
 	// All globals are order independent
-	globals          map[string]Expression
+	globals          map[string]Expr
 	global_structs   map[string]RecordType
 	global_functions map[string]FunctionDefinition
 
 	workingName     string
 	workingFunction FunctionDefinition
 
+	workingExpression util.Stack[Expr]
+
 	fatal  bool
 	errors []SourceError
+}
+
+func (pt *ProgramTree) FinishFuncCall(where util.Range) {
+	args := []Expr{}
+	for {
+		if pt.workingExpression.Size() == 0 {
+			pt.EmitErrorFatal(ExtraneousClosingParen{where})
+			return
+		}
+
+		end := pt.workingExpression.Pop()
+		fmt.Printf("Arg: %T: %+v\n", end, end)
+		switch e := end.(type) {
+		case FunctionCall:
+			if e.closed {
+				args = append([]Expr{end}, args...)
+			} else {
+				e.args = args
+				e.closed = true
+				pt.workingExpression.Push(e)
+				fmt.Println("end")
+				return
+			}
+		default:
+			args = append([]Expr{end}, args...)
+		}
+	}
+
 }
 
 func (pt ProgramTree) Print(src []rune) {
@@ -45,7 +99,7 @@ func (pt ProgramTree) Print(src []rune) {
 		fmt.Println("Invalid Program")
 		fmt.Println("errs:")
 		for _, e := range pt.errors {
-			color.Red("- %s", e.SourceError(src))
+			color.Red("%s", e.SourceError(src))
 		}
 		return
 	}
@@ -53,11 +107,11 @@ func (pt ProgramTree) Print(src []rune) {
 	fmt.Println("module:", pt.module_name)
 	fmt.Println("\nImports:")
 	for _, im := range pt.imports {
-		fmt.Println("-", im)
+		fmt.Println(im)
 	}
 	fmt.Println("\nFunctions:")
 	for name, function := range pt.global_functions {
-		fmt.Println("- ", name, ": ", function)
+		fmt.Printf("%s: %++v\n", name, function)
 	}
 }
 
@@ -78,7 +132,7 @@ func Parse(toks chan lexer.Token, lex_errs chan error) ProgramTree {
 		valid:            true,
 		module_name:      "",
 		imports:          []string{},
-		globals:          map[string]Expression{},
+		globals:          map[string]Expr{},
 		global_structs:   map[string]RecordType{},
 		global_functions: map[string]FunctionDefinition{},
 		workingName:      "",
@@ -124,7 +178,7 @@ func FindingParse(tok lexer.Token, pt *ProgramTree) ParseFunc {
 		return ImportNamer
 	}
 	if tok.Tok == lexer.FnToken {
-		return FuncNamer
+		return FDef_FuncNamer
 	}
 	return nil
 }
@@ -132,7 +186,7 @@ func FindingParse(tok lexer.Token, pt *ProgramTree) ParseFunc {
 // Function Parsing ====================================================================================
 
 // Signature
-func FuncNamer(tok lexer.Token, pt *ProgramTree) ParseFunc {
+func FDef_FuncNamer(tok lexer.Token, pt *ProgramTree) ParseFunc {
 	if tok.Tok != lexer.SymbolToken {
 		// have to give up
 		pt.EmitErrorFatal(FunctionNeedsNameError{})
@@ -144,18 +198,18 @@ func FuncNamer(tok lexer.Token, pt *ProgramTree) ParseFunc {
 		ftype:      FunctionType{},
 		statements: []Statement{},
 	}
-	return TakeSigOpenningParen
+	return FDef_TakeSigOpenningParen
 }
-func TakeSigOpenningParen(tok lexer.Token, pt *ProgramTree) ParseFunc {
+func FDef_TakeSigOpenningParen(tok lexer.Token, pt *ProgramTree) ParseFunc {
 	if tok.Tok != lexer.OpenParenToken {
 		pt.EmitErrorFatal(FunctionNeedsOpenningParen{})
 	}
-	return GetFuncParamName
+	return FDef_GetFuncDefinitionParamName
 }
-func GetFuncParamName(tok lexer.Token, pt *ProgramTree) ParseFunc {
-	// little foo()
+func FDef_GetFuncDefinitionParamName(tok lexer.Token, pt *ProgramTree) ParseFunc {
 	if tok.Tok == lexer.CloseParenToken {
-		return ParseReturnOrReadBody
+		// foo()
+		return FDef_ParseReturnTypeOrReadBody
 	} else if tok.Tok != lexer.SymbolToken {
 		pt.EmitError(ExpectedNameForFuncParam{where: tok.Where})
 	}
@@ -163,53 +217,210 @@ func GetFuncParamName(tok lexer.Token, pt *ProgramTree) ParseFunc {
 		Type: nil,
 		name: tok.Str,
 	})
-	return ParamTypeOrNot
+	return FDef_ParamTypeOrEndParamList
 }
 
-func ParamTypeOrNot(tok lexer.Token, pt *ProgramTree) ParseFunc {
-	color.Green("ParamTypeOrNot %v", tok)
-
+func FDef_ParamTypeOrEndParamList(tok lexer.Token, pt *ProgramTree) ParseFunc {
 	if tok.Tok == lexer.CommaToken {
-		return GetFuncParamName
+		return FDef_GetFuncDefinitionParamName
 	} else if tok.Tok == lexer.TypeSpecifierToken {
 		return NewParseType(func(t Type) {
 			pt.workingFunction.ftype.args[len(pt.workingFunction.ftype.args)-1].Type = t
 		}, ContinueOrEndParamList)
 
 	} else if tok.Tok == lexer.CloseParenToken {
-		return ParseReturnOrReadBody
+		return FDef_ParseReturnTypeOrReadBody
 	}
 	pt.EmitErrorFatal(UnexpectedThingInParameterList{tok.Where})
 	return nil
 }
 
-func ParseReturnOrReadBody(tok lexer.Token, pt *ProgramTree) ParseFunc {
+func FDef_ParseReturnTypeOrReadBody(tok lexer.Token, pt *ProgramTree) ParseFunc {
 	if tok.Tok == lexer.ReturnsToken {
-		return NewParseType(func(t Type) { pt.workingFunction.ftype.return_type = t }, ParseFuncBodyOpenCurly)
+		return NewParseType(func(t Type) { pt.workingFunction.ftype.return_type = t }, FDef_ParseFuncBodyOpenCurly)
 	} else if tok.Tok == lexer.OpenCurlyToken {
-		return ParseFuncStatements
+		return FDef_ParseFuncStatements
 	}
 	pt.EmitErrorFatal(UnexpectedThingInReturn{tok.Where})
 	return nil
 }
 
-func ParseFuncBodyOpenCurly(tok lexer.Token, pt *ProgramTree) ParseFunc {
+func FDef_ParseFuncBodyOpenCurly(tok lexer.Token, pt *ProgramTree) ParseFunc {
 	if tok.Tok == lexer.OpenCurlyToken {
-		return ParseFuncStatements
+		color.Green("start func body")
+		return FDef_ParseFuncStatements
 	}
 	pt.EmitErrorFatal(UnexpectedThingInReturn{tok.Where})
 	return nil
 }
 
-func ParseFuncStatements(tok lexer.Token, pt *ProgramTree) ParseFunc {
-	if tok.Tok != lexer.CloseCurlyToken {
-		pt.EmitErrorFatal(UnimplementedError{tok.Where})
-		return nil
+func FDef_ParseFuncStatements(tok lexer.Token, pt *ProgramTree) ParseFunc {
+	if tok.Tok == lexer.CloseCurlyToken {
+		// finished
+		pt.global_functions[pt.workingName] = pt.workingFunction
+		color.Green("finished parsing func %s", pt.workingName)
+
+		pt.workingFunction = FunctionDefinition{}
+		pt.workingName = ""
+
+		return nil // finished
+	} else if tok.Tok == lexer.ReturnKeywordToken {
+		color.Green("return Statement")
+		return NewParseExpr(func(e Expr) ParseFunc {
+			color.Green("return Expr over")
+			pt.workingFunction.statements = append(pt.workingFunction.statements, ReturnStatement{e})
+			return FDef_ParseFuncStatements
+		})
+	} else if tok.Tok == lexer.NewlineToken {
+		color.Green("Newline")
+		return FDef_ParseFuncStatements
+	} else if tok.Tok == lexer.SymbolToken {
+		color.Cyan("Just a standalone expression")
+		return NewParseExpr(func(e Expr) ParseFunc {
+			pt.workingFunction.statements = append(pt.workingFunction.statements, StandaloneExpr{e})
+			return FDef_ParseFuncStatements
+		})(tok, pt)
 	}
-	// finished
-	pt.global_functions[pt.workingName] = pt.workingFunction
-	pt.workingFunction = FunctionDefinition{}
+
+	pt.EmitErrorFatal(UnimplementedError{
+		where: tok.Where,
+	})
+	return FDef_ParseFuncStatements
+}
+
+func NewParseExpr(setter func(e Expr) ParseFunc) ParseFunc {
+	return func(tok lexer.Token, pt *ProgramTree) ParseFunc {
+		return ParseExpr(tok, pt, setter)
+	}
+}
+
+func ParseExpr(tok lexer.Token, pt *ProgramTree, setter func(e Expr) ParseFunc) ParseFunc {
+	switch tok.Tok {
+	// number
+	case lexer.NumberLiteralToken:
+		color.Yellow("saw Number Literal")
+		pt.workingExpression.Push(LiteralExpr{
+			literalType: NumberLiteralType,
+			str:         tok.Str,
+		})
+		return NewContinueOrEndExpression(setter)
+
+	// string
+	case lexer.StringLiteralToken:
+
+		pt.workingExpression.Push(LiteralExpr{
+			literalType: StringLiteralType,
+			str:         tok.Str,
+		})
+		return NewContinueOrEndExpression(setter)
+
+	case lexer.BooleanLiteralToken:
+		pt.workingExpression.Push(LiteralExpr{
+			literalType: BooleanLiteralType,
+			str:         tok.Str,
+		})
+		return NewContinueOrEndExpression(setter)
+	case lexer.SymbolToken:
+		color.Cyan("saw symbol")
+		return NewValueLookupOrFunctionCall(FullName{
+			names: []string{tok.Str},
+		}, setter)
+	}
+
+	pt.EmitErrorFatal(UnimplementedError{tok.Where})
 	return nil
+}
+
+func NewValueLookupOrFunctionCall(name_so_far FullName, setter func(e Expr) ParseFunc) ParseFunc {
+	return func(tok lexer.Token, pt *ProgramTree) ParseFunc {
+		return ValueLookupOrFunctionCall(tok, pt, name_so_far, setter)
+	}
+}
+
+func ValueLookupOrFunctionCall(tok lexer.Token, pt *ProgramTree, name_so_far FullName, setter func(e Expr) ParseFunc) ParseFunc {
+	if tok.Tok == lexer.OpenParenToken {
+		color.Yellow("was function call")
+		pt.workingExpression.Push(FunctionCall{
+			name:   name_so_far,
+			args:   []Expr{},
+			closed: false,
+		})
+		return NewParseExpr(
+			func(e Expr) ParseFunc {
+				pt.workingExpression.Push(e)
+				return NewContinueOrEndExpression(setter)
+			})
+	} else if tok.Tok == lexer.DotToken {
+		// continue taking name
+		return NewGrowFullName(name_so_far, setter)
+
+	}
+	color.Cyan("Finished looking at name. not function or longer")
+	pt.workingExpression.Push(NameLookup{name_so_far})
+	return NewContinueOrEndExpression(setter)(tok, pt)
+}
+
+func NewGrowFullName(name_so_far FullName, setter func(e Expr) ParseFunc) ParseFunc {
+	return func(tok lexer.Token, pt *ProgramTree) ParseFunc {
+		if tok.Tok != lexer.SymbolToken {
+			pt.EmitError(UnfinishedFullName{where: tok.Where})
+			return ValueLookupOrFunctionCall(tok, pt, name_so_far, setter)
+		}
+		name_so_far.names = append(name_so_far.names, tok.Str)
+		return NewValueLookupOrFunctionCall(name_so_far, setter)
+	}
+}
+
+func NewContinueOrEndExpression(setter func(e Expr) ParseFunc) ParseFunc {
+	return func(tok lexer.Token, pt *ProgramTree) ParseFunc {
+		return ContinueOrEndExpression(tok, pt, setter)
+	}
+}
+
+func ContinueOrEndExpression(tok lexer.Token, pt *ProgramTree, setter func(e Expr) ParseFunc) ParseFunc {
+	if tok.Tok == lexer.CommentToken || tok.Tok == lexer.NewlineToken {
+		if pt.workingExpression.Size() != 1 {
+			pt.EmitError(TooManyExpressions{tok.Where})
+		}
+		return setter(pt.workingExpression.Pop())(tok, pt)
+	} else if tok.Tok == lexer.CloseParenToken {
+		pt.FinishFuncCall(tok.Where)
+		return NewContinueOrEndExpression(setter)
+	} else if tok.Tok == lexer.CommaToken {
+		return NewParseExpr(func(e Expr) ParseFunc {
+			pt.workingExpression.Push(e)
+			return NewContinueOrEndExpression(setter)
+		})
+	}
+	// } else if isInfixOp(tok.Tok) {
+	// }
+	return NewContinueOrEndExpression(setter)
+
+}
+
+func isInfixOp(tok lexer.TokenType) bool {
+	switch tok {
+	case lexer.PlusToken, lexer.MinusToken, lexer.MultiplyToken, lexer.DivideToken:
+		return true
+	case lexer.AndToken, lexer.OrToken:
+		return true
+	}
+	return false
+}
+
+func convertToInfixOp(tok lexer.Token) InfixOp {
+	switch tok.Tok {
+	case lexer.PlusToken:
+		return InfixPlus
+	case lexer.MinusToken:
+		return InfixSub
+
+	case lexer.MultiplyToken:
+		return InfixTimes
+	case lexer.DivideToken:
+		return InfixDivide
+	}
+	return UnknownInfixOp
 }
 
 func NewParseType(setter func(Type), after ParseFunc) ParseFunc {
@@ -230,9 +441,9 @@ func ParseType(tok lexer.Token, pt *ProgramTree, setter func(Type), after ParseF
 
 func ContinueOrEndParamList(tok lexer.Token, pt *ProgramTree) ParseFunc {
 	if tok.Tok == lexer.CommaToken {
-		return GetFuncParamName
+		return FDef_GetFuncDefinitionParamName
 	} else if tok.Tok == lexer.CloseParenToken {
-		return ParseReturnOrReadBody
+		return FDef_ParseReturnTypeOrReadBody
 	}
 	color.Blue("ContinueOrEnd")
 	pt.EmitErrorFatal(UnexpectedThingInParameterList{tok.Where})

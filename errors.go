@@ -8,6 +8,39 @@ import (
 type SourceError interface {
 	SourceError(src []rune) string
 }
+
+type TooManyExpressions struct {
+	where util.Range
+}
+
+func (t TooManyExpressions) SourceError(src []rune) string {
+	return util.HighlightedLine(src, t.where) + "\nFinished parsing line but ended up with more than one expression, not really sure what to do here"
+}
+
+type ExtraneousClosingParen struct {
+	where util.Range
+}
+
+func (e ExtraneousClosingParen) SourceError(src []rune) string {
+	return util.HighlightedLine(src, e.where) + "\nClosing paren (end of function call) but no open function"
+}
+
+type UnfinishedFullName struct {
+	where util.Range
+}
+
+func (u UnfinishedFullName) SourceError(src []rune) string {
+	return util.HighlightedLine(src, u.where) + "\nI thought I was parsing a name like std.thing.a but stopped after `.`"
+}
+
+type NoFunctionToAddArgsTo struct {
+	where util.Range
+}
+
+func (n NoFunctionToAddArgsTo) SourceError(src []rune) string {
+	return util.HighlightedLine(src, n.where) + "\nI thought I was parsing a function call but there isnt one here"
+}
+
 type UnimplementedError struct {
 	where util.Range
 }

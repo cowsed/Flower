@@ -121,11 +121,12 @@ func StringLiteralState(l *LexerInternals) StateFn {
 }
 func NumberState(l *LexerInternals) StateFn {
 	// minus sign already handled
-	if unicode.IsNumber(l.Peek()) || l.Peek() == 'x' {
+	if unicode.IsNumber(l.Peek()) && l.Peek() != ',' {
 		l.Take()
 		return NumberState
 
 	}
+	l.Emit(NumberLiteralToken)
 	return FindingState
 }
 func ReturnOrNegativeOrMinusState(l *LexerInternals) StateFn {
@@ -192,5 +193,5 @@ type UnknwownCharacterError struct {
 }
 
 func (uc UnknwownCharacterError) Error() string {
-	return fmt.Sprintf("%s\nUnknown Character '%s'", util.HighlightedLine(uc.li.src, uc.where), string(uc.li.src[uc.where.Lo:uc.where.Hi]))
+	return fmt.Sprintf("%s\nUnknown Character '%s', %v", util.HighlightedLine(uc.li.src, uc.where), string(uc.li.src[uc.where.Lo:uc.where.Hi]), uc.li.src[uc.where.Lo])
 }

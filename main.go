@@ -11,9 +11,13 @@ module main
 import "std"
 import "math"
 
-fn add(a: u8, b: u8) -> u8{}
+fn add(a: u8, b: u8) -> u8{
+	return a
+}
 
-fn main(b: u16) -> u16 {}
+fn main(b: u16) -> u16 {
+    add(2, add(1, 3))
+}
 `
 
 func main() {
