@@ -12,13 +12,14 @@ module main
 import "std"
 import "math"
 
+
 fn add(a: u8, b: u8) -> u8{
-	return a
+    return a
 }
 
 fn main(b: u16) -> u16 {
     std.println("b = {}", b)
-    return add(2, add(1, 3))
+    return add(2, add(1, "a"))
 }
 `
 
@@ -32,6 +33,7 @@ func main() {
 		}
 	}
 	pt := parser.Parse(toks, tok_errs, []rune(src))
+
 	parser.Validate(&pt)
-	pt.Print([]rune(src))
+	// pt.Print([]rune(src))
 }

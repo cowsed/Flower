@@ -22,7 +22,7 @@ func (s StandaloneExprStatement) String() string {
 }
 
 func (s StandaloneExprStatement) Validate(ctx *ValidationContext) {
-
+	s.e.Validate(ctx)
 }
 
 type AssignmentStatement struct {

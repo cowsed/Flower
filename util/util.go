@@ -10,11 +10,16 @@ func (r Range) Length() int {
 	return r.Hi - r.Lo
 }
 
+func (r *Range) Add(b Range) {
+	r.Lo = min(r.Lo, b.Lo)
+	r.Hi = max(r.Hi, b.Hi)
+}
+
 func HighlightedLine(src []rune, where Range) string {
-	to_start := HowFarToPrevLine(src, where.Lo)
+	to_start := HowFarToPrevLine(src, where.Lo) - 1
 	to_end := HowFarToNextLine(src, where.Hi)
 	line := string(src[where.Lo-to_start : where.Hi+to_end])
-	line += "\n" + strings.Repeat(" ", to_start-1) + strings.Repeat("^", where.Length())
+	line += "\n" + strings.Repeat(" ", to_start) + strings.Repeat("^", where.Length())
 	return line
 
 }
@@ -62,4 +67,11 @@ func (s *Stack[T]) Peek() T {
 
 func (s Stack[T]) Size() int {
 	return len(s.underlying)
+}
+func (s Stack[T]) Reversed() []T {
+	sl := make([]T, s.Size())
+	for i, t := range s.underlying {
+		sl[s.Size()-i-1] = t
+	}
+	return sl
 }

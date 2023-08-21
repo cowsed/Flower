@@ -1,7 +1,61 @@
 package parser
 
+import (
+	"Flower/util"
+)
+
 type Type interface {
 	String() string
+}
+
+func CanBeImplicitlyConvertedToType(from Type, to Type, from_expr Expr, ctx *ValidationContext) (bool, Expr, SourceError, SourceError) {
+	from_builtin, from_is := from.(BuiltinType)
+	to_builtin, to_is := to.(BuiltinType)
+
+	if from_is && to_is {
+		return BuiltinCanBeConvertedTo(from_builtin, to_builtin, from_expr)
+	}
+
+	// check for cast functions
+	return false, nil, nil, nil
+}
+
+func BuiltinCanBeConvertedTo(from BuiltinType, to BuiltinType, from_expr Expr) (bool, Expr, SourceError, SourceError) {
+	if from.Whichone == to.Whichone {
+		return true, nil, nil, nil
+	}
+	if from.Whichone == BuiltinUnconstrainedIntType {
+		if to.Whichone == BuiltinU8Type {
+			return true, IntLiteralToIntType{}, nil, nil
+		}
+	}
+
+	return false, nil, nil, nil
+}
+
+type IntLiteralToIntType struct {
+	going_to BuiltinTypeType
+	expr     LiteralExpr
+}
+
+// Indent implements Expr.
+func (IntLiteralToIntType) Indent(ident string) string {
+	panic("unimplemented")
+}
+
+// Type implements Expr.
+func (i IntLiteralToIntType) Type(ctx *ValidationContext) Type {
+	return BuiltinType{i.going_to}
+}
+
+// Validate implements Expr.
+func (IntLiteralToIntType) Validate(ctx *ValidationContext) {
+	panic("unimplemented")
+}
+
+// Where implements Expr.
+func (i IntLiteralToIntType) Where() util.Range {
+	return i.expr.Where()
 }
 
 type TypeName struct {
@@ -29,15 +83,22 @@ type BuiltinTypeType uint
 
 const (
 	UnknownBuiltinType BuiltinTypeType = iota
-	U8Type
-	U16Type
-	U32Type
-	U64Type
 
-	I8Type
-	I16Type
-	I32Type
-	I64Type
+	BuiltinBooleanType
+
+	BuiltinU8Type
+	BuiltinU16Type
+	BuiltinU32Type
+	BuiltinU64Type
+
+	BuiltinI8Type
+	BuiltinI16Type
+	BuiltinI32Type
+	BuiltinI64Type
+
+	BuiltinUnconstrainedIntType
+
+	BuiltinStringType
 )
 
 type BuiltinType struct {
@@ -45,7 +106,8 @@ type BuiltinType struct {
 }
 
 func (b BuiltinType) String() string {
-	return []string{"UnknownBuiltinType ", "U8Type", "U16Type", "U32Type", "U64Type", "I8Type", "I16Type", "I32Type", "I64Type"}[b.Whichone]
+	return []string{"UnknownBuiltinType", "BuiltinBooleanType", "BuiltinU8Type", "BuiltinU16Type", "BuiltinU32Type", "BuiltinU64Type", "BuiltinI8Type", "BuiltinI16Type", "BuiltinI32Type", "BuiltinI64Type", "BuiltinUnconstrainedIntType", "BuiltinStringType"}[b.Whichone]
+
 }
 
 type PointerType struct {

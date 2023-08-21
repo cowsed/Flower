@@ -1,0 +1,9 @@
+module main
+
+
+struct MyStruct{
+    internal: u8
+}
+fn u8(m: MyStruct) -> u8{
+    return m.internal
+}
