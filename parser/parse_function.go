@@ -87,17 +87,13 @@ func FDef_ParseFuncStatements(tok lexer.Token, pt *ProgramTree) ParseFunc {
 
 		return nil // finished
 	} else if tok.Tok == lexer.ReturnKeywordToken {
-		color.Green("return Statement")
 		return NewParseExpr(func(e Expr) ParseFunc {
-			color.Green("return Expr over")
 			pt.workingFunction.statements = append(pt.workingFunction.statements, ReturnStatement{e})
 			return FDef_ParseFuncStatements
 		})
 	} else if tok.Tok == lexer.NewlineToken {
-		color.Green("Newline")
 		return FDef_ParseFuncStatements
 	} else if tok.Tok == lexer.SymbolToken {
-		color.Cyan("Just a standalone expression")
 		return NewParseExpr(func(e Expr) ParseFunc {
 			pt.workingFunction.statements = append(pt.workingFunction.statements, StandaloneExprStatement{e})
 			return FDef_ParseFuncStatements

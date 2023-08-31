@@ -113,10 +113,12 @@ func (i ImportNeedsNameError) SourceError(src []rune) string {
 	return "Import Needs a name. should look like `import \"std\"`"
 }
 
-type ModuleNeedsNameError struct{}
+type ModuleNeedsNameError struct {
+	where util.Range
+}
 
 func (m ModuleNeedsNameError) SourceError(src []rune) string {
-	return "Module Needs a name. If this is the main module try `module main`"
+	return util.HighlightedLine(src, m.where) + "\nModule Needs a name. If this is the main module try `module main`"
 }
 
 type ModuleNameMustBeWordError struct{}

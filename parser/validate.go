@@ -25,6 +25,12 @@ var builtin_functions = map[string]FunctionDefinition{
 }
 
 func Validate(pt *ProgramTree) {
+	for _, e := range pt.errors {
+		color.Red("%s", e.SourceError(pt.src))
+	}
+	if pt.fatal || len(pt.errors) > 0 {
+		return
+	}
 	v_ctx := ValidationContext{
 		current_scopes: util.Stack[Scope]{},
 		pt:             pt,
@@ -102,6 +108,7 @@ type ValidationContext struct {
 
 func (v *ValidationContext) EmitError(err SourceError) {
 	v.errors = append(v.errors, err)
+	v.valid = false
 }
 
 func (v *ValidationContext) EmitWarning(err SourceError) {
@@ -109,17 +116,13 @@ func (v *ValidationContext) EmitWarning(err SourceError) {
 }
 
 func (v ValidationContext) HasName(name FullName) bool {
-	// only one file rn so qualified name doesnt make sense rn
-
-	local_exists := false
 	for _, scope := range v.current_scopes.Reversed() {
 		if scope.HasName(name) {
-			local_exists = true
+			return true
 		}
 
 	}
-
-	return local_exists
+	return false
 }
 
 func (v *ValidationContext) TypeOfName(name FullName) Type {

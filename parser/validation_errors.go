@@ -5,6 +5,14 @@ import (
 	"fmt"
 )
 
+type SourceErrorAdaptor struct {
+	err error
+}
+
+func (s SourceErrorAdaptor) SourceError(src []rune) string {
+	return s.err.Error()
+}
+
 type WrongNumberFunctionArguments struct {
 	expected  int
 	got       int

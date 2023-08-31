@@ -111,7 +111,7 @@ func StringLiteralState(l *LexerInternals) StateFn {
 		l.Emit(StringLiteralToken)
 		return FindingState
 	} else if l.Peek() == '\n' {
-		l.EmitError(UnclosedStringLiteral{l.start, l.position, l})
+		l.EmitError(UnclosedStringLiteral{util.Range{Lo: l.start, Hi: l.position}, l})
 		l.Emit(StringLiteralToken)
 		return FindingState
 	}
@@ -178,13 +178,12 @@ func WordState(l *LexerInternals) StateFn {
 }
 
 type UnclosedStringLiteral struct {
-	start int
-	end   int
+	where util.Range
 	li    *LexerInternals
 }
 
 func (ucl UnclosedStringLiteral) Error() string {
-	return fmt.Sprintf("Unclosed string literal '''%s''' at %d %d", string(ucl.li.src[ucl.start:ucl.end]), ucl.start, ucl.end)
+	return util.HighlightedLine(ucl.li.src, ucl.where) + fmt.Sprintf("\nUnclosed string literal %s", string(ucl.li.src[ucl.where.Lo:ucl.where.Hi]))
 }
 
 type UnknwownCharacterError struct {

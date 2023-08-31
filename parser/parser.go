@@ -161,14 +161,15 @@ func Parse(toks chan lexer.Token, lex_errs chan error, src []rune) ProgramTree {
 		// Read lex errors
 		if len(lex_errs) != 0 {
 			e := <-lex_errs
-			color.Red("Lex Error: %s", e.Error())
-			pt.valid = false
+			color.Red("%s", e.Error())
+			pt.EmitErrorFatal(SourceErrorAdaptor{e})
+
 			return pt
 		}
 
 		if pt.fatal {
 			color.Red("FATAL PARSE ERROR")
-			break
+			return pt
 		}
 
 		// fmt.Println("Token:", tok)
@@ -223,7 +224,6 @@ func ParseExpr(tok lexer.Token, pt *ProgramTree, setter func(e Expr) ParseFunc) 
 		})
 		return NewContinueOrEndExpression(setter)
 	case lexer.SymbolToken:
-		color.Cyan("saw symbol")
 		return NewValueLookupOrFunctionCall(FullName{
 			names: []string{tok.Str},
 			where: tok.Where,
@@ -377,7 +377,6 @@ func ContinueOrEndParamList(tok lexer.Token, pt *ProgramTree) ParseFunc {
 	} else if tok.Tok == lexer.CloseParenToken {
 		return FDef_ParseReturnTypeOrReadBody
 	}
-	color.Blue("ContinueOrEnd")
 	pt.EmitErrorFatal(UnexpectedThingInParameterList{tok.Where})
 	return nil
 }
@@ -396,7 +395,12 @@ func ModuleNamer(tok lexer.Token, pt *ProgramTree) ParseFunc {
 	}
 
 	if tok.Tok == lexer.NewlineToken {
-		pt.EmitError(ModuleNeedsNameError{})
+		pt.EmitError(ModuleNeedsNameError{
+			where: util.Range{
+				Lo: tok.Where.Lo - 1,
+				Hi: tok.Where.Hi - 1,
+			},
+		})
 		return FindingParse
 	}
 	if tok.Tok != lexer.SymbolToken {
