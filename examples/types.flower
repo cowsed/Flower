@@ -9,7 +9,16 @@ type FloatingPoint = f32 or f64
 type Numeric = UnsignedInt or SignedInt or FloatingPoint
 
 
+struct Dimension{
+    MassDim: u8
+    LengthDim: u8
+    TimeDim: u8
+    CurrentDim: u8
+}
 
+type Quantity<comptime Dims: Dimension, type F: FloatingPoint>{
+
+}
 
 
 T MaximumValue(type T: Numeric){
@@ -30,22 +39,41 @@ T MaximumValue(type T: Numeric){
 }
 
 // are ct only because they have type parameters or return types
-fn UintFits(type T: UnsignedInt, i IntegerConstant) -> bool{}
+fn UintFits(type T: UnsignedInt, comptime: i IntegerConstant) -> bool{}
 fn SmallestUintToFit(i IntegerConstant) -> type UnsignedInt{}
 
+type IDType = SmallestUintToFit(260)
 
 
-type Positive(T: Numeric) = T | T >= 0
-type Negative(T: Numeric) = T | T <= 0
+type Positive<T: Numeric> = T | T >= 0
+type Negative<T: Numeric> = T | T <= 0
 
-type StrictlyPositive(T: Numeric) = T | T > 0
-type StrictlyNegative(T: Numeric) = T | T < 0
+type StrictlyPositive<T: Numeric> = T | T > 0
+type StrictlyNegative<T: Numeric> = T | T < 0
 
 
-type Vector(T: Copyable) struct{
+type interface Copyable<T: Any>{
+    (const T).copy() -> T
+}
+
+type interface Movable<T: Any>{
+    T.move(&T)
+}
+
+
+
+type Vector<T: Copyable> struct{
     data: T&
     size: u64
     capacity: u64
+}
+
+fn (const v: Vector<T>) copy() -> Vector<T>{
+    Vector v2 = Vector(v.size, v.capacity)
+    for (const val, i) in v{
+        v2[i] = val
+    }
+    return v2
 }
 
 
@@ -62,22 +90,39 @@ interface Shape{
     Perimeter() -> f64
 }
 
-type interface Collection(T: Any){
-    T.value_type -> type // requires a type called value_type
+
+type interface Collection<T: Any>{
+    type T.value_type // requires a type called value_type
     T.append(T.value_type) // requires append method
     T.operator[](UnsignedInt) -> T.value_type& // requires getting
 }
 
-struct Option(type T: Any){
+struct Option<type T: Any>{
     exists: bool
     value: T
 }
 
-struct Option(type Tref: Reference){
-    value_or_null: Tref
+struct Option<type T: Reference>{
+    value_or_null: T
 }
 
-type Collection(T: Any) require(t: T, arg: T.value_type){
-    T.value_type
-    
+
+
+
+fn RepeatAdd<type T: Numeric>(comptime a: i8, var a: T, var b: T){
+    var s: Numeric = a 
+    for i in 0..a{  // 0 and a are comptime, so that range is comptime. i is defined by range so loop is comptime
+        s += b
+    }
+    return s
+}
+fn Add2(const a: type Numeric, const b: type Numeric){
+
+}
+
+
+
+fn doOp(){
+    Add<f32>(1.0, 2.5)
+    dim := Quantity<{1,2,3,4,5}>
 }

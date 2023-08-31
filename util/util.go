@@ -1,6 +1,9 @@
 package util
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 type Range struct {
 	Lo, Hi int
@@ -16,10 +19,13 @@ func (r *Range) Add(b Range) {
 }
 
 func HighlightedLine(src []rune, where Range) string {
+	line_num := strings.Count(string(src[0:where.Lo]), "\n")
+	line_num_text := fmt.Sprintf("%d |", line_num)
+
 	to_start := HowFarToPrevLine(src, where.Lo) - 1
 	to_end := HowFarToNextLine(src, where.Hi)
-	line := string(src[where.Lo-to_start : where.Hi+to_end])
-	line += "\n" + strings.Repeat(" ", to_start) + strings.Repeat("^", where.Length())
+	line := line_num_text + string(src[where.Lo-to_start:where.Hi+to_end])
+	line += "\n" + strings.Repeat(" ", to_start+len(line_num_text)) + strings.Repeat("^", where.Length())
 	return line
 
 }

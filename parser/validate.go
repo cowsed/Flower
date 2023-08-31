@@ -7,10 +7,54 @@ import (
 	"github.com/fatih/color"
 )
 
+var builtin_functions = map[string]FunctionDefinition{
+	"std.println": {
+		ftype: FunctionType{
+			args: []NamedType{{
+				Type: BuiltinType{
+					Whichone: BuiltinStringType,
+				},
+				name: "str",
+			}},
+			return_type: BuiltinType{
+				Whichone: BuiltinVoidType,
+			},
+		},
+		statements: []Statement{},
+	},
+}
+
 func Validate(pt *ProgramTree) {
 	v_ctx := ValidationContext{
-		pt: pt,
+		current_scopes: util.Stack[Scope]{},
+		pt:             pt,
+		warnings:       []SourceError{},
+		errors:         []SourceError{},
+		valid:          false,
 	}
+
+	global_scope := Scope{
+		vals: map[string]Type{},
+	}
+	for name, f := range pt.global_functions {
+		global_scope.Add(FullNameFromHashKey(name), f.ftype)
+	}
+	for name, f := range builtin_functions {
+		global_scope.Add(FullNameFromHashKey(name), f.ftype)
+	}
+
+	for name, glbl := range pt.globals {
+		global_scope.Add(FullNameFromHashKey(name), glbl.Type(&v_ctx))
+	}
+
+	for name, typ := range pt.global_type_defs {
+		global_scope.Add(FullNameFromHashKey(name), TypeDefinition{typ})
+	}
+
+	fmt.Println("Global Scope: ", global_scope)
+
+	v_ctx.current_scopes.Push(global_scope)
+
 	// name resolution phase
 	for name, f := range pt.global_functions {
 		fmt.Println("Validating", name, " - ", f)
@@ -27,6 +71,14 @@ func Validate(pt *ProgramTree) {
 
 type Scope struct {
 	vals map[string]Type
+}
+
+func (s *Scope) Add(name FullName, t Type) SourceError {
+	if _, exists := s.vals[name.String()]; exists {
+		return DuplicateNameError{name.where}
+	}
+	s.vals[name.String()] = t
+	return nil
 }
 
 func (s Scope) HasName(name FullName) bool {
@@ -58,39 +110,27 @@ func (v *ValidationContext) EmitWarning(err SourceError) {
 
 func (v ValidationContext) HasName(name FullName) bool {
 	// only one file rn so qualified name doesnt make sense rn
-	if len(name.names) > 1 {
-		return false
-	}
-	_, f_exists := v.pt.global_functions[name.names[0]]
-	_, glbl_exists := v.pt.globals[name.names[0]]
 
-	return f_exists || glbl_exists
+	local_exists := false
+	for _, scope := range v.current_scopes.Reversed() {
+		if scope.HasName(name) {
+			local_exists = true
+		}
+
+	}
+
+	return local_exists
 }
 
 func (v *ValidationContext) TypeOfName(name FullName) Type {
-	// only one file rn so qualified name doesnt make sense rn
-	if len(name.names) > 1 {
-		return nil
-	}
-
-	// try scopes
 	for _, scop := range v.current_scopes.Reversed() {
 		for val_name, typ := range scop.vals {
-			if val_name == name.names[0] {
+			if val_name == name.String() {
 				return typ
 			}
 		}
 	}
 
-	// try globals
-	g, glbl_exists := v.pt.globals[name.names[0]]
-	if glbl_exists {
-		return g.Type(v)
-	}
-	f, f_exists := v.pt.global_functions[name.names[0]]
-	if f_exists {
-		return f.ftype
-	}
 	return nil
 
 }

@@ -1,6 +1,29 @@
 package parser
 
-import "Flower/util"
+import (
+	"Flower/util"
+	"fmt"
+)
+
+type WrongNumberFunctionArguments struct {
+	expected  int
+	got       int
+	where     util.Range
+	func_name FullName
+	func_typ  FunctionType
+}
+
+func (w WrongNumberFunctionArguments) SourceError(src []rune) string {
+	return util.HighlightedLine(src, w.where) + fmt.Sprintf("\nI expected %d arguments to %s but I got %d. %s%s", w.expected, w.func_name.String(), w.got, w.func_name.String(), w.func_typ.String())
+}
+
+type DuplicateNameError struct {
+	where util.Range
+}
+
+func (d DuplicateNameError) SourceError(src []rune) string {
+	return util.HighlightedLine(src, d.where) + "\nDuplicate name defined secondly here"
+}
 
 type WrongTypeForFunctionArgument struct {
 	where          util.Range

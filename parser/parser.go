@@ -22,9 +22,32 @@ func (fd FunctionDefinition) String() string {
 }
 
 func (f FunctionDefinition) Validate(ctx *ValidationContext) {
+	// add function arguments
+	func_scope := Scope{
+		vals: map[string]Type{},
+	}
+
+	// TODO make arg.name a FullName
+	for _, arg := range f.ftype.args {
+		fmt.Println("Arg", arg)
+		func_scope.vals[arg.name] = arg.Type
+		func_scope.Add(FullName{
+			names: []string{arg.name},
+			where: util.Range{},
+		}, arg.Type)
+	}
+	num_scopes_before := ctx.current_scopes.Size()
+	ctx.current_scopes.Push(func_scope)
+
+	fmt.Println("func scope: ", func_scope)
 	for _, statement := range f.statements {
 		statement.Validate(ctx)
 	}
+	ctx.current_scopes.Pop()
+	if num_scopes_before != ctx.current_scopes.Size() {
+		panic("Terrible terrible news")
+	}
+
 	// TODO  insure type of return statement matches that of function signature
 }
 
@@ -34,7 +57,7 @@ type ProgramTree struct {
 
 	// All globals are order independent
 	globals          map[string]Expr
-	global_structs   map[string]RecordType
+	global_type_defs map[string]RecordType
 	global_functions map[string]FunctionDefinition
 
 	workingName     string
@@ -121,7 +144,7 @@ func Parse(toks chan lexer.Token, lex_errs chan error, src []rune) ProgramTree {
 		module_name:       "",
 		imports:           []string{},
 		globals:           map[string]Expr{},
-		global_structs:    map[string]RecordType{},
+		global_type_defs:  map[string]RecordType{},
 		global_functions:  map[string]FunctionDefinition{},
 		workingName:       "",
 		workingFunction:   FunctionDefinition{},

@@ -6,6 +6,7 @@ type ReturnStatement struct {
 
 func (r ReturnStatement) Validate(ctx *ValidationContext) {
 	r.value.Validate(ctx)
+	// TODO check that r.value's type matches current function
 }
 
 func (r ReturnStatement) String() string {

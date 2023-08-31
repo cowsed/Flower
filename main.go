@@ -18,8 +18,8 @@ fn add(a: u8, b: u8) -> u8{
 }
 
 fn main(b: u16) -> u16 {
-    std.println("b = {}", b)
-    return add(2, add(1, "a"))
+    std.println("b = {}")
+    return add(2, add(1, 3))
 }
 `
 

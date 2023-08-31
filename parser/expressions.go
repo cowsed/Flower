@@ -3,6 +3,7 @@ package parser
 import (
 	"Flower/util"
 	"fmt"
+	"strings"
 )
 
 type Expr interface {
@@ -19,6 +20,23 @@ var _ Expr = NameLookup{}
 type FullName struct {
 	names []string
 	where util.Range
+}
+
+func FullNameFromHashKey(str string) FullName {
+	names := strings.Count(str, ".") + 1
+	fn := FullName{
+		names: make([]string, 0, names),
+		where: util.Range{},
+	}
+	for _, name := range strings.Split(str, ".") {
+		fn.names = append(fn.names, name)
+	}
+	return fn
+
+}
+
+func (fn FullName) HashKey() string {
+	return fn.String()
 }
 
 func (fn FullName) String() string {
@@ -141,12 +159,26 @@ func (func_call FunctionCall) Validate(ctx *ValidationContext) {
 		return
 	}
 	typ := ctx.TypeOfName(func_call.name)
-	func_def := typ.(FunctionType)
+	if typ == nil {
+		panic("has name and type of name contradict, compiler error")
+	}
+	fmt.Println(func_call.name, typ)
+	func_typ := typ.(FunctionType)
 
 	for i, arg := range func_call.args {
+		if i >= len(func_typ.args) {
+			ctx.EmitError(WrongNumberFunctionArguments{
+				expected:  len(func_typ.args),
+				got:       len(func_call.args),
+				where:     func_call.Where(),
+				func_name: func_call.name,
+				func_typ:  func_typ,
+			})
+			break
+		}
 		arg.Validate(ctx)
 
-		canbe, operation, err, warning := CanBeImplicitlyConvertedToType(arg.Type(ctx), func_def.args[i].Type, arg, ctx)
+		canbe, operation, err, warning := CanBeImplicitlyConvertedToType(arg.Type(ctx), func_typ.args[i].Type, arg, ctx)
 		if warning != nil {
 			ctx.EmitWarning(warning)
 		}
@@ -159,7 +191,7 @@ func (func_call FunctionCall) Validate(ctx *ValidationContext) {
 		if !canbe {
 			ctx.EmitError(WrongTypeForFunctionArgument{
 				where:  arg.Where(),
-				wanted: func_def.args[i].Type,
+				wanted: func_typ.args[i].Type,
 				actual: arg.Type(ctx),
 			})
 		}

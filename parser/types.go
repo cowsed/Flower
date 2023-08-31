@@ -8,6 +8,14 @@ type Type interface {
 	String() string
 }
 
+type TypeDefinition struct {
+	typ Type
+}
+
+func (t TypeDefinition) String() string {
+	return "typedef(" + t.typ.String() + ")"
+}
+
 func CanBeImplicitlyConvertedToType(from Type, to Type, from_expr Expr, ctx *ValidationContext) (bool, Expr, SourceError, SourceError) {
 	from_builtin, from_is := from.(BuiltinType)
 	to_builtin, to_is := to.(BuiltinType)
@@ -79,6 +87,15 @@ type RecordType struct {
 	fields []NamedType
 }
 
+func (rt RecordType) String() string {
+	s := "struct{\n"
+	for _, field := range rt.fields {
+		s += field.name + ": " + field.Type.String() + "\n"
+	}
+	s += "}"
+	return s
+}
+
 type BuiltinTypeType uint
 
 const (
@@ -99,6 +116,7 @@ const (
 	BuiltinUnconstrainedIntType
 
 	BuiltinStringType
+	BuiltinVoidType
 )
 
 type BuiltinType struct {
@@ -106,7 +124,7 @@ type BuiltinType struct {
 }
 
 func (b BuiltinType) String() string {
-	return []string{"UnknownBuiltinType", "BuiltinBooleanType", "BuiltinU8Type", "BuiltinU16Type", "BuiltinU32Type", "BuiltinU64Type", "BuiltinI8Type", "BuiltinI16Type", "BuiltinI32Type", "BuiltinI64Type", "BuiltinUnconstrainedIntType", "BuiltinStringType"}[b.Whichone]
+	return []string{"UnknownBuiltinType", "BuiltinBooleanType", "BuiltinU8Type", "BuiltinU16Type", "BuiltinU32Type", "BuiltinU64Type", "BuiltinI8Type", "BuiltinI16Type", "BuiltinI32Type", "BuiltinI64Type", "BuiltinUnconstrainedIntType", "BuiltinStringType", "BuiltinVoidType"}[b.Whichone]
 
 }
 
