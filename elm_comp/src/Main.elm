@@ -81,6 +81,18 @@ type Token
     | CloseParen
 
 
+syntaxify_literal lt str =
+    case lt of
+        StringLiteral ->
+            "\"" ++ str ++ "\""
+
+        BooleanLiteral ->
+            str
+
+        NumberLiteral ->
+            str
+
+
 syntaxify_token : Token -> String
 syntaxify_token tok =
     case tok of
@@ -103,7 +115,7 @@ syntaxify_token tok =
             ")"
 
         Literal lt str ->
-            str
+            syntaxify_literal lt str
 
         TypeSpecifier ->
             ": "
@@ -410,4 +422,4 @@ main =
         syn =
             lex input |> List.map syntaxify_token |> String.join ""
     in
-    pre [] [ text tokstr ]
+    pre [] [ text syn ]
