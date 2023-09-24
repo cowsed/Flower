@@ -13,8 +13,8 @@ import "std"
 import "math"
 
 
-fn add(a: u8, b: u8) -> u8{
-    return a
+fn add(a: u8, b: u8) -> u16{
+    return u16(a)
 }
 
 fn main(b: u16) -> u16 {

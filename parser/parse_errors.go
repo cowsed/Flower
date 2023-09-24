@@ -5,8 +5,10 @@ import (
 	"fmt"
 )
 
-type SourceError interface {
-	SourceError(src []rune) string
+type UnexpectedEOF struct{}
+
+func (u UnexpectedEOF) SourceError(src []rune) string {
+	return "File ended where I did not expect it ¯\\_(ツ)_/¯"
 }
 
 type TooManyExpressions struct {

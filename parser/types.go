@@ -16,7 +16,7 @@ func (t TypeDefinition) String() string {
 	return "typedef(" + t.typ.String() + ")"
 }
 
-func CanBeImplicitlyConvertedToType(from Type, to Type, from_expr Expr, ctx *ValidationContext) (bool, Expr, SourceError, SourceError) {
+func CanBeImplicitlyConvertedToType(from Type, to Type, from_expr Expr, ctx *ValidationContext) (bool, Expr, util.SourceError, util.SourceError) {
 	from_builtin, from_is := from.(BuiltinType)
 	to_builtin, to_is := to.(BuiltinType)
 
@@ -28,7 +28,7 @@ func CanBeImplicitlyConvertedToType(from Type, to Type, from_expr Expr, ctx *Val
 	return false, nil, nil, nil
 }
 
-func BuiltinCanBeConvertedTo(from BuiltinType, to BuiltinType, from_expr Expr) (bool, Expr, SourceError, SourceError) {
+func BuiltinCanBeConvertedTo(from BuiltinType, to BuiltinType, from_expr Expr) (bool, Expr, util.SourceError, util.SourceError) {
 	if from.Whichone == to.Whichone {
 		return true, nil, nil, nil
 	}
@@ -130,15 +130,6 @@ func (b BuiltinType) String() string {
 
 type PointerType struct {
 	To Type
-}
-
-type MutableType struct {
-	base Type
-}
-
-type ConstrainedType struct {
-	To         Type
-	Constraint Expr
 }
 
 type InterfaceType struct{}

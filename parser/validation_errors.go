@@ -39,14 +39,39 @@ type WrongTypeForFunctionArgument struct {
 }
 
 func (w WrongTypeForFunctionArgument) SourceError(src []rune) string {
-	return util.HighlightedLine(src, w.where) + "\nWrong type for function application. Wanted `" + w.wanted.String() + "` but got `" + w.actual.String() + "`"
+	return util.HighlightedLine(src, w.where) + "\nWrong type for function application. Wanted `" + w.wanted.String() + "` but got `" + w.actual.String() + "`. err:WrongTypeForFunctionArgument"
+}
+
+type NameLookupType int
+
+const (
+	UnspecifiedLookupType NameLookupType = iota
+	VariableLookupType
+	FunctionLookupType
+	TypeLookupType
+)
+
+func (n NameLookupType) String() string {
+	switch n {
+	case UnspecifiedLookupType:
+		return "Unspecified"
+	case VariableLookupType:
+		return "Variable"
+	case FunctionLookupType:
+		return "Function"
+	case TypeLookupType:
+		return "Type"
+	}
+	return "AHHHAHAHAHAH"
 }
 
 type NameLookupFailed struct {
-	name  FullName
-	where util.Range
+	looking_for NameLookupType
+	name        FullName
+	where       util.Range
 }
 
 func (n NameLookupFailed) SourceError(src []rune) string {
-	return util.HighlightedLine(src, n.where) + "\ncould not find name `" + n.name.String() + "`"
+	t := n.looking_for.String()
+	return util.HighlightedLine(src, n.where) + "\ncould not find name `" + n.name.String() + "`. I was looking for " + t + " err:NameLookupFailed"
 }

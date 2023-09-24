@@ -2,8 +2,6 @@ package parser
 
 import (
 	"Flower/lexer"
-
-	"github.com/fatih/color"
 )
 
 // =============== Signature ===============
@@ -69,7 +67,6 @@ func FDef_ParseReturnTypeOrReadBody(tok lexer.Token, pt *ProgramTree) ParseFunc 
 // ===============   Function Body  ===============
 func FDef_ParseFuncBodyOpenCurly(tok lexer.Token, pt *ProgramTree) ParseFunc {
 	if tok.Tok == lexer.OpenCurlyToken {
-		color.Green("start func body")
 		return FDef_ParseFuncStatements
 	}
 	pt.EmitErrorFatal(UnexpectedThingInReturn{tok.Where})
@@ -80,7 +77,6 @@ func FDef_ParseFuncStatements(tok lexer.Token, pt *ProgramTree) ParseFunc {
 	if tok.Tok == lexer.CloseCurlyToken {
 		// finished
 		pt.global_functions[pt.workingName] = pt.workingFunction
-		color.Green("finished parsing func %s", pt.workingName)
 
 		pt.workingFunction = FunctionDefinition{}
 		pt.workingName = ""

@@ -5,6 +5,10 @@ import (
 	"strings"
 )
 
+type SourceError interface {
+	SourceError(src []rune) string
+}
+
 type Range struct {
 	Lo, Hi int
 }

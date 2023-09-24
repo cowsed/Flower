@@ -9,8 +9,22 @@ import (
 )
 
 type FunctionDefinition struct {
+	fname      FullName
 	ftype      FunctionType
 	statements []Statement
+}
+
+func (fd FunctionDefinition) HashName() string {
+	s := fd.fname.String()
+	s += "("
+	for i, arg := range fd.ftype.args {
+		if i > 0 {
+			s += ", "
+		}
+		s += arg.Type.String()
+	}
+	s += ")"
+	return s
 }
 
 func (fd FunctionDefinition) String() string {
@@ -24,12 +38,11 @@ func (fd FunctionDefinition) String() string {
 func (f FunctionDefinition) Validate(ctx *ValidationContext) {
 	// add function arguments
 	func_scope := Scope{
-		vals: map[string]Type{},
+		vals:  map[string]Type{},
+		names: map[string]string{},
 	}
 
-	// TODO make arg.name a FullName
 	for _, arg := range f.ftype.args {
-		fmt.Println("Arg", arg)
 		func_scope.vals[arg.name] = arg.Type
 		func_scope.Add(FullName{
 			names: []string{arg.name},
@@ -39,7 +52,6 @@ func (f FunctionDefinition) Validate(ctx *ValidationContext) {
 	num_scopes_before := ctx.current_scopes.Size()
 	ctx.current_scopes.Push(func_scope)
 
-	fmt.Println("func scope: ", func_scope)
 	for _, statement := range f.statements {
 		statement.Validate(ctx)
 	}
@@ -68,7 +80,7 @@ type ProgramTree struct {
 	src []rune
 
 	fatal  bool
-	errors []SourceError
+	errors []util.SourceError
 	valid  bool
 }
 
@@ -82,7 +94,6 @@ func (pt *ProgramTree) FinishFuncCall(where util.Range) {
 		}
 
 		end := pt.workingExpression.Pop()
-		fmt.Printf("Arg: %T: %+v\n", end, end)
 		switch e := end.(type) {
 		case FunctionCall:
 			if e.closed {
@@ -94,7 +105,6 @@ func (pt *ProgramTree) FinishFuncCall(where util.Range) {
 				e.closed = true
 				pt.workingExpression.Push(e)
 				e.where = fcall_range
-				fmt.Println("end")
 				return
 			}
 		default:
@@ -127,11 +137,11 @@ func (pt ProgramTree) Print(src []rune) {
 	}
 }
 
-func (pt *ProgramTree) EmitError(err SourceError) {
+func (pt *ProgramTree) EmitError(err util.SourceError) {
 	pt.errors = append(pt.errors, err)
 	pt.valid = false
 }
-func (pt *ProgramTree) EmitErrorFatal(err SourceError) {
+func (pt *ProgramTree) EmitErrorFatal(err util.SourceError) {
 	pt.errors = append(pt.errors, err)
 	pt.valid = false
 	pt.fatal = true
@@ -151,7 +161,7 @@ func Parse(toks chan lexer.Token, lex_errs chan error, src []rune) ProgramTree {
 		workingExpression: util.Stack[Expr]{},
 		src:               src,
 		fatal:             false,
-		errors:            []SourceError{},
+		errors:            []util.SourceError{},
 		valid:             true,
 	}
 
@@ -172,10 +182,9 @@ func Parse(toks chan lexer.Token, lex_errs chan error, src []rune) ProgramTree {
 			return pt
 		}
 
-		// fmt.Println("Token:", tok)
-
 		if tok.Tok == lexer.EOFToken && state != nil {
 			// ended halfway through
+			pt.EmitErrorFatal(UnexpectedEOF{})
 		} else if state != nil {
 			state = state(tok, &pt)
 		} else {
@@ -198,7 +207,6 @@ func ParseExpr(tok lexer.Token, pt *ProgramTree, setter func(e Expr) ParseFunc) 
 	switch tok.Tok {
 	// number
 	case lexer.NumberLiteralToken:
-		color.Yellow("saw Number Literal")
 		pt.workingExpression.Push(LiteralExpr{
 			literalType: NumberLiteralType,
 			str:         tok.Str,
@@ -242,7 +250,6 @@ func NewValueLookupOrFunctionCall(name_so_far FullName, setter func(e Expr) Pars
 
 func ValueLookupOrFunctionCall(tok lexer.Token, pt *ProgramTree, name_so_far FullName, setter func(e Expr) ParseFunc) ParseFunc {
 	if tok.Tok == lexer.OpenParenToken {
-		color.Yellow("was function call")
 		pt.workingExpression.Push(FunctionCall{
 			name:   name_so_far,
 			args:   []Expr{},
@@ -260,8 +267,10 @@ func ValueLookupOrFunctionCall(tok lexer.Token, pt *ProgramTree, name_so_far Ful
 		return NewGrowFullName(name_so_far, setter)
 
 	}
-	color.Cyan("Finished looking at name. not function or longer")
-	pt.workingExpression.Push(NameLookup{name_so_far})
+	pt.workingExpression.Push(NameLookup{
+		name:        name_so_far,
+		looking_for: VariableLookupType,
+	})
 	return NewContinueOrEndExpression(setter)(tok, pt)
 }
 

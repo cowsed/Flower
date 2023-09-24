@@ -1,0 +1,61 @@
+struct Slice<T: Any>{
+
+    len: size_t
+    cap: size_t
+    data: unsafe_ptr<T>
+};
+
+
+pub (const s:  &Slice) size() -> size_t{
+    return s.len;
+}
+
+pub (var s:  &Slice<T>) operator[](idx: size_t | idx < s.size()) -> &T{
+    return unsafe_ptr_array_access<T>(s.data, idx);
+}
+
+
+
+fn get_last1<T>(const s: Slice<T>) -> option<T>{
+    if s.size() < 1{
+        return {}
+    }
+    return s[s.size()-1]
+}
+
+fn get_last<T>(const s: Slice<T> | s.size() > 0) -> T{
+    return s[s.size()-1];
+}
+
+fn main(){
+    var s: Slice<u8> = {0, 1, 2, 3, 4, 5};
+
+    s[0] = 255;
+    var zero: &u8 = s[0];
+
+    s.append(6);
+
+    zero = 1; // error: use of `zero`, s.append(6) invalidates reference to s. (would be dangling reference if s.data had to be reallocated somewhere else)
+    s[0] = 1; // OK
+
+
+
+    const idx: size_t = s.size() - 1; // error, could underflow (naively, if can be traced to be impossible (in this case, no need to warn))
+    const idx: size_t = min(s.size() - 1, 0); // will detect underflow and choose 0 instead: implementation. test if s.size() is 0 (this is the general case where s.size() cant be traced)
+ 
+    var end: u8 = s[idx]; // ok idx < s.size();
+
+    s.erase(0);
+
+    var end2: u8 = s[idx]; // idx is no longer valid
+
+    // pretend this is has no knowledge of the creation of s
+    var last1: option<u8> = get_last1(s);
+    var last2: u8 = get_last2(s); // error, s does not fulfill requirement of get_last2 that s.size() > 0
+
+    if (s.size() == 0){
+        println("s is empty, doesnt have a last elememt");
+    } else {
+        var last2: u8 = get_last2(s); // good, requirement satisfied
+    }
+}

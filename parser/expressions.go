@@ -28,9 +28,8 @@ func FullNameFromHashKey(str string) FullName {
 		names: make([]string, 0, names),
 		where: util.Range{},
 	}
-	for _, name := range strings.Split(str, ".") {
-		fn.names = append(fn.names, name)
-	}
+
+	fn.names = append(fn.names, strings.Split(str, ".")...)
 	return fn
 
 }
@@ -50,7 +49,8 @@ func (fn FullName) String() string {
 }
 
 type NameLookup struct {
-	name FullName
+	name        FullName
+	looking_for NameLookupType
 }
 
 func (nl NameLookup) Where() util.Range {
@@ -64,8 +64,9 @@ func (nl NameLookup) Indent(indent string) string {
 func (nl NameLookup) Validate(ctx *ValidationContext) {
 	if !ctx.HasName(nl.name) {
 		ctx.EmitError(NameLookupFailed{
-			name:  nl.name,
-			where: nl.name.where,
+			looking_for: nl.looking_for,
+			name:        nl.name,
+			where:       nl.name.where,
 		})
 	}
 }
@@ -73,8 +74,9 @@ func (nl NameLookup) Validate(ctx *ValidationContext) {
 func (nl NameLookup) Type(ctx *ValidationContext) Type {
 	if !ctx.HasName(nl.name) {
 		ctx.EmitError(NameLookupFailed{
-			name:  nl.name,
-			where: nl.name.where,
+			looking_for: nl.looking_for,
+			name:        nl.name,
+			where:       nl.name.where,
 		})
 	}
 	return ctx.TypeOfName(nl.name)
@@ -140,8 +142,9 @@ func (fc FunctionCall) Where() util.Range {
 func (fc FunctionCall) Type(ctx *ValidationContext) Type {
 	if !ctx.HasName(fc.name) {
 		ctx.EmitError(NameLookupFailed{
-			name:  fc.name,
-			where: fc.name.where,
+			looking_for: FunctionLookupType,
+			name:        fc.name,
+			where:       fc.name.where,
 		})
 	}
 	typ := ctx.TypeOfName(fc.name)
@@ -150,32 +153,50 @@ func (fc FunctionCall) Type(ctx *ValidationContext) Type {
 	return ft.return_type
 }
 
+func is_builtin_cast(f FullName) bool {
+	if len(f.names) > 1 {
+		return false
+	}
+	switch f.names[0] {
+	case "u8", "u16", "u32", "u64":
+		return true
+	case "i8", "i16", "i32", "i64":
+		return true
+	case "f32", "f64":
+		return true
+	}
+	return false
+}
+
 func (func_call FunctionCall) Validate(ctx *ValidationContext) {
+
 	if !ctx.HasName(func_call.name) {
 		ctx.EmitError(NameLookupFailed{
-			name:  func_call.name,
-			where: func_call.name.where,
+			looking_for: FunctionLookupType,
+			name:        func_call.name,
+			where:       func_call.name.where,
 		})
 		return
 	}
+
 	typ := ctx.TypeOfName(func_call.name)
 	if typ == nil {
 		panic("has name and type of name contradict, compiler error")
 	}
-	fmt.Println(func_call.name, typ)
 	func_typ := typ.(FunctionType)
 
+	if len(func_call.args) != len(func_typ.args) {
+		ctx.EmitError(WrongNumberFunctionArguments{
+			expected:  len(func_typ.args),
+			got:       len(func_call.args),
+			where:     func_call.Where(),
+			func_name: func_call.name,
+			func_typ:  func_typ,
+		})
+		return
+	}
+
 	for i, arg := range func_call.args {
-		if i >= len(func_typ.args) {
-			ctx.EmitError(WrongNumberFunctionArguments{
-				expected:  len(func_typ.args),
-				got:       len(func_call.args),
-				where:     func_call.Where(),
-				func_name: func_call.name,
-				func_typ:  func_typ,
-			})
-			break
-		}
 		arg.Validate(ctx)
 
 		canbe, operation, err, warning := CanBeImplicitlyConvertedToType(arg.Type(ctx), func_typ.args[i].Type, arg, ctx)

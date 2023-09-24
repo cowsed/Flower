@@ -1,0 +1,11 @@
+var num_players: u64 = 0
+
+
+fn add_player(){
+    // global variable. insert synchronization
+    num_players++
+}
+fn remove_player(){
+    // global variable. insert synchronization. only way to tell though is to ask the compiler
+    num_players--
+}

@@ -46,6 +46,12 @@ func (l *LexerInternals) Get() string {
 func FindingState(l *LexerInternals) StateFn {
 	// We're done :)
 	if l.position == len(l.src) {
+		*l.toks <- Token{
+			Tok:   EOFToken,
+			Str:   "",
+			Where: util.Range{},
+		}
+
 		close(*l.toks)
 		close(*l.errs)
 		return nil
