@@ -1,19 +1,13 @@
 module Main exposing (..)
 
-import Browser.Navigation exposing (Key)
-import Html exposing (pre, text)
-import Html.Attributes exposing (style)
+-- import Browser.Navigation exposing (Key)
+import Html exposing (Attribute, pre, text)
+import Html.Attributes as Attributes exposing (style, wrap)
 import Language exposing (Expression, KeywordType(..), LiteralType, Type)
 import Lexer
+import Parser
+
 import Util
-
-
-
-
-
-
-
-
 
 
 input_view : Int -> Int -> Util.SourceView
@@ -21,26 +15,12 @@ input_view =
     Util.SourceView input
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 input : String
 input =
-    """module main
+    """//example dude
+module main
+// importing the standard library
 import "std"
-@property(addable)
 fn add(a: u8, b: u8) -> u8{
     return a + b
 }
@@ -53,17 +33,81 @@ fn main(){
 """
 
 
+type CompilerError
+    = Lex Lexer.Error
+    | Parse Parser.Error
+
+
+htmlify_output : Result CompilerError Parser.Program -> Html.Html msg
+htmlify_output res =
+    case res of
+        Err ce ->
+            case ce of
+                Lex le ->
+                    Lexer.explain_error le
+
+                Parse pe ->
+                    Parser.explain_error pe
+
+        Ok prog ->
+            Parser.explain_program prog
+
+
+wrap_lexer_output : Result Lexer.Error (List Lexer.Token) -> Result CompilerError (List Lexer.Token)
+wrap_lexer_output res =
+    case res of
+        Err e ->
+            Err (Lex e)
+
+        Ok toks ->
+            Ok toks
+
+
+wrap_parser_output : Result Parser.Error Parser.Program -> Result CompilerError Parser.Program
+wrap_parser_output res =
+    case res of
+        Err e ->
+            Err (Parse e)
+
+        Ok prog ->
+            Ok prog
+
+
 main : Html.Html msg
 main =
     let
-        -- tokstr =
-        -- lex input |> List.map token_to_str |> String.join " "
-        syn_html =
-            case Lexer.lex input of
+        lex_result =
+            Lexer.lex input |> wrap_lexer_output
+
+        pretty_toks =
+            case lex_result of
                 Ok toks ->
-                    pre [] [ text (List.map Lexer.syntaxify_token toks |> String.join "") ]
+                    Html.pre [  ] (toks |>List.map Lexer.token_to_str |> List.map (\x -> (x++"\n")) |>List.map Html.text )
 
                 Err e ->
-                    Lexer.explain_lex_error e
+                    Html.pre [] [ text "N/A" ]
+
+        -- parse_result : Result CompilerError Parser.Program
+        -- parse_result =
+        --     case lex_result of
+        --         Err e ->
+        --             Err (Lex e)
+        --         Ok toks ->
+        --             case Parser.parse toks of
+        --                 Err e ->
+        --                     Err (Parse e)
+        --                 Ok prog -> Ok prog
+        parse: List Lexer.Token -> Result CompilerError Parser.Program
+        parse toks =
+            Parser.parse toks |> wrap_parser_output
+
+        result : Result CompilerError Parser.Program
+        result =
+            lex_result |> Result.andThen parse
     in
-    syn_html
+    Html.div []
+        [ Util.collapsable "Tokens" (pretty_toks)
+        , htmlify_output result
+        , Html.hr [] []
+        , Html.pre [] [Html.text input]
+        ]

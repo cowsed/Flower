@@ -1,6 +1,13 @@
 module Util exposing (..)
 
+import Html
+import Html.Attributes
 import Language
+
+
+collapsable : String -> Html.Html msg -> Html.Html msg
+collapsable title internals =
+    Html.details [Html.Attributes.style "background-color" "gray" ] [ Html.summary [] [ Html.text title ] , internals]
 
 
 type alias SourceView =
@@ -14,6 +21,11 @@ last_el : List a -> Maybe a
 last_el l =
     List.head (List.drop (List.length l - 1) l)
 
+always_tail: List a -> List a
+always_tail l = 
+    case List.tail l of
+        Just l2 -> l2
+        Nothing -> []
 
 show_source_view : SourceView -> String
 show_source_view sv =
@@ -32,6 +44,12 @@ show_source_view sv =
                 Nothing ->
                     0
 
+        line_pos =
+            sv.start - front
+
+        shown_len =
+            sv.end - sv.start
+
         line_num =
             List.length in_front_newlines + 1
 
@@ -45,8 +63,14 @@ show_source_view sv =
 
                 Nothing ->
                     String.length sv.src
+
+        prefix =
+            String.fromInt line_num ++ " | "
+
+        marker_line =
+            "\n" ++ String.repeat (line_pos + String.length prefix - 1) " " ++ String.repeat shown_len "^"
     in
-    String.fromInt line_num ++ " | " ++ String.slice (front + 1) end sv.src
+    prefix ++ String.slice (front + 1) end sv.src ++ marker_line
 
 
 addchar : String -> Char -> String

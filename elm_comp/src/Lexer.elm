@@ -6,7 +6,13 @@ import Language exposing (KeywordType(..), LiteralType)
 import Util
 
 
-type Token
+type alias Token =
+    { loc : Util.SourceView
+    , typ : TokenType
+    }
+
+
+type TokenType
     = Keyword KeywordType
     | Symbol String
     | Literal LiteralType String
@@ -23,22 +29,35 @@ type Token
     | CloseCurly
     | OpenParen
     | CloseParen
+    | CommentToken String
+
+
+lex : String -> Result Error (List Token)
+lex str =
+    let
+        input_view =
+            Util.SourceView str
+    in
+    String.toList str |> rec_lex begin_lex input_view 0
 
 
 type LexRes
     = Tokens (List Token) LexFn
-    | Error LexError
+    | Error Error
 
 
-type LexError
+type Error
     = UnknownCharacter Util.SourceView Char
 
 
-explain_lex_error : LexError -> Html.Html msg
-explain_lex_error e =
+explain_error : Error -> Html.Html msg
+explain_error e =
     case e of
         UnknownCharacter sv c ->
-            pre [ style "color" "red" ] [ text ((Util.addchar "Unknown character: " c)++"\n"++ Util.show_source_view sv)]
+            Html.div []
+                [ Html.h1 [] [ text "Lexer Error" ]
+                , pre [ style "color" "red" ] [ text (Util.addchar "Unknown character: " c ++ "\n" ++ Util.show_source_view sv) ]
+                ]
 
 
 type LexFn
@@ -47,6 +66,8 @@ type LexFn
 
 type alias LexStepInfo =
     { input_view : Int -> Int -> Util.SourceView
+    , view_from_start : Int -> Util.SourceView
+    , view_this : Util.SourceView
     , pos : Int
     , char : Char
     }
@@ -59,13 +80,15 @@ call_lexfn lf lsi =
             f lsi
 
 
-rec_lex : LexFn -> (Int -> Int -> Util.SourceView) -> Int -> List Char -> Result LexError (List Token)
+rec_lex : LexFn -> (Int -> Int -> Util.SourceView) -> Int -> List Char -> Result Error (List Token)
 rec_lex lf iv pos cs =
     case List.head cs of
         Just c ->
             let
                 lsi =
                     { input_view = iv
+                    , view_from_start = \s -> iv s pos
+                    , view_this = iv pos (pos + 1)
                     , pos = pos
                     , char = c
                     }
@@ -95,15 +118,6 @@ rec_lex lf iv pos cs =
             Ok []
 
 
-lex : String -> Result LexError (List Token)
-lex str =
-    let
-        input_view =
-            Util.SourceView str
-    in
-    String.toList str |> rec_lex begin_lex input_view 0
-
-
 
 -- often you have to peek ahead at a character to know if your token is done
 -- once you do that you have to handle that character cuz returning will just skip it
@@ -126,23 +140,22 @@ apply_again my_toks next_lf lsi =
             Debug.todo "branch 'Error _' not implemented"
 
 
-lex_integer : String -> LexStepInfo -> LexRes
-lex_integer sofar lsi=
+lex_integer : Int -> String -> LexStepInfo -> LexRes
+lex_integer start sofar lsi =
     if Char.isDigit lsi.char then
-        Tokens [] (LexFn (lex_integer (Util.addchar sofar lsi.char)))
+        Tokens [] (LexFn (lex_integer start (Util.addchar sofar lsi.char)))
 
     else
-        -- YesToken (Literal NumberLiteral sofar) begin_lex
-        apply_again [ Literal Language.NumberLiteral sofar ] begin_lex lsi
+        apply_again [ Token (lsi.view_from_start start) (Literal Language.NumberLiteral sofar) ] begin_lex lsi
 
 
-lex_symbol : String -> LexStepInfo -> LexRes
-lex_symbol sofar lsi =
+lex_symbol : Int -> String -> LexStepInfo -> LexRes
+lex_symbol start sofar lsi =
     if Char.isAlphaNum lsi.char then
-        Tokens [] (LexFn (lex_symbol (Util.addchar sofar lsi.char)))
+        Tokens [] (LexFn (lex_symbol start (Util.addchar sofar lsi.char)))
 
     else
-        apply_again [ symbol_or_keyword sofar ] begin_lex lsi
+        apply_again [ Token (lsi.view_from_start start) (symbol_or_keyword sofar) ] begin_lex lsi
 
 
 
@@ -154,22 +167,44 @@ begin_lex =
     LexFn lex_unknown
 
 
-lex_minus_or_return : LexStepInfo -> LexRes
-lex_minus_or_return lsi =
+lex_minus_or_return : Int -> LexStepInfo -> LexRes
+lex_minus_or_return start lsi =
     if lsi.char == '>' then
-        Tokens [ ReturnSpecifier ] begin_lex
+        Tokens [ Token (lsi.input_view start (start + 2)) ReturnSpecifier ] begin_lex
 
     else
-        apply_again [ MinusToken ] begin_lex lsi
+        apply_again [ Token (lsi.input_view start (start + 1)) ReturnSpecifier ] begin_lex lsi
 
 
-lex_string_literal : String -> LexStepInfo -> LexRes
-lex_string_literal sofar lsi =
+lex_rest_of_comment : Int -> String -> LexStepInfo -> LexRes
+lex_rest_of_comment start sofar lsi =
+    if lsi.char == '\n' then
+        Tokens
+            [ Token (lsi.input_view start (start + lsi.pos - 1)) (CommentToken sofar)
+            , Token (lsi.input_view lsi.pos (lsi.pos + 1)) NewlineToken
+            ]
+            begin_lex
+
+    else
+        Tokens [] (LexFn (lex_rest_of_comment start (Util.addchar sofar lsi.char)))
+
+
+lex_divide_or_comment : LexStepInfo -> LexRes
+lex_divide_or_comment lsi =
+    if lsi.char == '/' then
+        Tokens [] (LexFn (lex_rest_of_comment (lsi.pos - 1) ""))
+
+    else
+        apply_again [ Token (lsi.input_view (lsi.pos - 1) lsi.pos) DivideToken ] begin_lex lsi
+
+
+lex_string_literal : Int -> String -> LexStepInfo -> LexRes
+lex_string_literal start sofar lsi =
     if lsi.char == '"' then
-        Tokens [ Literal Language.StringLiteral sofar ] begin_lex
+        Tokens [ Token (lsi.view_from_start start) (Literal Language.StringLiteral sofar) ] begin_lex
 
     else
-        Tokens [] (LexFn (lex_string_literal (Util.addchar sofar lsi.char)))
+        Tokens [] (LexFn (lex_string_literal start (Util.addchar sofar lsi.char)))
 
 
 lex_unknown : LexStepInfo -> LexRes
@@ -182,52 +217,52 @@ lex_unknown lsi =
         Tokens [] begin_lex
 
     else if c == '\n' then
-        Tokens [ NewlineToken ] begin_lex
+        Tokens [ Token lsi.view_this NewlineToken ] begin_lex
 
     else if Char.isAlpha c then
-        Tokens [] (LexFn (lex_symbol (String.fromChar c)))
+        Tokens [] (LexFn (lex_symbol lsi.pos (String.fromChar c)))
 
     else if Char.isDigit c then
-        Tokens [] (LexFn (lex_integer (String.fromChar c)))
+        Tokens [] (LexFn (lex_integer lsi.pos (String.fromChar c)))
 
     else if c == '"' then
-        Tokens [] (LexFn (lex_string_literal ""))
+        Tokens [] (LexFn (lex_string_literal lsi.pos ""))
 
     else if c == '{' then
-        Tokens [ OpenCurly ] begin_lex
+        Tokens [ Token lsi.view_this OpenCurly ] begin_lex
 
     else if c == '}' then
-        Tokens [ CloseCurly ] begin_lex
+        Tokens [ Token lsi.view_this CloseCurly ] begin_lex
 
     else if c == '(' then
-        Tokens [ OpenParen ] begin_lex
+        Tokens [ Token lsi.view_this OpenParen ] begin_lex
 
     else if c == ')' then
-        Tokens [ CloseParen ] begin_lex
+        Tokens [ Token lsi.view_this CloseParen ] begin_lex
 
     else if c == ':' then
-        Tokens [ TypeSpecifier ] begin_lex
+        Tokens [ Token lsi.view_this TypeSpecifier ] begin_lex
 
     else if c == ',' then
-        Tokens [ CommaToken ] begin_lex
+        Tokens [ Token lsi.view_this CommaToken ] begin_lex
 
     else if c == '+' then
-        Tokens [ PlusToken ] begin_lex
+        Tokens [ Token lsi.view_this PlusToken ] begin_lex
 
     else if c == '-' then
-        Tokens [] (LexFn lex_minus_or_return)
+        Tokens [] (LexFn (lex_minus_or_return lsi.pos))
 
     else if c == '*' then
-        Tokens [ MultiplyToken ] begin_lex
+        Tokens [ Token lsi.view_this MultiplyToken ] begin_lex
 
     else if c == '/' then
-        Tokens [ DivideToken ] begin_lex
+        Tokens [] (LexFn lex_divide_or_comment)
 
     else
         Error (UnknownCharacter (lsi.input_view lsi.pos (lsi.pos + 1)) c)
 
 
-symbol_or_keyword : String -> Token
+symbol_or_keyword : String -> TokenType
 symbol_or_keyword s =
     case is_keyword s of
         Just kwt ->
@@ -271,7 +306,7 @@ kwt_to_string kwt =
             "import"
 
 
-syntaxify_token : Token -> String
+syntaxify_token : TokenType -> String
 syntaxify_token tok =
     case tok of
         Keyword kt ->
@@ -322,28 +357,31 @@ syntaxify_token tok =
         NewlineToken ->
             "\n"
 
+        CommentToken s ->
+            "//" ++ s
+
 
 token_to_str : Token -> String
 token_to_str tok =
-    case tok of
+    case tok.typ of
         Keyword kt ->
-            "kw"
-                ++ kwt_to_string kt
+            "[Keyword:"
+                ++ (kwt_to_string kt)++ "]"
 
         Symbol str ->
             "[`" ++ str ++ "`]"
 
         OpenCurly ->
-            "OpenCurly"
+            "[OpenCurly]"
 
         CloseCurly ->
-            "CloseCurly"
+            "[CloseCurly]"
 
         OpenParen ->
-            "OpenParen"
+            "[OpenParen]"
 
         CloseParen ->
-            "CloseParen"
+            "[CloseParen]"
 
         Literal lt str ->
             "[Literal: "
@@ -361,28 +399,31 @@ token_to_str tok =
                 ++ "]"
 
         TypeSpecifier ->
-            ":"
+            "[:]"
 
         CommaToken ->
-            ","
+            "[,]"
 
         DotToken ->
-            "."
+            "[.]"
 
         ReturnSpecifier ->
-            "->"
+            "-[>]"
 
         PlusToken ->
-            "+"
+            "[+]"
 
         MinusToken ->
-            "-"
+            "[-]"
 
         MultiplyToken ->
-            "*"
+            "[*]"
 
         DivideToken ->
-            "/"
+            "[/]"
 
         NewlineToken ->
             "[\\n]"
+
+        CommentToken s ->
+            "[Comment: " ++ s ++ "]"
