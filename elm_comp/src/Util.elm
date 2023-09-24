@@ -7,7 +7,13 @@ import Language
 
 collapsable : String -> Html.Html msg -> Html.Html msg
 collapsable title internals =
-    Html.details [Html.Attributes.style "background-color" "gray" ] [ Html.summary [] [ Html.text title ] , internals]
+    Html.details
+        [ Html.Attributes.style "margin" "10px"
+        , Html.Attributes.style "border-radius" "4px"
+        , Html.Attributes.style "padding" "4px"
+        , Html.Attributes.style "background-color" "gray"
+        ]
+        [ Html.summary [] [ Html.text title ], internals ]
 
 
 type alias SourceView =
@@ -21,11 +27,16 @@ last_el : List a -> Maybe a
 last_el l =
     List.head (List.drop (List.length l - 1) l)
 
-always_tail: List a -> List a
-always_tail l = 
+
+always_tail : List a -> List a
+always_tail l =
     case List.tail l of
-        Just l2 -> l2
-        Nothing -> []
+        Just l2 ->
+            l2
+
+        Nothing ->
+            []
+
 
 show_source_view : SourceView -> String
 show_source_view sv =

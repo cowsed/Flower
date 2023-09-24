@@ -10,7 +10,7 @@ import Util
 type Error
     = NoModuleNameGiven
     | NonStringImport Util.SourceView
-    | Unimplemented Program
+    | Unimplemented Program String
     | NeededMoreTokens String
     | OnlyImportAllowed Util.SourceView
 
@@ -47,11 +47,15 @@ type ParseRes
 parse_get_import_name : ParseStep -> ParseRes
 parse_get_import_name ps =
     let
-        prog = ps.prog
+        prog =
+            ps.prog
     in
     case ps.tok.typ of
-        Literal Language.StringLiteral s -> Next {prog | imports = List.append prog.imports [s] } (ParseFn parse_find_imports)
-        _ -> Error (NonStringImport ps.tok.loc)
+        Literal Language.StringLiteral s ->
+            Next { prog | imports = List.append prog.imports [ s ] } (ParseFn parse_find_imports)
+
+        _ ->
+            Error (NonStringImport ps.tok.loc)
 
 
 parse_find_imports : ParseStep -> ParseRes
@@ -61,6 +65,9 @@ parse_find_imports ps =
             case kt of
                 Language.ImportKeyword ->
                     Next ps.prog (ParseFn parse_get_import_name)
+
+                Language.FnKeyword ->
+                    Error (Unimplemented ps.prog "Continuing from import to function declarations or global variables")
 
                 _ ->
                     Error (OnlyImportAllowed ps.tok.loc)
@@ -159,8 +166,8 @@ stringify_error e =
         NonStringImport location ->
             "I expected a string literal as an import but got this nonsense instead\n" ++ Util.show_source_view location
 
-        Unimplemented _ ->
-            "Unimplemented"
+        Unimplemented _ reason ->
+            "Unimplemented: " ++ reason
 
         NeededMoreTokens why ->
             "Couldnt end because I needed more token: " ++ why
@@ -172,8 +179,13 @@ stringify_error e =
 explain_error : Error -> Html.Html msg
 explain_error e =
     case e of
-        Unimplemented p ->
-            Html.div [ Html.Attributes.style "color" "red" ] [ Html.h2 [] [ Html.text "!!!Unimplemented!!!"], Html.text "Program so far", explain_program p ]
+        Unimplemented p reason ->
+            Html.div [ Html.Attributes.style "color" "red" ]
+                [ Html.h2 [] [ Html.text "!!!Unimplemented!!!" ]
+                , Html.p [] [Html.text (reason++"\n")]
+                , Html.text "Program so far"
+                , explain_program p
+                ]
 
         _ ->
             Html.div []
@@ -186,7 +198,7 @@ explain_program : Program -> Html.Html msg
 explain_program prog =
     Html.div []
         [ Html.h1 [] [ Html.text "Program:" ]
-        , Html.h2 [] [ Html.text ("Module: " ++ Maybe.withDefault "[No name]" prog.module_name) ]
-        , Html.h2 [] [ Html.text "Imports:" ]
-        , Html.ul [] (List.map (\s -> Html.text s) prog.imports)
+        , Html.h3 [] [ Html.text ("Module: " ++ Maybe.withDefault "[No name]" prog.module_name) ]
+        , Html.h4 [] [ Html.text "Imports:" ]
+        , Html.ul [] (List.map (\s -> Html.li [] [ Html.text s ]) prog.imports)
         ]

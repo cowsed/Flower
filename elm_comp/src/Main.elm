@@ -1,18 +1,16 @@
 module Main exposing (..)
 
 -- import Browser.Navigation exposing (Key)
-import Html exposing (Attribute, pre, text)
-import Html.Attributes as Attributes exposing (style, wrap)
+import Html exposing (pre, text)
 import Language exposing (Expression, KeywordType(..), LiteralType, Type)
-import Lexer
-import Parser
 
 import Util
 
+import Lexer
+import Parser
 
-input_view : Int -> Int -> Util.SourceView
-input_view =
-    Util.SourceView input
+
+
 
 
 input : String
@@ -20,6 +18,8 @@ input =
     """//example dude
 module main
 // importing the standard library
+import "std"
+import "math"
 import "std"
 fn add(a: u8, b: u8) -> u8{
     return a + b
@@ -82,10 +82,10 @@ main =
         pretty_toks =
             case lex_result of
                 Ok toks ->
-                    Html.pre [  ] (toks |>List.map Lexer.token_to_str |> List.map (\x -> (x++"\n")) |>List.map Html.text )
+                    Html.pre [  ] (toks |>List.map Lexer.token_to_str |> List.map (\x -> (x++"\n")) |>List.map text )
 
-                Err e ->
-                    Html.pre [] [ text "N/A" ]
+                Err _ ->
+                    Html.pre [] [ text "Lexing error" ]
 
         -- parse_result : Result CompilerError Parser.Program
         -- parse_result =
@@ -109,5 +109,5 @@ main =
         [ Util.collapsable "Tokens" (pretty_toks)
         , htmlify_output result
         , Html.hr [] []
-        , Html.pre [] [Html.text input]
+        , Html.code [] [pre [] [text input]]
         ]
