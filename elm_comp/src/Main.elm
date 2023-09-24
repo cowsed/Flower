@@ -134,7 +134,8 @@ token_to_str : Token -> String
 token_to_str tok =
     case tok of
         Keyword kt ->
-            "kw" ++ kwt_to_string kt
+            "kw"
+                ++ kwt_to_string kt
 
         Symbol str ->
             "[`" ++ str ++ "`]"
@@ -152,7 +153,19 @@ token_to_str tok =
             "CloseParen"
 
         Literal lt str ->
-            "[Literal: " ++ str ++ "]"
+            "[Literal: "
+                ++ str
+                ++ (case lt of
+                        StringLiteral ->
+                            "_str"
+
+                        BooleanLiteral ->
+                            "_bool"
+
+                        NumberLiteral ->
+                            "_int"
+                   )
+                ++ "]"
 
         TypeSpecifier ->
             ":"
@@ -186,7 +199,7 @@ fn add(a: u8, b: u8) -> u8{
     return a + b
 }
 fn double(a: u8) -> u8{
-    return a * 2
+    return a * "2"
 }
 fn main(){
 
@@ -279,15 +292,20 @@ begin_lex =
 
 minus_or_return_lex : Char -> LexRes
 minus_or_return_lex c =
-    let
-        res =
-            start_lex c
-    in
     if c == '>' then
         YesToken ReturnSpecifier begin_lex
 
     else
-        apply_again [MinusToken] begin_lex c
+        apply_again [ MinusToken ] begin_lex c
+
+
+lex_string : String -> Char -> LexRes
+lex_string sofar c =
+    if c == '"' then
+        YesToken (Literal StringLiteral sofar) begin_lex
+
+    else
+        NoToken (LexFn (lex_string (addchar sofar c)))
 
 
 start_lex : Char -> LexRes
@@ -300,6 +318,9 @@ start_lex c =
 
     else if Char.isDigit c then
         NoToken (LexFn (lex_number (String.fromChar c)))
+
+    else if c == '"' then
+        NoToken (LexFn (lex_string ""))
 
     else if c == '{' then
         YesToken OpenCurly begin_lex
