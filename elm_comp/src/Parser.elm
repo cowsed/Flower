@@ -1,6 +1,7 @@
 module Parser exposing (..)
 
-import Html
+import Browser.Navigation exposing (Key)
+import Html exposing (text)
 import Html.Attributes
 import Language
 import Lexer exposing (Token, TokenType(..))
@@ -10,8 +11,9 @@ import Util
 parse : List Lexer.Token -> Result Error Program
 parse toks =
     let
+        base_program : Program
         base_program =
-            { module_name = Nothing, imports = [], needs_more = Nothing }
+            { module_name = Nothing, imports = [], global_functions = [], needs_more = Nothing }
     in
     rec_parse toks base_program (ParseFn parse_find_module_kw)
 
@@ -33,6 +35,7 @@ type Error
 type alias Program =
     { module_name : Maybe String
     , imports : List String
+    , global_functions : List FunctionDefinition
     , needs_more : Maybe String
     }
 
@@ -81,10 +84,37 @@ type TypeParseError
     = Idk Util.SourceView
 
 
+type alias FunctionHeader =
+    { args : List NamedArg, return_type : Maybe TypeName }
+
+
+type alias FunctionDefinition =
+    { name : String
+    , header : FunctionHeader
+    }
+
+
+stringify_fheader header =
+    "("
+        ++ (List.map stringify_named_arg header.args |> String.join ", ")
+        ++ ")"
+        ++ " -> "
+        ++ (case header.return_type of
+                Nothing ->
+                    "No return Type"
+
+                Just t ->
+                    case t of
+                        BasicTypename n ->
+                            n
+           )
+
+
 parse_expected_token : String -> TokenType -> ParseFn -> ParseStep -> ParseRes
 parse_expected_token reason expected after ps =
     if ps.tok.typ == expected then
         Next ps.prog after
+
     else
         Error (ExpectedToken reason ps.tok.loc)
 
@@ -99,14 +129,76 @@ parse_type todo ps =
             Error (ExpectedTypeName ps.tok.loc)
 
 
+parse_until : TokenType -> ParseFn -> ParseStep -> ParseRes
+parse_until typ after ps =
+    if typ == ps.tok.typ then
+        Next ps.prog after
+
+    else
+        Next ps.prog (ParseFn (parse_until typ after))
+
+
+parse_outer : ParseStep -> ParseRes
+parse_outer ps =
+    case ps.tok.typ of
+        Keyword kwt ->
+            case kwt of
+                Language.FnKeyword ->
+                    Next ps.prog (ParseFn parse_global_fn)
+
+                _ ->
+                    Error (Unimplemented ps.prog "Parsing outer")
+
+        NewlineToken ->
+            Next ps.prog (ParseFn parse_outer)
+
+        CommentToken _ ->
+            Next ps.prog (ParseFn parse_outer)
+
+        _ ->
+            Error (Unimplemented ps.prog "Parsing outer")
+
+
+parse_function_body : String -> FunctionHeader -> ParseStep -> ParseRes
+parse_function_body fname header ps =
+    let
+        prog =
+            ps.prog
+    in
+    Next { prog | global_functions = List.append prog.global_functions [ { name = fname, header = header } ] } (ParseFn (parse_until CloseCurly (ParseFn parse_outer)))
+
+
 parse_global_fn_arg_list_comma_or_close : List NamedArg -> String -> ParseStep -> ParseRes
 parse_global_fn_arg_list_comma_or_close args fname ps =
+    let
+        after_ret_type : FunctionHeader -> (ParseStep -> ParseRes)
+        after_ret_type header =
+            parse_function_body fname header
+
+        what_to_do_with_ret_type : FunctionHeader -> Result TypeParseError TypeName -> ParseRes
+        what_to_do_with_ret_type header_so_far typ_res =
+            case typ_res of
+                Err e ->
+                    Error (FailedTypeParse e)
+
+                Ok typ ->
+                    Next ps.prog (ParseFn (after_ret_type { header_so_far | return_type = Just typ }))
+
+        parse_ret_typ : FunctionHeader -> (ParseStep -> ParseRes)
+        parse_ret_typ fheader =
+            parse_type (what_to_do_with_ret_type fheader)
+
+        after_close_paren : ParseStep -> ParseRes
+        after_close_paren =
+            ParseFn (parse_ret_typ { args = args, return_type = Nothing })
+                |> parse_expected_token "Expected the return specifier `->` to distuingish to return type" ReturnSpecifier
+    in
     case ps.tok.typ of
         CommaToken ->
             Next ps.prog (ParseFn (parse_global_fn_arg_list_name args fname))
 
         CloseParen ->
-            Error (Unimplemented ps.prog ("Parsing after function arg list (" ++ (List.map stringify_named_arg args |> String.join ", ") ++ ")"))
+            Next ps.prog (ParseFn after_close_paren)
 
         _ ->
             Error (ExpectedEndOfArgListOrComma ps.tok.loc)
@@ -144,6 +236,9 @@ parse_global_fn_arg_list_name args_sofar fname ps =
     case ps.tok.typ of
         Symbol argname ->
             Next ps.prog (ParseFn (parse_global_fn_arg_list_type_spec argname args_sofar fname))
+
+        CloseParen ->
+            Next ps.prog (ParseFn (parse_function_body fname { args = args_sofar, return_type = Nothing }))
 
         _ ->
             Error (Unimplemented ps.prog ("function arg list parseing: name = " ++ fname))
@@ -298,7 +393,7 @@ stringify_error e =
             "Expected a close paren after the fn name `fn " ++ s ++ "()` \n" ++ Util.show_source_view loc
 
         ExpectedToken explanation loc ->
-            explanation++"\n" ++ Util.show_source_view loc
+            explanation ++ "\n" ++ Util.show_source_view loc
 
         ExpectedTypeName loc ->
             "Expected a type name here\n" ++ Util.show_source_view loc
@@ -337,4 +432,6 @@ explain_program prog =
         , Html.h3 [] [ Html.text ("Module: " ++ Maybe.withDefault "[No name]" prog.module_name) ]
         , Html.h4 [] [ Html.text "Imports:" ]
         , Html.ul [] (List.map (\s -> Html.li [] [ Html.text s ]) prog.imports)
+        , Html.h4 [] [ text "Global Functions:" ]
+        , Html.ul [] (List.map (\f -> Html.li [] [ Html.text (f.name ++ stringify_fheader f.header) ]) prog.global_functions)
         ]
