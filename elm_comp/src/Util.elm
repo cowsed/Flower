@@ -5,15 +5,17 @@ import Html.Attributes
 import Language
 
 
-collapsable : String -> Html.Html msg -> Html.Html msg
+collapsable : Html.Html msg -> Html.Html msg -> Html.Html msg
 collapsable title internals =
     Html.details
         [ Html.Attributes.style "margin" "10px"
         , Html.Attributes.style "border-radius" "4px"
-        , Html.Attributes.style "padding" "4px"
-        , Html.Attributes.style "background-color" "gray"
+        , Html.Attributes.style "border-style" "solid"
+        , Html.Attributes.style "border-width" "1px"
+        , Html.Attributes.style "padding" "5px"
+        , Html.Attributes.style "width" "fit-content"
         ]
-        [ Html.summary [] [ Html.text title ], internals ]
+        [ Html.summary [] [ title ], internals ]
 
 
 type alias SourceView =

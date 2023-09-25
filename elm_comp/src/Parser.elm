@@ -5,6 +5,7 @@ import Html.Attributes exposing (style)
 import Language exposing (KeywordType(..), Name(..), stringify_name)
 import Lexer exposing (Token, TokenType(..), symbol_or_keyword, syntaxify_token)
 import Util
+import Pallete
 
 
 parse : List Lexer.Token -> Result Error Program
@@ -22,7 +23,7 @@ type Error
     | NonStringImport Util.SourceView
     | Unimplemented Program String
     | NeededMoreTokens String
-    | OnlyImportAllowed Util.SourceView
+    | UnknownOuterLevelObject Util.SourceView
     | ExpectedNameAfterFn Util.SourceView
     | ExpectedOpenParenAfterFn String Util.SourceView
     | ExpectedToken String Util.SourceView
@@ -372,7 +373,7 @@ parse_find_imports ps =
                     Next ps.prog (ParseFn parse_global_fn)
 
                 _ ->
-                    Error (OnlyImportAllowed ps.tok.loc)
+                    Error (UnknownOuterLevelObject ps.tok.loc)
 
         CommentToken _ ->
             Next ps.prog (ParseFn parse_find_imports)
@@ -381,7 +382,7 @@ parse_find_imports ps =
             Next ps.prog (ParseFn parse_find_imports)
 
         _ ->
-            Error (OnlyImportAllowed ps.tok.loc)
+            Error (UnknownOuterLevelObject ps.tok.loc)
 
 
 parse_find_module_name : ParseStep -> ParseRes
@@ -394,8 +395,6 @@ parse_find_module_name ps =
         Symbol s ->
             Next { prog | module_name = Just s, needs_more = Nothing } (ParseFn parse_find_imports)
 
-        CommentToken _ ->
-            Next prog (ParseFn parse_find_imports)
 
         _ ->
             Error NoModuleNameGiven
@@ -470,8 +469,8 @@ stringify_error e =
         NeededMoreTokens why ->
             "Couldnt end because I needed more token: " ++ why
 
-        OnlyImportAllowed loc ->
-            "Keywords other than import are not allowed at this point\n" ++ Util.show_source_view loc
+        UnknownOuterLevelObject loc ->
+            "The only things allowed at this point are `import`, a variable or a function definition\n" ++ Util.show_source_view loc
 
         ExpectedNameAfterFn loc ->
             "Expected a name after the fn keyword to name a function. Something like `fn name()` \n" ++ Util.show_source_view loc
@@ -517,7 +516,7 @@ explain_error : Error -> Html.Html msg
 explain_error e =
     case e of
         Unimplemented p reason ->
-            Html.div [ Html.Attributes.style "color" "red" ]
+            Html.div [ Html.Attributes.style "color" Pallete.red ]
                 [ Html.h2 [] [ Html.text "!!!Unimplemented!!!" ]
                 , Html.pre [] [ Html.text (reason ++ "\n") ]
                 , Html.text "Program so far"
@@ -527,21 +526,21 @@ explain_error e =
         _ ->
             Html.div []
                 [ Html.h3 [] [ Html.text "Parser Error" ]
-                , Html.pre [ Html.Attributes.style "color" "red" ] [ Html.text (stringify_error e) ]
+                , Html.pre [ Html.Attributes.style "color" Pallete.red ] [ Html.text (stringify_error e) ]
                 ]
 
 
 syntax_highlight_type : Name -> Html.Html msg
 syntax_highlight_type name =
-    Html.span [ style "color" "blue" ]
+    Html.span [ style "color" Pallete.blue ]
         [ text (Language.stringify_name name)
         ]
 
 
 htmlify_namedarg : TypeWithName -> List (Html.Html msg)
 htmlify_namedarg na =
-    [ Html.span [ style "color" "green" ] [ text (Language.stringify_name na.name) ]
-    , Html.span [ style "color" "black" ] [ text ": " ]
+    [ symbol_highlight (Language.stringify_name na.name) 
+    , text ": "
     , Html.span [] [ syntax_highlight_type na.typename ]
     ]
 
@@ -609,11 +608,7 @@ explain_program prog =
             (List.map
                 (\f ->
                     Html.li []
-                        [ Html.code []
-                            [ text f.name
-                            , htmlify_fheader f.header
-                            ]
-                        , explain_statments f.statements
+                        [ Util.collapsable (Html.code [] [ text f.name , htmlify_fheader f.header]) (explain_statments f.statements)
                         ]
                 )
                 prog.global_functions
@@ -644,12 +639,12 @@ stringify_fheader header =
 
 keyword_highlight : String -> Html.Html msg
 keyword_highlight s =
-    Html.span [ style "color" "FireBrick" ] [ text s ]
+    Html.span [ style "color" Pallete.red ] [ text s ]
 
 
 symbol_highlight : String -> Html.Html msg
 symbol_highlight s =
-    Html.span [ style "color" "orange" ] [ text s ]
+    Html.span [ style "color" Pallete.orange ] [ text s ]
 
 
 syntaxify_expression : Expression -> Html.Html msg
@@ -714,7 +709,7 @@ syntaxify_program prog =
         , style "height" "400px"
         , style "width" "400px"
         , style "padding" "4px"
-        , style "background-color" "gray"
+        , style "background-color" Pallete.bg
         , style "border-radius" "8px"
         , style "border-style" "solid"
         , style "border-width" "2px"

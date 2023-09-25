@@ -6,6 +6,7 @@ import Html exposing (pre, text)
 import Html.Attributes exposing (style)
 import Language exposing (KeywordType(..), LiteralType, Type)
 import Lexer
+import Pallete
 import Parser
 import Util
 
@@ -17,6 +18,7 @@ input =
 // importing the standard library
 import "std"
 import "math" // importing another library
+import "github.com/cowsed/image"
 
 
 // adding 2 numbers
@@ -101,16 +103,19 @@ main =
             lex_result |> Result.andThen parse
     in
     Html.div []
-        [ Util.collapsable "Tokens" pretty_toks
+        [ Html.node "style" [] [ text css ]
         , htmlify_output result
         , Html.hr [] []
-        , Html.div [style "font-size" "15px"]
+        , Html.div
+            [ style "font-size" "15px"
+            , style "overflow" "auto"
+            ]
             [ Html.div
                 [ style "overflow" "scroll"
                 , style "height" "400px"
                 , style "width" "400px"
                 , style "padding" "4px"
-                , style "background-color" "gray"
+                , style "background-color" Pallete.bg
                 , style "border-radius" "8px"
                 , style "border-style" "solid"
                 , style "border-width" "2px"
@@ -128,4 +133,15 @@ main =
                         [ Parser.syntaxify_program prog
                         ]
             ]
+        , Util.collapsable (text "Tokens") pretty_toks
+
         ]
+
+
+css =
+    """
+    body { 
+        background: #fbf1c7;
+        color : #fc3836";
+    } 
+    """
