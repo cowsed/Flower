@@ -147,7 +147,7 @@ parse_outer ps =
                     Next ps.prog (ParseFn parse_global_fn)
 
                 _ ->
-                    Error (Unimplemented ps.prog "Parsing outer")
+                    Error (Unimplemented ps.prog "Parsing outer non fn keywords")
 
         NewlineToken ->
             Next ps.prog (ParseFn parse_outer)
@@ -156,7 +156,7 @@ parse_outer ps =
             Next ps.prog (ParseFn parse_outer)
 
         _ ->
-            Error (Unimplemented ps.prog "Parsing outer")
+            Error (Unimplemented ps.prog "Parsing outer non function things")
 
 
 parse_function_body : String -> FunctionHeader -> ParseStep -> ParseRes
@@ -168,37 +168,34 @@ parse_function_body fname header ps =
     Next { prog | global_functions = List.append prog.global_functions [ { name = fname, header = header } ] } (ParseFn (parse_until CloseCurly (ParseFn parse_outer)))
 
 
-parse_global_fn_arg_list_comma_or_close : List NamedArg -> String -> ParseStep -> ParseRes
-parse_global_fn_arg_list_comma_or_close args fname ps =
-    let
-        after_ret_type : FunctionHeader -> (ParseStep -> ParseRes)
-        after_ret_type header =
-            parse_function_body fname header
 
-        what_to_do_with_ret_type : FunctionHeader -> Result TypeParseError TypeName -> ParseRes
-        what_to_do_with_ret_type header_so_far typ_res =
+parse_global_fn_return: String -> FunctionHeader -> ParseStep -> ParseRes
+parse_global_fn_return fname header_so_far ps = 
+    let
+        what_to_do_with_ret_type : Result TypeParseError TypeName -> ParseRes
+        what_to_do_with_ret_type typ_res =
             case typ_res of
                 Err e ->
                     Error (FailedTypeParse e)
 
                 Ok typ ->
-                    Next ps.prog (ParseFn (after_ret_type { header_so_far | return_type = Just typ }))
+                    Next ps.prog (ParseFn (parse_function_body fname { header_so_far | return_type = Just typ }))
 
-        parse_ret_typ : FunctionHeader -> (ParseStep -> ParseRes)
-        parse_ret_typ fheader =
-            parse_type (what_to_do_with_ret_type fheader)
-
-        after_close_paren : ParseStep -> ParseRes
-        after_close_paren =
-            ParseFn (parse_ret_typ { args = args, return_type = Nothing })
-                |> parse_expected_token "Expected the return specifier `->` to distuingish to return type" ReturnSpecifier
     in
+    
+    case ps.tok.typ of
+        ReturnSpecifier -> Next ps.prog (ParseFn (parse_type (what_to_do_with_ret_type)))
+        OpenCurly -> Next ps.prog (ParseFn (parse_function_body fname header_so_far)) 
+        _ -> Error (Unimplemented ps.prog "Error after yay or nay return specifier")
+
+parse_global_fn_arg_list_comma_or_close : List NamedArg -> String -> ParseStep -> ParseRes
+parse_global_fn_arg_list_comma_or_close args fname ps =
     case ps.tok.typ of
         CommaToken ->
             Next ps.prog (ParseFn (parse_global_fn_arg_list_name args fname))
 
         CloseParen ->
-            Next ps.prog (ParseFn after_close_paren)
+            Next ps.prog (ParseFn (parse_global_fn_return fname {args = args, return_type = Nothing}))
 
         _ ->
             Error (ExpectedEndOfArgListOrComma ps.tok.loc)
@@ -241,7 +238,7 @@ parse_global_fn_arg_list_name args_sofar fname ps =
             Next ps.prog (ParseFn (parse_function_body fname { args = args_sofar, return_type = Nothing }))
 
         _ ->
-            Error (Unimplemented ps.prog ("function arg list parseing: name = " ++ fname))
+            Error (Unimplemented ps.prog ("Failing to close func param list: name = " ++ fname))
 
 
 parse_global_fn_named_open_paren : String -> ParseStep -> ParseRes
