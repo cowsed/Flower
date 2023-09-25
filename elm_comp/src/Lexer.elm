@@ -3,8 +3,9 @@ module Lexer exposing (..)
 import Html exposing (pre, text)
 import Html.Attributes exposing (style)
 import Language exposing (KeywordType(..), LiteralType)
-import Util
 import Pallete
+import Util
+
 
 type alias Token =
     { loc : Util.SourceView
@@ -21,6 +22,7 @@ type TokenType
     | CommaToken -- ,
     | DotToken -- .
     | ReturnSpecifier -- ->
+    | AssignmentToken
     | PlusToken
     | MinusToken
     | MultiplyToken
@@ -60,7 +62,7 @@ explain_error e =
                 pre [ style "color" Pallete.red ] [ text (Util.addchar "Unknown character: " c ++ "\n" ++ Util.show_source_view sv) ]
 
             UnclosedStringLiteral sv ->
-                pre [style "color" Pallete.red] [text ("Unclosed String Literal here: \n"++Util.show_source_view sv) ]
+                pre [ style "color" Pallete.red ] [ text ("Unclosed String Literal here: \n" ++ Util.show_source_view sv) ]
         ]
 
 
@@ -253,6 +255,9 @@ lex_unknown lsi =
     else if c == ',' then
         Tokens [ Token lsi.view_this CommaToken ] begin_lex
 
+    else if c == '=' then
+        Tokens [ Token lsi.view_this AssignmentToken ] begin_lex
+
     else if c == '+' then
         Tokens [ Token lsi.view_this PlusToken ] begin_lex
 
@@ -292,7 +297,8 @@ is_keyword s =
 
     else if s == "import" then
         Just ImportKeyword
-
+    else if s == "var" then
+        Just VarKeyword
     else
         Nothing
 
@@ -311,6 +317,9 @@ kwt_to_string kwt =
 
         ImportKeyword ->
             "import"
+
+        VarKeyword ->
+            "var"
 
 
 syntaxify_token : TokenType -> String
@@ -348,6 +357,8 @@ syntaxify_token tok =
 
         ReturnSpecifier ->
             " -> "
+
+        AssignmentToken -> " = "
 
         PlusToken ->
             " + "
@@ -435,3 +446,7 @@ token_to_str tok =
 
         CommentToken s ->
             "[Comment: " ++ s ++ "]"
+
+
+        AssignmentToken ->
+            "[=]"

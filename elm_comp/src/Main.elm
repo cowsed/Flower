@@ -29,14 +29,14 @@ import "github.com/cowsed/image"
 
 // adding 2 numbers
 fn add(a: u8, b: u8) -> u8{
+    var c: u8 = a
     // this is not how adding works
-    return b
+    return c
 }
 
 // doubling a number
 fn double(a: u8) -> u8{
     return a
-    //* "2" // oops thats a type error
 }
 
 fn add2(a: u1, b: u6) {}

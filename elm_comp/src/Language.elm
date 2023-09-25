@@ -21,6 +21,7 @@ type KeywordType
     | ReturnKeyword
     | ModuleKeyword
     | ImportKeyword
+    | VarKeyword
 
 
 
@@ -43,7 +44,11 @@ type Type
     | IntegerType Integers
     | StringType
 
-
+builtin_type_from_name: String -> Maybe Type
+builtin_type_from_name s = 
+    case s of
+        "u8" -> IntegerType U8 |> Just 
+        _ -> Nothing
 
 builtin_types : List Type
 builtin_types =
@@ -66,30 +71,30 @@ type alias TypeWithName =
 
 
 
-type alias FunctionHeader =
+type alias ASTFunctionHeader =
     { args : List TypeWithName, return_type : Maybe Name }
 
-type alias FunctionDefinition =
+type alias ASTFunctionDefinition =
     { name : String
-    , header : FunctionHeader
-    , statements : List Statement
+    , header : ASTFunctionHeader
+    , statements : List ASTStatement
     }
 
 
-type Statement
+type ASTStatement
     = CommentStatement String
-    | ReturnStatement Expression
-    | Initilization TypeWithName Expression
-    | Assignment String Expression
-    | FunctionCallStatement FunctionCall
+    | ReturnStatement ASTExpression
+    | Initilization TypeWithName ASTExpression
+    | Assignment String ASTExpression
+    | FunctionCallStatement ASTFunctionCall
     | IfStatement
 
-type Expression
-    = FunctionCallExpr FunctionCall
+type ASTExpression
+    = FunctionCallExpr ASTFunctionCall
     | LiteralExpr LiteralType String
     | NameLookup Name -- InfixOperation InfixType
 
-type alias FunctionCall =
+type alias ASTFunctionCall =
     { fname : String
-    , args : List Expression
+    , args : List ASTExpression
     }
