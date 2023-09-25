@@ -3,12 +3,13 @@ module Main exposing (..)
 -- import Browser.Navigation exposing (Key)
 import Html exposing (pre, text)
 import Html.Attributes exposing (style)
-import Language exposing (KeywordType(..), LiteralType, Type)
-import Lexer
-import Pallete
-import Parser
-import Util
+import Language exposing (KeywordType(..))
 
+import Util
+import Pallete
+
+import Lexer
+import Parser
 
 {- 
 todo:

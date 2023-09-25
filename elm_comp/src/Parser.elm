@@ -2,7 +2,7 @@ module Parser exposing (..)
 
 import Html exposing (text)
 import Html.Attributes exposing (style)
-import Language exposing (KeywordType(..), Name(..), stringify_name)
+import Language exposing (KeywordType(..), Name(..), TypeWithName, stringify_name, Statement(..), FunctionHeader, FunctionDefinition, Expression(..))
 import Lexer exposing (Token, TokenType(..), syntaxify_token)
 import Pallete
 import Util
@@ -59,45 +59,19 @@ type ParseRes
     | Next Program ParseFn
 
 
-type alias TypeWithName =
-    { name : Language.Name, typename : Language.Name }
-
-
 
 type TypeParseError
     = Idk Util.SourceView
 
 
-type alias FunctionHeader =
-    { args : List TypeWithName, return_type : Maybe Language.Name }
 
 
-type alias FunctionCall =
-    { fname : String
-    , args : List Expression
-    }
 
 
-type Expression
-    = FunctionCallExpr FunctionCall
-    | LiteralExpr Language.LiteralType String
-    | NameLookup Name -- InfixOperation InfixType
 
 
-type Statement
-    = CommentStatement String
-    | ReturnStatement Expression
-    | Initilization TypeWithName Expression
-    | Assignment String Expression
-    | FunctionCallStatement FunctionCall
-    | IfStatement
 
 
-type alias FunctionDefinition =
-    { name : String
-    , header : FunctionHeader
-    , statements : List Statement
-    }
 
 
 parse_expected_token : String -> TokenType -> ParseFn -> ParseStep -> ParseRes

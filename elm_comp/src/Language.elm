@@ -60,3 +60,36 @@ builtin_types =
     ]
 
 
+
+type alias TypeWithName =
+    { name : Name, typename : Name }
+
+
+
+type alias FunctionHeader =
+    { args : List TypeWithName, return_type : Maybe Name }
+
+type alias FunctionDefinition =
+    { name : String
+    , header : FunctionHeader
+    , statements : List Statement
+    }
+
+
+type Statement
+    = CommentStatement String
+    | ReturnStatement Expression
+    | Initilization TypeWithName Expression
+    | Assignment String Expression
+    | FunctionCallStatement FunctionCall
+    | IfStatement
+
+type Expression
+    = FunctionCallExpr FunctionCall
+    | LiteralExpr LiteralType String
+    | NameLookup Name -- InfixOperation InfixType
+
+type alias FunctionCall =
+    { fname : String
+    , args : List Expression
+    }
