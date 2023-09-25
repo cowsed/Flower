@@ -1,22 +1,18 @@
 module Main exposing (..)
 
 -- import Browser.Navigation exposing (Key)
+
 import Html exposing (pre, text)
-import Language exposing (Expression, KeywordType(..), LiteralType, Type)
-
-import Util
-
+import Html.Attributes exposing (style)
+import Language exposing (KeywordType(..), LiteralType, Type)
 import Lexer
 import Parser
-
-
-
+import Util
 
 
 input : String
 input =
-    """
-module main
+    """module main
 
 // importing the standard library
 import "std"
@@ -25,17 +21,16 @@ import "math" // importing another library
 
 // adding 2 numbers
 fn add(a: u8, b: u8) -> u8{
-    return a + b
+    return b
 }
 
 // doubling a number
 fn double(a: u8) -> u8{
-    return a * "2" // oops thats a type error
+    return a
+    //* "2" // oops thats a type error
 }
 
-fn add2(a: u1, b: u6) {
-
-}
+fn add2(a: u1, b: u6) {}
 
 fn main(){
 
@@ -92,12 +87,12 @@ main =
         pretty_toks =
             case lex_result of
                 Ok toks ->
-                    Html.pre [  ] (toks |>List.map Lexer.token_to_str |> List.map (\x -> (x++"\n")) |>List.map text )
+                    Html.pre [] (toks |> List.map Lexer.token_to_str |> List.map (\x -> x ++ "\n") |> List.map text)
 
                 Err _ ->
                     Html.pre [] [ text "Lexing error" ]
 
-        parse: List Lexer.Token -> Result CompilerError Parser.Program
+        parse : List Lexer.Token -> Result CompilerError Parser.Program
         parse toks =
             Parser.parse toks |> wrap_parser_output
 
@@ -106,8 +101,31 @@ main =
             lex_result |> Result.andThen parse
     in
     Html.div []
-        [ Util.collapsable "Tokens" (pretty_toks)
+        [ Util.collapsable "Tokens" pretty_toks
         , htmlify_output result
         , Html.hr [] []
-        , Html.code [] [pre [] [text input]]
+        , Html.div [style "font-size" "15px"]
+            [ Html.div
+                [ style "overflow" "scroll"
+                , style "height" "400px"
+                , style "width" "400px"
+                , style "padding" "4px"
+                , style "background-color" "gray"
+                , style "border-radius" "8px"
+                , style "border-style" "solid"
+                , style "border-width" "2px"
+                , style "border-color" "black"
+                , style "float" "left"
+                ]
+                [ Html.code [] [ pre [] [ text input ] ]
+                ]
+            , case result of
+                Err _ ->
+                    Html.span [] []
+
+                Ok prog ->
+                    Html.div [ style "float" "left" ]
+                        [ Parser.syntaxify_program prog
+                        ]
+            ]
         ]
