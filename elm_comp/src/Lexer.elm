@@ -4,7 +4,7 @@ import Html exposing (pre, text)
 import Html.Attributes exposing (style)
 import Language exposing (KeywordType(..), LiteralType)
 import Util
-
+import Pallete
 
 type alias Token =
     { loc : Util.SourceView
@@ -48,16 +48,20 @@ type LexRes
 
 type Error
     = UnknownCharacter Util.SourceView Char
+    | UnclosedStringLiteral Util.SourceView
 
 
 explain_error : Error -> Html.Html msg
 explain_error e =
-    case e of
-        UnknownCharacter sv c ->
-            Html.div []
-                [ Html.h1 [] [ text "Lexer Error" ]
-                , pre [ style "color" "red" ] [ text (Util.addchar "Unknown character: " c ++ "\n" ++ Util.show_source_view sv) ]
-                ]
+    Html.div []
+        [ Html.h1 [] [ text "Lexer Error" ]
+        , case e of
+            UnknownCharacter sv c ->
+                pre [ style "color" Pallete.red ] [ text (Util.addchar "Unknown character: " c ++ "\n" ++ Util.show_source_view sv) ]
+
+            UnclosedStringLiteral sv ->
+                pre [style "color" Pallete.red] [text ("Unclosed String Literal here: \n"++Util.show_source_view sv) ]
+        ]
 
 
 type LexFn
@@ -202,6 +206,9 @@ lex_string_literal : Int -> String -> LexStepInfo -> LexRes
 lex_string_literal start sofar lsi =
     if lsi.char == '"' then
         Tokens [ Token (lsi.view_from_start start) (Literal Language.StringLiteral sofar) ] begin_lex
+
+    else if lsi.char == '\n' then
+        Error (UnclosedStringLiteral (lsi.view_from_start start))
 
     else
         Tokens [] (LexFn (lex_string_literal start (Util.addchar sofar lsi.char)))
@@ -366,7 +373,8 @@ token_to_str tok =
     case tok.typ of
         Keyword kt ->
             "[Keyword:"
-                ++ (kwt_to_string kt)++ "]"
+                ++ kwt_to_string kt
+                ++ "]"
 
         Symbol str ->
             "[`" ++ str ++ "`]"
