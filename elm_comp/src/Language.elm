@@ -17,9 +17,19 @@ type KeywordType
 -- sumtype, product type, list
 
 
+type Integers
+    = U8
+    | U16
+    | U32
+    | U64
+    | I8
+    | I16  
+    | I32
+    | I64
+
 type Type
     = BooleanType
-    | IntegerType
+    | IntegerType Integers
     | StringType
     | ConstrainedType Type Expression
 

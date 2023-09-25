@@ -24,9 +24,10 @@ type Error
     | OnlyImportAllowed Util.SourceView
     | ExpectedNameAfterFn Util.SourceView
     | ExpectedOpenParenAfterFn String Util.SourceView
-    | ExpectedTypeSpecifier Util.SourceView
+    | ExpectedToken String Util.SourceView
     | ExpectedTypeName Util.SourceView
     | ExpectedEndOfArgListOrComma Util.SourceView
+    | FailedTypeParse TypeParseError
 
 
 type alias Program =
@@ -59,12 +60,43 @@ extract_fn fn =
 
 
 type alias NamedArg =
-    { name : String, typename : String }
+    { name : String, typename : TypeName }
 
 
 stringify_named_arg : NamedArg -> String
 stringify_named_arg na =
-    na.name ++ " : " ++ na.typename
+    na.name
+        ++ " : "
+        ++ (case na.typename of
+                BasicTypename s ->
+                    s
+           )
+
+
+type TypeName
+    = BasicTypename String
+
+
+type TypeParseError
+    = Idk Util.SourceView
+
+
+parse_expected_token : String -> TokenType -> ParseFn -> ParseStep -> ParseRes
+parse_expected_token reason expected after ps =
+    if ps.tok.typ == expected then
+        Next ps.prog after
+    else
+        Error (ExpectedToken reason ps.tok.loc)
+
+
+parse_type : (Result TypeParseError TypeName -> ParseRes) -> ParseStep -> ParseRes
+parse_type todo ps =
+    case ps.tok.typ of
+        Symbol s ->
+            todo (Ok (BasicTypename s))
+
+        _ ->
+            Error (ExpectedTypeName ps.tok.loc)
 
 
 parse_global_fn_arg_list_comma_or_close : List NamedArg -> String -> ParseStep -> ParseRes
@@ -80,24 +112,31 @@ parse_global_fn_arg_list_comma_or_close args fname ps =
             Error (ExpectedEndOfArgListOrComma ps.tok.loc)
 
 
-parse_global_fn_arg_list_type : String -> List NamedArg -> String -> ParseStep -> ParseRes
-parse_global_fn_arg_list_type argname args fname ps =
-    case ps.tok.typ of
-        Symbol s ->
-            Next ps.prog (ParseFn (parse_global_fn_arg_list_comma_or_close (List.append args [ { name = argname, typename = s } ]) fname))
-
-        _ ->
-            Error (ExpectedTypeName ps.tok.loc)
-
-
 parse_global_fn_arg_list_type_spec : String -> List NamedArg -> String -> ParseStep -> ParseRes
 parse_global_fn_arg_list_type_spec argname args fname ps =
+    let
+        type_user : Result TypeParseError TypeName -> ParseRes
+        type_user res_typ =
+            case res_typ of
+                Err e ->
+                    Error (FailedTypeParse e)
+
+                Ok typ ->
+                    let
+                        named_typ =
+                            { name = argname, typename = typ }
+
+                        new_args =
+                            List.append args [ named_typ ]
+                    in
+                    Next ps.prog (ParseFn (parse_global_fn_arg_list_comma_or_close new_args fname))
+    in
     case ps.tok.typ of
         TypeSpecifier ->
-            Next ps.prog (ParseFn (parse_global_fn_arg_list_type argname args fname))
+            Next ps.prog (ParseFn (parse_type type_user))
 
         _ ->
-            Error (ExpectedTypeSpecifier ps.tok.loc)
+            Error (ExpectedToken "Expected the type specifier `:` here to distinguish name and type" ps.tok.loc)
 
 
 parse_global_fn_arg_list_name : List NamedArg -> String -> ParseStep -> ParseRes
@@ -258,14 +297,19 @@ stringify_error e =
         ExpectedOpenParenAfterFn s loc ->
             "Expected a close paren after the fn name `fn " ++ s ++ "()` \n" ++ Util.show_source_view loc
 
-        ExpectedTypeSpecifier loc ->
-            "Expecteda type specifier `:` here\n" ++ Util.show_source_view loc
+        ExpectedToken explanation loc ->
+            explanation++"\n" ++ Util.show_source_view loc
 
         ExpectedTypeName loc ->
             "Expected a type name here\n" ++ Util.show_source_view loc
 
         ExpectedEndOfArgListOrComma loc ->
             "Expected a comma to continue arg list or a close paren to end it\n++Util.show_source_view loc" ++ Util.show_source_view loc
+
+        FailedTypeParse tpe ->
+            case tpe of
+                Idk loc ->
+                    "Failed to parse type\n" ++ Util.show_source_view loc
 
 
 explain_error : Error -> Html.Html msg
