@@ -3,9 +3,9 @@ module Parser exposing (..)
 import Html exposing (text)
 import Html.Attributes exposing (style)
 import Language exposing (KeywordType(..), Name(..), stringify_name)
-import Lexer exposing (Token, TokenType(..), symbol_or_keyword, syntaxify_token)
-import Util
+import Lexer exposing (Token, TokenType(..), syntaxify_token)
 import Pallete
+import Util
 
 
 parse : List Lexer.Token -> Result Error Program
@@ -63,12 +63,6 @@ type alias TypeWithName =
     { name : Language.Name, typename : Language.Name }
 
 
-stringify_named_arg : TypeWithName -> String
-stringify_named_arg na =
-    Language.stringify_name na.name
-        ++ " : "
-        ++ Language.stringify_name na.typename
-
 
 type TypeParseError
     = Idk Util.SourceView
@@ -91,7 +85,8 @@ type Expression
 
 
 type Statement
-    = Return Expression
+    = CommentStatement String
+    | ReturnStatement Expression
     | Initilization TypeWithName Expression
     | Assignment String Expression
     | FunctionCallStatement FunctionCall
@@ -125,7 +120,7 @@ parse_type todo ps =
 
 
 type NamedTypeParseError
-    = NameError String
+    = NameError Util.SourceView String
     | TypeError TypeParseError
 
 
@@ -188,7 +183,7 @@ parse_outer ps =
 
 
 type ExprParseError
-    = IdkExpr String
+    = IdkExpr Util.SourceView String
 
 
 parse_expr : (Result ExprParseError Expression -> ParseRes) -> ParseStep -> ParseRes
@@ -198,7 +193,7 @@ parse_expr todo ps =
             Ok (NameLookup (BaseName s)) |> todo
 
         _ ->
-            IdkExpr "I don't know how to parse non name lookup expr" |> Err |> todo
+            IdkExpr ps.tok.loc "I don't know how to parse non name lookup expr" |> Err |> todo
 
 
 parse_global_fn_return_statement : FunctionDefinition -> ParseStep -> ParseRes
@@ -211,7 +206,7 @@ parse_global_fn_return_statement fdef ps =
                     Error (FailedExprParse e)
 
                 Ok expr ->
-                    parse_global_fn_statements { fdef | statements = List.append fdef.statements [ Return expr ] }
+                    parse_global_fn_statements { fdef | statements = List.append fdef.statements [ ReturnStatement expr ] }
                         |> ParseFn
                         |> parse_expected_token "Expected newline after end of this return expression" NewlineToken
                         |> ParseFn
@@ -231,6 +226,9 @@ parse_global_fn_statements fdef ps =
                 _ ->
                     Error (KeywordNotAllowedHere ps.tok.loc)
 
+        CommentToken c ->
+            Next ps.prog (ParseFn (parse_global_fn_statements { fdef | statements = List.append fdef.statements [ CommentStatement c ] }))
+
         CloseCurly ->
             let
                 old_prog =
@@ -240,9 +238,6 @@ parse_global_fn_statements fdef ps =
                     { old_prog | global_functions = List.append old_prog.global_functions [ fdef ] }
             in
             Next prog (ParseFn parse_outer)
-
-        CommentToken _ ->
-            parse_global_fn_statements fdef |> ParseFn |> Next ps.prog
 
         NewlineToken ->
             parse_global_fn_statements fdef |> ParseFn |> Next ps.prog
@@ -395,7 +390,6 @@ parse_find_module_name ps =
         Symbol s ->
             Next { prog | module_name = Just s, needs_more = Nothing } (ParseFn parse_find_imports)
 
-
         _ ->
             Error NoModuleNameGiven
 
@@ -497,16 +491,16 @@ stringify_error e =
                 TypeError tp ->
                     stringify_error (FailedTypeParse tp)
 
-                NameError ne ->
-                    "Failed to parse name of name: Type. " ++ ne ++ "\n"
+                NameError loc ne ->
+                    "Failed to parse name of name: Type. " ++ ne ++ "\n" ++ Util.show_source_view loc
 
         KeywordNotAllowedHere loc ->
             "This Keyword is not allowed here\n" ++ Util.show_source_view loc
 
         FailedExprParse er ->
             case er of
-                IdkExpr s ->
-                    "Failed to parse expr: " ++ s
+                IdkExpr loc s ->
+                    "Failed to parse expr: " ++ s ++ "\n" ++ Util.show_source_view loc
 
         ExpectedFunctionBody loc got ->
             "Expected a `{` to start the function body but got `" ++ syntaxify_token got ++ "`\n" ++ Util.show_source_view loc
@@ -539,7 +533,7 @@ syntax_highlight_type name =
 
 htmlify_namedarg : TypeWithName -> List (Html.Html msg)
 htmlify_namedarg na =
-    [ symbol_highlight (Language.stringify_name na.name) 
+    [ symbol_highlight (Language.stringify_name na.name)
     , text ": "
     , Html.span [] [ syntax_highlight_type na.typename ]
     ]
@@ -585,8 +579,11 @@ explain_expression expr =
 explain_statement : Statement -> Html.Html msg
 explain_statement s =
     case s of
-        Return expr ->
-            Html.pre [] [ text "return: ", explain_expression expr ]
+        ReturnStatement expr ->
+            Html.span [] [ text "return: ", explain_expression expr ]
+
+        CommentStatement src ->
+            Html.span [] [ text "// ", text src ]
 
         _ ->
             Debug.todo "explai other statemnts"
@@ -594,25 +591,32 @@ explain_statement s =
 
 explain_statments : List Statement -> Html.Html msg
 explain_statments statements =
-    Html.ul [] (List.map (\s -> explain_statement s) statements |> List.map (\s -> Html.li [] [ s ]))
+    Html.ul [] (List.map (\s -> explain_statement s) statements |> List.map (\s -> Html.li [] [ Html.pre [] [s] ])) 
 
 
 explain_program : Program -> Html.Html msg
 explain_program prog =
+    let
+        imports =
+            Util.collapsable (Html.text "Imports") (Html.ul [] (List.map (\s -> Html.li [] [ Html.text s ]) prog.imports))
+
+        funcs =
+            Util.collapsable (text "Global Functions")
+                (Html.ul []
+                    (List.map
+                        (\f ->
+                            Html.li []
+                                [ Util.collapsable (Html.code [] [ text f.name, htmlify_fheader f.header ]) (explain_statments f.statements)
+                                ]
+                        )
+                        prog.global_functions
+                    )
+                )
+    in
     Html.div []
         [ Html.h4 [] [ Html.text ("Module: " ++ Maybe.withDefault "[No name]" prog.module_name) ]
-        , Html.h4 [] [ Html.text "Imports:" ]
-        , Html.ul [] (List.map (\s -> Html.li [] [ Html.text s ]) prog.imports)
-        , Html.h4 [] [ text "Global Functions:" ]
-        , Html.ul []
-            (List.map
-                (\f ->
-                    Html.li []
-                        [ Util.collapsable (Html.code [] [ text f.name , htmlify_fheader f.header]) (explain_statments f.statements)
-                        ]
-                )
-                prog.global_functions
-            )
+        , imports
+        , funcs
         ]
 
 
@@ -623,18 +627,6 @@ extract_fn fn =
             f
 
 
-stringify_fheader : FunctionHeader -> String
-stringify_fheader header =
-    "("
-        ++ (List.map stringify_named_arg header.args |> String.join ", ")
-        ++ ")"
-        ++ (case header.return_type of
-                Nothing ->
-                    ""
-
-                Just t ->
-                    " -> " ++ Language.stringify_name t
-           )
 
 
 keyword_highlight : String -> Html.Html msg
@@ -673,14 +665,16 @@ tab =
 syntaxify_statement : Statement -> Html.Html msg
 syntaxify_statement s =
     case s of
-        Return expr ->
+        ReturnStatement expr ->
             Html.span []
-                [ text "\n"
-                , tab
+                [ tab
                 , keyword_highlight "return "
                 , syntaxify_expression expr
                 , text "\n"
                 ]
+
+        CommentStatement src ->
+            Html.span [ style "color" Pallete.gray ] [ tab, text ("// "++src), text "\n" ]
 
         _ ->
             Debug.todo "syntaxify statement"
@@ -692,13 +686,20 @@ syntaxify_function fdef =
         [ [ keyword_highlight "fn "
           , symbol_highlight fdef.name
           , htmlify_fheader fdef.header
-          , text "{"
           ]
-        , fdef.statements |> List.map syntaxify_statement
-        , [ text "}"
-          , text "\n"
-          , text "\n"
-          ]
+        , if List.length fdef.statements == 0 then
+            [ text "{}\n\n" ]
+
+          else
+            List.concat
+                [ [text "{\n"]
+                    , fdef.statements
+                    |> List.map syntaxify_statement
+                , [ text "}"
+                  , text "\n"
+                  , text "\n"
+                  ]
+                ]
         ]
 
 
@@ -715,6 +716,7 @@ syntaxify_program prog =
         , style "border-width" "2px"
         , style "border-color" "black"
         , style "float" "left"
+        , style "margin-left" "10px "
         ]
         [ Html.pre []
             (List.concat

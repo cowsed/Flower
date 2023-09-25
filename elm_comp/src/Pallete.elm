@@ -13,3 +13,5 @@ blue = "#458588"
 aqua = "#689d6a"
 
 orange = "#d65d0e"
+
+gray = "#7c6f64"

@@ -10,6 +10,12 @@ import Parser
 import Util
 
 
+{- 
+todo:
+- keyword not allowed error gets emitted from parseName with note about which words are reserved
+- 
+-}
+
 input : String
 input =
     """module main
@@ -22,6 +28,7 @@ import "github.com/cowsed/image"
 
 // adding 2 numbers
 fn add(a: u8, b: u8) -> u8{
+    // this is not how adding works
     return b
 }
 
