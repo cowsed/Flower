@@ -15,18 +15,28 @@ import Parser
 
 input : String
 input =
-    """//example dude
+    """
 module main
+
 // importing the standard library
 import "std"
-import "math"
-import "std"
+import "math" // importing another library
+
+
+// adding 2 numbers
 fn add(a: u8, b: u8) -> u8{
     return a + b
 }
+
+// doubling a number
 fn double(a: u8) -> u8{
-    return a * "2"
+    return a * "2" // oops thats a type error
 }
+
+fn add2(a: u1, b: u6) {
+
+}
+
 fn main(){
 
 }
@@ -87,16 +97,6 @@ main =
                 Err _ ->
                     Html.pre [] [ text "Lexing error" ]
 
-        -- parse_result : Result CompilerError Parser.Program
-        -- parse_result =
-        --     case lex_result of
-        --         Err e ->
-        --             Err (Lex e)
-        --         Ok toks ->
-        --             case Parser.parse toks of
-        --                 Err e ->
-        --                     Err (Parse e)
-        --                 Ok prog -> Ok prog
         parse: List Lexer.Token -> Result CompilerError Parser.Program
         parse toks =
             Parser.parse toks |> wrap_parser_output

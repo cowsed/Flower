@@ -2,7 +2,7 @@ module Parser exposing (..)
 
 import Browser.Navigation exposing (Key)
 import Html exposing (text)
-import Html.Attributes
+import Html.Attributes exposing (style)
 import Language
 import Lexer exposing (Token, TokenType(..))
 import Util
@@ -98,16 +98,22 @@ stringify_fheader header =
     "("
         ++ (List.map stringify_named_arg header.args |> String.join ", ")
         ++ ")"
-        ++ " -> "
         ++ (case header.return_type of
                 Nothing ->
-                    "No return Type"
+                    ""
 
                 Just t ->
                     case t of
                         BasicTypename n ->
-                            n
+                            " -> " ++ n
            )
+
+
+stringify_typename : TypeName -> String
+stringify_typename tn =
+    case tn of
+        BasicTypename n ->
+            n
 
 
 parse_expected_token : String -> TokenType -> ParseFn -> ParseStep -> ParseRes
@@ -168,9 +174,8 @@ parse_function_body fname header ps =
     Next { prog | global_functions = List.append prog.global_functions [ { name = fname, header = header } ] } (ParseFn (parse_until CloseCurly (ParseFn parse_outer)))
 
 
-
-parse_global_fn_return: String -> FunctionHeader -> ParseStep -> ParseRes
-parse_global_fn_return fname header_so_far ps = 
+parse_global_fn_return : String -> FunctionHeader -> ParseStep -> ParseRes
+parse_global_fn_return fname header_so_far ps =
     let
         what_to_do_with_ret_type : Result TypeParseError TypeName -> ParseRes
         what_to_do_with_ret_type typ_res =
@@ -180,13 +185,17 @@ parse_global_fn_return fname header_so_far ps =
 
                 Ok typ ->
                     Next ps.prog (ParseFn (parse_function_body fname { header_so_far | return_type = Just typ }))
-
     in
-    
     case ps.tok.typ of
-        ReturnSpecifier -> Next ps.prog (ParseFn (parse_type (what_to_do_with_ret_type)))
-        OpenCurly -> Next ps.prog (ParseFn (parse_function_body fname header_so_far)) 
-        _ -> Error (Unimplemented ps.prog "Error after yay or nay return specifier")
+        ReturnSpecifier ->
+            Next ps.prog (ParseFn (parse_type what_to_do_with_ret_type))
+
+        OpenCurly ->
+            Next ps.prog (ParseFn (parse_function_body fname header_so_far))
+
+        _ ->
+            Error (Unimplemented ps.prog "Error after yay or nay return specifier")
+
 
 parse_global_fn_arg_list_comma_or_close : List NamedArg -> String -> ParseStep -> ParseRes
 parse_global_fn_arg_list_comma_or_close args fname ps =
@@ -195,7 +204,7 @@ parse_global_fn_arg_list_comma_or_close args fname ps =
             Next ps.prog (ParseFn (parse_global_fn_arg_list_name args fname))
 
         CloseParen ->
-            Next ps.prog (ParseFn (parse_global_fn_return fname {args = args, return_type = Nothing}))
+            Next ps.prog (ParseFn (parse_global_fn_return fname { args = args, return_type = Nothing }))
 
         _ ->
             Error (ExpectedEndOfArgListOrComma ps.tok.loc)
@@ -393,7 +402,7 @@ stringify_error e =
             explanation ++ "\n" ++ Util.show_source_view loc
 
         ExpectedTypeName loc ->
-            "Expected a type name here\n" ++ Util.show_source_view loc
+            "Expected a type name here.\nDid you maybe use a keyword like `return`, `fn`, `var`? You can't do that\n" ++ Util.show_source_view loc
 
         ExpectedEndOfArgListOrComma loc ->
             "Expected a comma to continue arg list or a close paren to end it\n++Util.show_source_view loc" ++ Util.show_source_view loc
@@ -422,6 +431,42 @@ explain_error e =
                 ]
 
 
+type_style =
+    style "color" "blue"
+
+
+htmlify_namedarg : NamedArg -> List (Html.Html msg)
+htmlify_namedarg na =
+    [ Html.span [ style "color" "green" ] [ text na.name ]
+    , Html.span [ style "color" "black" ] [ text ": " ]
+    , Html.span [ type_style ] [ text (stringify_typename na.typename) ]
+    ]
+
+
+htmlify_fheader : FunctionHeader -> Html.Html msg
+htmlify_fheader header =
+    let
+        pretty_arg_lst : List (Html.Html msg)
+        pretty_arg_lst =
+            List.concat (List.intersperse [ text ", " ] (List.map htmlify_namedarg header.args))
+
+        lis =
+            List.concat [ [ text "(" ], pretty_arg_lst, [ text ")" ] ]
+
+        ret : Html.Html msg
+        ret =
+            Html.span []
+                (case header.return_type of
+                    Just typ ->
+                        [ Html.span [] [ text " 🡒 ", Html.span [ type_style ] [ text (stringify_typename typ) ] ] ]
+
+                    Nothing ->
+                        [ text " " ]
+                )
+    in
+    Html.span [] (List.append lis [ ret ])
+
+
 explain_program : Program -> Html.Html msg
 explain_program prog =
     Html.div []
@@ -430,5 +475,16 @@ explain_program prog =
         , Html.h4 [] [ Html.text "Imports:" ]
         , Html.ul [] (List.map (\s -> Html.li [] [ Html.text s ]) prog.imports)
         , Html.h4 [] [ text "Global Functions:" ]
-        , Html.ul [] (List.map (\f -> Html.li [] [ Html.text (f.name ++ stringify_fheader f.header) ]) prog.global_functions)
+        , Html.ul []
+            (List.map
+                (\f ->
+                    Html.li []
+                        [ Html.code []
+                            [ text f.name
+                            , htmlify_fheader f.header
+                            ]
+                        ]
+                )
+                prog.global_functions
+            )
         ]
