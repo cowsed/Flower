@@ -65,6 +65,9 @@ builtin_types =
     ]
 
 
+type TypeName
+    = Basic Name
+    | ConstName TypeName
 
 type alias TypeWithName =
     { name : Name, typename : Name }
@@ -84,8 +87,8 @@ type alias ASTFunctionDefinition =
 type ASTStatement
     = CommentStatement String
     | ReturnStatement ASTExpression
-    | Initilization TypeWithName ASTExpression
-    | Assignment String ASTExpression
+    | InitilizationStatement TypeWithName ASTExpression
+    | AssignmentStatement String ASTExpression
     | FunctionCallStatement ASTFunctionCall
     | IfStatement
 

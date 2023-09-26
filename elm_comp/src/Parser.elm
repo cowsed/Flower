@@ -2,7 +2,7 @@ module Parser exposing (..)
 
 import Html exposing (text)
 import Html.Attributes exposing (style)
-import Language exposing (ASTExpression(..), ASTFunctionDefinition, ASTFunctionHeader, ASTStatement(..), KeywordType(..), Name(..), TypeWithName, stringify_name)
+import Language exposing (ASTExpression(..), ASTFunctionCall, ASTFunctionDefinition, ASTFunctionHeader, ASTStatement(..), KeywordType(..), Name(..), TypeWithName, stringify_name)
 import Lexer exposing (Token, TokenType(..), syntaxify_token)
 import Pallete
 import Util
@@ -35,6 +35,8 @@ type Error
     | FailedExprParse ExprParseError
     | ExpectedFunctionBody Util.SourceView TokenType
     | RequireInitilizationWithValue Util.SourceView
+    | UnknownThingWhileParsingFuncCallOrAssignment Util.SourceView
+    | FailedFuncCallParse FuncCallParseError
 
 
 type alias Program =
@@ -146,15 +148,128 @@ parse_outer ps =
             Error (Unimplemented ps.prog "Parsing outer non function things")
 
 
+type FuncCallParseError
+    = IdkFuncCall Util.SourceView String
+
+
+parse_func_call_continue_or_end : (Result FuncCallParseError ASTFunctionCall -> ParseRes) -> ASTFunctionCall -> ParseStep -> ParseRes
+parse_func_call_continue_or_end todo fcall ps =
+    let
+        what_to_do_with_expr : Result ExprParseError ASTExpression -> ParseRes
+        what_to_do_with_expr res =
+            case res of
+                Err e ->
+                    Error (FailedExprParse e)
+
+                Ok expr ->
+                    ParseFn
+                        (parse_func_call_continue_or_end
+                            todo
+                            { fcall | args = List.append fcall.args [ expr ] }
+                        )
+                        |> Next ps.prog
+    in
+    case Debug.log "here" ps.tok.typ of
+        CommaToken ->
+            parse_expr what_to_do_with_expr |> ParseFn |> Next ps.prog
+
+        CloseParen ->
+            todo (Ok fcall)
+
+        _ ->
+            Error (Unimplemented ps.prog "What to do if not comma or ) in arg list (in func_call_continue_or_end)")
+
+
+parse_global_fn_fn_call_args : (Result FuncCallParseError ASTFunctionCall -> ParseRes) -> ASTFunctionCall -> ASTFunctionDefinition -> ParseStep -> ParseRes
+parse_global_fn_fn_call_args todo fcall fdef ps =
+    let
+        what_to_do_with_expr : Result ExprParseError ASTExpression -> ParseRes
+        what_to_do_with_expr res =
+            case res of
+                Err e ->
+                    Error (FailedExprParse e)
+
+                Ok expr ->
+                    parse_func_call_continue_or_end todo { fcall | args = List.append fcall.args [ expr ] }
+                        |> ParseFn
+                        |> Next ps.prog
+    in
+    case ps.tok.typ of
+        CloseParen ->
+            parse_global_fn_statements { fdef | statements = List.append fdef.statements [ FunctionCallStatement fcall ] } |> ParseFn |> Next ps.prog
+
+        _ ->
+            apply_again (ParseFn (parse_expr what_to_do_with_expr)) ps
+
+
+type alias FuncCallTodo =
+    Result FuncCallParseError ASTFunctionCall -> ParseRes
+
+
+
+-- called after name(
+
+
+parse_function_call : String -> FuncCallTodo -> ParseStep -> ParseRes
+parse_function_call name todo ps =
+    let
+        what_to_do : ExprParseWhatTodo
+        what_to_do res =
+            case res of
+                Err e ->
+                    Error (FailedExprParse e)
+
+                Ok expr ->
+                    Next ps.prog (ParseFn (parse_func_call_continue_or_end todo (ASTFunctionCall name [ expr ])))
+    in
+    case Debug.log "parse function call after (" ps.tok.typ of
+        CloseParen ->
+            todo (Ok (ASTFunctionCall name []))
+
+        _ ->
+            apply_again (ParseFn (parse_expr what_to_do)) ps
+
+
 type ExprParseError
     = IdkExpr Util.SourceView String
 
 
-parse_expr : (Result ExprParseError ASTExpression -> ParseRes) -> ParseStep -> ParseRes
+type alias ExprParseWhatTodo =
+    Result ExprParseError ASTExpression -> ParseRes
+
+
+parse_expr_name_or_fcall : String -> ExprParseWhatTodo -> ParseStep -> ParseRes
+parse_expr_name_or_fcall name todo ps =
+    let
+        func_todo : FuncCallTodo
+        func_todo res =
+            case res of
+                Ok fcall ->
+                    FunctionCallExpr fcall |> Ok |> todo
+
+                Err e ->
+                    Error (FailedFuncCallParse e)
+    in
+    case Debug.log ("name or call " ++ name ++ " decider ") ps.tok.typ of
+        -- start func
+        OpenParen ->
+            parse_function_call (Debug.log "Was function" name) func_todo |> ParseFn |> Next ps.prog
+
+        -- was just a name
+        _ ->
+            case Ok (NameLookup (BaseName (Debug.log "Decided was just a name" name))) |> todo of
+                Error e ->
+                    Error e
+
+                Next prog fn ->
+                    apply_again fn { ps | prog = prog }
+
+
+parse_expr : ExprParseWhatTodo -> ParseStep -> ParseRes
 parse_expr todo ps =
     case ps.tok.typ of
         Symbol s ->
-            Ok (NameLookup (BaseName s)) |> todo
+            Next ps.prog (ParseFn (parse_expr_name_or_fcall s todo))
 
         _ ->
             IdkExpr ps.tok.loc "I don't know how to parse non name lookup expr" |> Err |> todo
@@ -189,7 +304,7 @@ parse_global_fn_initilization fdef nt ps =
                     Error (FailedExprParse e)
 
                 Ok expr ->
-                    Next ps.prog (ParseFn (parse_global_fn_statements { fdef | statements = List.append fdef.statements [ Initilization nt expr ] }))
+                    Next ps.prog (ParseFn (parse_global_fn_statements { fdef | statements = List.append fdef.statements [ InitilizationStatement nt expr ] }))
     in
     case ps.tok.typ of
         AssignmentToken ->
@@ -200,6 +315,54 @@ parse_global_fn_initilization fdef nt ps =
 
         _ ->
             Error (Unimplemented ps.prog "what happens if no = after var a: Type = ")
+
+
+parse_global_fn_assignment : String -> ASTFunctionDefinition -> ParseStep -> ParseRes
+parse_global_fn_assignment name fdef ps =
+    let
+        after_expr_parse res =
+            case res of
+                Err e ->
+                    Error (FailedExprParse e)
+
+                Ok expr ->
+                    Next ps.prog (ParseFn (parse_global_fn_statements { fdef | statements = List.append fdef.statements [ AssignmentStatement name expr ] }))
+    in
+    apply_again (ParseFn (parse_expr after_expr_parse)) ps
+
+
+
+-- Next ps.prog (ParseFn (parse_expr after_expr_parse))
+
+
+parse_global_fn_assignment_or_fn_call : String -> ASTFunctionDefinition -> ParseStep -> ParseRes
+parse_global_fn_assignment_or_fn_call name fdef2 ps =
+    let
+        fdef =
+            Debug.log "fdef" fdef2
+
+        todo : FuncCallTodo
+        todo res =
+            case res of
+                Err e ->
+                    Error (FailedFuncCallParse e)
+
+                Ok fcall ->
+                    parse_global_fn_statements { fdef | statements = List.append fdef.statements [ FunctionCallStatement fcall ] }
+                        |> ParseFn
+                        |> Next ps.prog
+    in
+    case Debug.log "Thingy" ps.tok.typ of
+        OpenParen ->
+            parse_global_fn_fn_call_args todo (ASTFunctionCall name []) fdef
+                |> ParseFn
+                |> Next ps.prog
+
+        AssignmentToken ->
+            Next ps.prog (ParseFn (parse_global_fn_assignment name fdef))
+
+        _ ->
+            Error (UnknownThingWhileParsingFuncCallOrAssignment ps.tok.loc)
 
 
 parse_global_fn_statements : ASTFunctionDefinition -> ParseStep -> ParseRes
@@ -228,6 +391,9 @@ parse_global_fn_statements fdef ps =
 
         CommentToken c ->
             Next ps.prog (ParseFn (parse_global_fn_statements { fdef | statements = List.append fdef.statements [ CommentStatement c ] }))
+
+        Symbol s ->
+            Next ps.prog (ParseFn (parse_global_fn_assignment_or_fn_call s fdef))
 
         CloseCurly ->
             let
@@ -426,7 +592,7 @@ rec_parse toks prog_sofar fn =
         res tok =
             extract_fn fn { tok = tok, prog = prog_sofar }
     in
-    case head of
+    case Debug.log "Tok:" head of
         Just tok ->
             case res tok of
                 Error e ->
@@ -452,7 +618,7 @@ stringify_error : Error -> String
 stringify_error e =
     case e of
         NoModuleNameGiven ->
-            "No Module Name Given"
+            "No Module Name Given. The First non comment line in a program must be `module module_name`"
 
         NonStringImport location ->
             "I expected a string literal as an import but got this nonsense instead\n" ++ Util.show_source_view location
@@ -507,6 +673,14 @@ stringify_error e =
 
         RequireInitilizationWithValue loc ->
             "When you are initilizaing something `var a: Type = xyz you need that = xyz or else that thing is unitialized\n" ++ Util.show_source_view loc
+
+        UnknownThingWhileParsingFuncCallOrAssignment loc ->
+            "I was parsing the statements of a function (specifically an assignment or function call) and found something random\n" ++ Util.show_source_view loc
+
+        FailedFuncCallParse er ->
+            case er of
+                IdkFuncCall loc s ->
+                    "Failed to parse a function call: " ++ s ++ "\n" ++ Util.show_source_view loc
 
 
 explain_error : Error -> Html.Html msg
@@ -572,8 +746,13 @@ explain_expression expr =
         NameLookup n ->
             text ("Name look up: " ++ stringify_name n)
 
-        FunctionCallExpr _ ->
-            Debug.todo "branch 'FunctionCallExpr _' not implemented"
+        FunctionCallExpr fcall ->
+            Html.span []
+                [ text "Calling function: "
+                , text fcall.fname
+                , text " with args "
+                , Html.ul [] (fcall.args |> List.map (\a -> Html.li [] [ explain_expression a ]))
+                ]
 
         LiteralExpr _ _ ->
             Debug.todo "branch 'LiteralExpr _ _' not implemented"
@@ -588,8 +767,20 @@ explain_statement s =
         CommentStatement src ->
             Html.span [] [ text "// ", text src ]
 
-        Initilization name expr ->
+        InitilizationStatement name expr ->
             Html.span [] [ text ("Initialize `" ++ stringify_name name.name ++ "` of type " ++ stringify_name name.typename ++ " to "), explain_expression expr ]
+
+        AssignmentStatement name expr ->
+            Html.span [] [ text ("assigning " ++ name ++ " with "), explain_expression expr ]
+
+        FunctionCallStatement fcal ->
+            Html.span []
+                [ text ("call the function " ++ fcal.fname ++ " with args:")
+                , Html.ul []
+                    (fcal.args
+                        |> List.map (\n -> Html.li [] [ explain_expression n ])
+                    )
+                ]
 
         _ ->
             Debug.todo "explai other statemnts"
@@ -649,8 +840,13 @@ syntaxify_expression expr =
         NameLookup n ->
             symbol_highlight (stringify_name n)
 
-        FunctionCallExpr _ ->
-            Debug.todo "branch 'FunctionCallExpr _' not implemented"
+        FunctionCallExpr fcall ->
+            Html.span []
+                [ symbol_highlight fcall.fname
+                , text "("
+                , Html.span [] (fcall.args |> List.map (\arg -> syntaxify_expression arg) |> List.intersperse (text "") )
+                , text ")"
+                ]
 
         LiteralExpr _ _ ->
             Debug.todo "branch 'LiteralExpr _ _' not implemented"
@@ -677,11 +873,24 @@ syntaxify_statement s =
                 , text "\n"
                 ]
 
-        Initilization name expr ->
+        InitilizationStatement name expr ->
             Html.span [] (List.concat [ [ tab, keyword_highlight "var " ], htmlify_namedarg name, [ text " = ", syntaxify_expression expr, text "\n" ] ])
 
         CommentStatement src ->
             Html.span [ style "color" Pallete.gray ] [ tab, text ("// " ++ src), text "\n" ]
+
+        AssignmentStatement name expr ->
+            Html.span [] [ tab, symbol_highlight name, text " = ", syntaxify_expression expr, text "\n" ]
+
+        FunctionCallStatement fcal ->
+            Html.span []
+                [ tab
+                , symbol_highlight fcal.fname
+                , text "("
+                , Html.span [] (fcal.args |> List.map (\e -> syntaxify_expression e) |> List.intersperse (Html.span [] [ text ", " ]))
+                , text ")"
+                , text "\n"
+                ]
 
         _ ->
             Debug.todo "syntaxify statement"
@@ -725,18 +934,7 @@ collapsing_function fdef =
             )
 
 
-
---         List.concat
---             [ [ text "{\n" ]
---             , fdef.statements
---                 |> List.map syntaxify_statement
---             , [ text "}"
---               , text "\n"
---               , text "\n"
---               ]
---             ]
-
-
+collapsing_function_style : Html.Html msg
 collapsing_function_style =
     Html.node "style" [] [ text """
 details[open] > summary {
@@ -748,18 +946,6 @@ details[open] > summary {
 syntaxify_function : ASTFunctionDefinition -> List (Html.Html msg)
 syntaxify_function fdef =
     [ collapsing_function fdef ]
-
-
-
--- List.concat
---     [ [ keyword_highlight "fn "
---       , symbol_highlight fdef.name
---       , syntaxify_fheader fdef.header
---       ]
---     , if List.length fdef.statements == 0 then
---         [ text "{}\n\n" ]
---       else
---     ]
 
 
 syntaxify_program : Program -> Html.Html msg

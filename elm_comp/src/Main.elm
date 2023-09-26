@@ -31,6 +31,7 @@ import "github.com/cowsed/image"
 fn add(a: u8, b: u8) -> u8{
     var c: u8 = a
     // this is not how adding works
+    f(a, d(a))
     return c
 }
 
@@ -110,7 +111,7 @@ main =
             lex_result |> Result.andThen parse
     in
     Html.div []
-        [ Html.node "style" [] [ text css ]
+        [ Html.node "style" [] [ text global_css ]
         , htmlify_output result
         , Html.hr [] []
         , Html.div
@@ -145,7 +146,8 @@ main =
         ]
 
 
-css =
+global_css : String
+global_css =
     """
     body { 
         background: #fbf1c7;
