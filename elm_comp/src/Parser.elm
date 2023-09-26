@@ -169,7 +169,7 @@ parse_func_call_continue_or_end todo fcall ps =
                         )
                         |> Next ps.prog
     in
-    case Debug.log "here" ps.tok.typ of
+    case ps.tok.typ of
         CommaToken ->
             parse_expr what_to_do_with_expr |> ParseFn |> Next ps.prog
 
@@ -222,7 +222,7 @@ parse_function_call name todo ps =
                 Ok expr ->
                     Next ps.prog (ParseFn (parse_func_call_continue_or_end todo (ASTFunctionCall name [ expr ])))
     in
-    case Debug.log "parse function call after (" ps.tok.typ of
+    case ps.tok.typ of
         CloseParen ->
             todo (Ok (ASTFunctionCall name []))
 
@@ -250,14 +250,14 @@ parse_expr_name_or_fcall name todo ps =
                 Err e ->
                     Error (FailedFuncCallParse e)
     in
-    case Debug.log ("name or call " ++ name ++ " decider ") ps.tok.typ of
+    case ps.tok.typ of
         -- start func
         OpenParen ->
-            parse_function_call (Debug.log "Was function" name) func_todo |> ParseFn |> Next ps.prog
+            parse_function_call name func_todo |> ParseFn |> Next ps.prog
 
         -- was just a name
         _ ->
-            case Ok (NameLookup (BaseName (Debug.log "Decided was just a name" name))) |> todo of
+            case NameLookup (BaseName name) |> Ok |> todo of
                 Error e ->
                     Error e
 
@@ -336,11 +336,8 @@ parse_global_fn_assignment name fdef ps =
 
 
 parse_global_fn_assignment_or_fn_call : String -> ASTFunctionDefinition -> ParseStep -> ParseRes
-parse_global_fn_assignment_or_fn_call name fdef2 ps =
+parse_global_fn_assignment_or_fn_call name fdef ps =
     let
-        fdef =
-            Debug.log "fdef" fdef2
-
         todo : FuncCallTodo
         todo res =
             case res of
@@ -352,7 +349,7 @@ parse_global_fn_assignment_or_fn_call name fdef2 ps =
                         |> ParseFn
                         |> Next ps.prog
     in
-    case Debug.log "Thingy" ps.tok.typ of
+    case ps.tok.typ of
         OpenParen ->
             parse_global_fn_fn_call_args todo (ASTFunctionCall name []) fdef
                 |> ParseFn
@@ -592,7 +589,7 @@ rec_parse toks prog_sofar fn =
         res tok =
             extract_fn fn { tok = tok, prog = prog_sofar }
     in
-    case Debug.log "Tok:" head of
+    case head of
         Just tok ->
             case res tok of
                 Error e ->
@@ -844,7 +841,7 @@ syntaxify_expression expr =
             Html.span []
                 [ symbol_highlight fcall.fname
                 , text "("
-                , Html.span [] (fcall.args |> List.map (\arg -> syntaxify_expression arg) |> List.intersperse (text "") )
+                , Html.span [] (fcall.args |> List.map (\arg -> syntaxify_expression arg) |> List.intersperse (text ""))
                 , text ")"
                 ]
 
