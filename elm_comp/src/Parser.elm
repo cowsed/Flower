@@ -4,66 +4,23 @@ import Html exposing (text)
 import Html.Attributes exposing (style)
 import Language exposing (ASTExpression(..), ASTFunctionCall, ASTFunctionDefinition, ASTFunctionHeader, ASTStatement(..), KeywordType(..), Name(..), TypeWithName, stringify_name)
 import Lexer exposing (Token, TokenType(..), syntaxify_token)
+import ParserCommon exposing (..)
+import ExpressionParser exposing (..)
 import Pallete
 import Util
 
 
-parse : List Lexer.Token -> Result Error Program
+parse : List Lexer.Token -> Result Error ParserCommon.Program
 parse toks =
     let
-        base_program : Program
+        base_program : ParserCommon.Program
         base_program =
             { module_name = Nothing, imports = [], global_functions = [], needs_more = Nothing }
     in
     rec_parse toks base_program (ParseFn parse_find_module_kw)
 
 
-type Error
-    = NoModuleNameGiven
-    | NonStringImport Util.SourceView
-    | Unimplemented Program String
-    | NeededMoreTokens String
-    | UnknownOuterLevelObject Util.SourceView
-    | ExpectedNameAfterFn Util.SourceView
-    | ExpectedOpenParenAfterFn String Util.SourceView
-    | ExpectedToken String Util.SourceView
-    | ExpectedTypeName Util.SourceView
-    | ExpectedEndOfArgListOrComma Util.SourceView
-    | FailedTypeParse TypeParseError
-    | FailedNamedTypeParse NamedTypeParseError
-    | KeywordNotAllowedHere Util.SourceView
-    | FailedExprParse ExprParseError
-    | ExpectedFunctionBody Util.SourceView TokenType
-    | RequireInitilizationWithValue Util.SourceView
-    | UnknownThingWhileParsingFuncCallOrAssignment Util.SourceView
-    | FailedFuncCallParse FuncCallParseError
 
-
-type alias Program =
-    { module_name : Maybe String
-    , imports : List String
-    , global_functions : List ASTFunctionDefinition
-    , needs_more : Maybe String
-    }
-
-
-type ParseFn
-    = ParseFn (ParseStep -> ParseRes)
-
-
-type alias ParseStep =
-    { tok : Token
-    , prog : Program
-    }
-
-
-type ParseRes
-    = Error Error
-    | Next Program ParseFn
-
-
-type TypeParseError
-    = Idk Util.SourceView
 
 
 parse_expected_token : String -> TokenType -> ParseFn -> ParseStep -> ParseRes
@@ -85,9 +42,6 @@ parse_type todo ps =
             Error (ExpectedTypeName ps.tok.loc)
 
 
-type NamedTypeParseError
-    = NameError Util.SourceView String
-    | TypeError TypeParseError
 
 
 
@@ -148,38 +102,6 @@ parse_outer ps =
             Error (Unimplemented ps.prog "Parsing outer non function things")
 
 
-type FuncCallParseError
-    = IdkFuncCall Util.SourceView String
-    | ExpectedAnotherArgument Util.SourceView
-
-parse_func_call_continue_or_end : (Result FuncCallParseError ASTFunctionCall -> ParseRes) -> ASTFunctionCall -> ParseStep -> ParseRes
-parse_func_call_continue_or_end todo fcall ps =
-    let
-        what_to_do_with_expr : Result ExprParseError ASTExpression -> ParseRes
-        what_to_do_with_expr res =
-            case res of
-                Err e ->
-                    case e of
-                        ParenWhereIDidntWantIt loc -> Error (FailedFuncCallParse (ExpectedAnotherArgument ps.tok.loc)) -- use this tok.loc because were looking at a paren right here
-                        _  -> Error (FailedExprParse  e)
-
-                Ok expr ->
-                    ParseFn
-                        (parse_func_call_continue_or_end
-                            todo
-                            { fcall | args = List.append fcall.args [ expr ] }
-                        )
-                        |> Next ps.prog
-    in
-    case ps.tok.typ of
-        CommaToken ->
-            parse_expr what_to_do_with_expr |> ParseFn |> Next ps.prog
-
-        CloseParen ->
-            todo (Ok fcall)
-
-        _ ->
-            Error (Unimplemented ps.prog "What to do if not comma or ) in arg list (in func_call_continue_or_end)")
 
 
 parse_global_fn_fn_call_args : (Result FuncCallParseError ASTFunctionCall -> ParseRes) -> ASTFunctionCall -> ASTFunctionDefinition -> ParseStep -> ParseRes
@@ -192,7 +114,7 @@ parse_global_fn_fn_call_args todo fcall fdef ps =
                     Error (FailedExprParse e)
 
                 Ok expr ->
-                    parse_func_call_continue_or_end todo { fcall | args = List.append fcall.args [ expr ] }
+                    ExpressionParser.parse_func_call_continue_or_end todo { fcall | args = List.append fcall.args [ expr ] }
                         |> ParseFn
                         |> Next ps.prog
     in
@@ -204,78 +126,6 @@ parse_global_fn_fn_call_args todo fcall fdef ps =
             apply_again (ParseFn (parse_expr what_to_do_with_expr)) ps
 
 
-type alias FuncCallTodo =
-    Result FuncCallParseError ASTFunctionCall -> ParseRes
-
-
-
--- called after name(
-
-
-parse_function_call : String -> FuncCallTodo -> ParseStep -> ParseRes
-parse_function_call name todo ps =
-    let
-        what_to_do : ExprParseWhatTodo
-        what_to_do res =
-            case res of
-                Err e ->
-                    Error (FailedExprParse e)
-
-                Ok expr ->
-                    Next ps.prog (ParseFn (parse_func_call_continue_or_end todo (ASTFunctionCall name [ expr ])))
-    in
-    case ps.tok.typ of
-        CloseParen ->
-            todo (Ok (ASTFunctionCall name []))
-
-        _ ->
-            apply_again (ParseFn (parse_expr what_to_do)) ps
-
-
-type ExprParseError
-    = IdkExpr Util.SourceView String
-    | ParenWhereIDidntWantIt Util.SourceView
-
-
-type alias ExprParseWhatTodo =
-    Result ExprParseError ASTExpression -> ParseRes
-
-
-parse_expr_name_or_fcall : String -> ExprParseWhatTodo -> ParseStep -> ParseRes
-parse_expr_name_or_fcall name todo ps =
-    let
-        func_todo : FuncCallTodo
-        func_todo res =
-            case res of
-                Ok fcall ->
-                    FunctionCallExpr fcall |> Ok |> todo
-
-                Err e ->
-                    Error (FailedFuncCallParse e)
-    in
-    case ps.tok.typ of
-        -- start func
-        OpenParen ->
-            parse_function_call name func_todo |> ParseFn |> Next ps.prog
-
-        -- was just a name
-        _ ->
-            case NameLookup (BaseName name) |> Ok |> todo of
-                Error e ->
-                    Error e
-
-                Next prog fn ->
-                    apply_again fn { ps | prog = prog }
-
-
-parse_expr : ExprParseWhatTodo -> ParseStep -> ParseRes
-parse_expr todo ps =
-    case ps.tok.typ of
-        Symbol s ->
-            Next ps.prog (ParseFn (parse_expr_name_or_fcall s todo))
-        CloseParen -> ParenWhereIDidntWantIt ps.tok.loc |> Err |> todo
-        _ ->
-            IdkExpr ps.tok.loc "I don't know how to parse non name lookup expr" |> Err |> todo
 
 
 parse_global_fn_return_statement : ASTFunctionDefinition -> ParseStep -> ParseRes
@@ -578,12 +428,9 @@ parse_find_module_kw ps =
             Next ps.prog (ParseFn parse_find_module_kw)
 
 
-apply_again : ParseFn -> ParseStep -> ParseRes
-apply_again fn ps =
-    extract_fn fn ps
 
 
-rec_parse : List Token -> Program -> ParseFn -> Result Error Program
+rec_parse : List Token -> ParserCommon.Program -> ParseFn -> Result Error ParserCommon.Program
 rec_parse toks prog_sofar fn =
     let
         head =
@@ -795,7 +642,7 @@ explain_statments statements =
     Html.ul [] (List.map (\s -> explain_statement s) statements |> List.map (\s -> Html.li [] [ Html.pre [] [ s ] ]))
 
 
-explain_program : Program -> Html.Html msg
+explain_program : ParserCommon.Program -> Html.Html msg
 explain_program prog =
     let
         imports =
@@ -821,11 +668,6 @@ explain_program prog =
         ]
 
 
-extract_fn : ParseFn -> (ParseStep -> ParseRes)
-extract_fn fn =
-    case fn of
-        ParseFn f ->
-            f
 
 
 keyword_highlight : String -> Html.Html msg
@@ -855,7 +697,7 @@ syntaxify_expression expr =
             Html.span []
                 [ symbol_highlight fcall.fname
                 , text "("
-                , Html.span [] (fcall.args |> List.map (\arg -> syntaxify_expression arg) |> List.intersperse (text ""))
+                , Html.span [] (fcall.args |> List.map (\arg -> syntaxify_expression arg) |> List.intersperse (text ", "))
                 , text ")"
                 ]
 
@@ -959,7 +801,7 @@ syntaxify_function fdef =
     [ collapsing_function fdef ]
 
 
-syntaxify_program : Program -> Html.Html msg
+syntaxify_program : ParserCommon.Program -> Html.Html msg
 syntaxify_program prog =
     Html.code
         [ style "overflow" "scroll"

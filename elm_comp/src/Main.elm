@@ -4,6 +4,7 @@ module Main exposing (..)
 import Html exposing (pre, text)
 import Html.Attributes exposing (style)
 import Language exposing (KeywordType(..))
+import ParserCommon exposing (Program)
 
 import Util
 import Pallete
@@ -31,7 +32,7 @@ import "github.com/cowsed/image"
 fn add(a: u8, b: u8) -> u8{
     var c: u8 = a
     // this is not how adding works
-    f(a, d(a))
+    c = f(a, d(a))
     return a(c, d)
 }
 
@@ -50,10 +51,10 @@ fn main(){
 
 type CompilerError
     = Lex Lexer.Error
-    | Parse Parser.Error
+    | Parse ParserCommon.Error
 
 
-htmlify_output : Result CompilerError Parser.Program -> Html.Html msg
+htmlify_output : Result CompilerError ParserCommon.Program -> Html.Html msg
 htmlify_output res =
     case res of
         Err ce ->
@@ -78,7 +79,7 @@ wrap_lexer_output res =
             Ok toks
 
 
-wrap_parser_output : Result Parser.Error Parser.Program -> Result CompilerError Parser.Program
+wrap_parser_output : Result ParserCommon.Error ParserCommon.Program -> Result CompilerError ParserCommon.Program
 wrap_parser_output res =
     case res of
         Err e ->
@@ -102,11 +103,11 @@ main =
                 Err _ ->
                     Html.pre [] [ text "Lexing error" ]
 
-        parse : List Lexer.Token -> Result CompilerError Parser.Program
+        parse : List Lexer.Token -> Result CompilerError ParserCommon.Program
         parse toks =
             Parser.parse toks |> wrap_parser_output
 
-        result : Result CompilerError Parser.Program
+        result : Result CompilerError ParserCommon.Program
         result =
             lex_result |> Result.andThen parse
     in
