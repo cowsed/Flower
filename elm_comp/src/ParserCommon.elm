@@ -10,6 +10,7 @@ type alias Program =
     , imports : List String
     , global_functions : List ASTFunctionDefinition
     , needs_more : Maybe String
+    , src_tokens : List Token
     }
 
 

@@ -15,7 +15,7 @@ parse toks =
     let
         base_program : ParserCommon.Program
         base_program =
-            { module_name = Nothing, imports = [], global_functions = [], needs_more = Nothing }
+            { module_name = Nothing, imports = [], global_functions = [], needs_more = Just "Need at least a `module name` line", src_tokens = toks }
     in
     rec_parse toks base_program (ParseFn parse_find_module_kw)
 
@@ -464,7 +464,7 @@ stringify_error e =
             "Unimplemented: " ++ reason
 
         NeededMoreTokens why ->
-            "Couldnt end because I needed more token: " ++ why
+            "Couldnt end because I needed more tokens: " ++ why
 
         UnknownOuterLevelObject loc ->
             "The only things allowed at this point are `import`, a variable or a function definition\n" ++ Util.show_source_view loc
@@ -803,7 +803,7 @@ syntaxify_function fdef =
 syntaxify_program : ParserCommon.Program -> Html.Html msg
 syntaxify_program prog =
     Html.code
-        [ style "overflow" "scroll"
+        [ style "overflow" "auto"
         , style "height" "100%"
         , style "width" "400px"
         , style "padding" "4px"

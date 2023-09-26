@@ -8,6 +8,8 @@ import Lexer
 import Pallete
 import Parser
 import ParserCommon
+import Platform.Cmd exposing (Cmd(..))
+import Compiler exposing (compile, CompilerError(..))
 import Task
 import Time
 import Util
@@ -52,10 +54,6 @@ fn main(){
 """
 
 
-type CompilerError
-    = Lex Lexer.Error
-    | Parse ParserCommon.Error
-
 
 htmlify_output : Result CompilerError ParserCommon.Program -> Html.Html msg
 htmlify_output res =
@@ -65,54 +63,34 @@ htmlify_output res =
                 Lex le ->
                     Lexer.explain_error le
 
-                Parse pe ->
+                Parse pe toks->
                     Parser.explain_error pe
 
         Ok prog ->
             Parser.explain_program prog
 
 
-wrap_lexer_output : Result Lexer.Error (List Lexer.Token) -> Result CompilerError (List Lexer.Token)
-wrap_lexer_output res =
-    case res of
-        Err e ->
-            Err (Lex e)
-
-        Ok toks ->
-            Ok toks
-
-
-wrap_parser_output : Result ParserCommon.Error ParserCommon.Program -> Result CompilerError ParserCommon.Program
-wrap_parser_output res =
-    case res of
-        Err e ->
-            Err (Parse e)
-
-        Ok prog ->
-            Ok prog
 
 
 make_output : Model -> Html.Html Msg
 make_output mod =
     let
-        lex_result =
-            Lexer.lex mod.source_code |> wrap_lexer_output
-
-        pretty_toks =
-            case lex_result of
-                Ok toks ->
-                    Html.pre [] (toks |> List.map Lexer.token_to_str |> List.map (\x -> x ++ "\n") |> List.map text)
-
-                Err _ ->
-                    Html.pre [] [ text "Lexing error" ]
-
-        parse : List Lexer.Token -> Result CompilerError ParserCommon.Program
-        parse toks =
-            Parser.parse toks |> wrap_parser_output
+    
 
         result : Result CompilerError ParserCommon.Program
         result =
-            lex_result |> Result.andThen parse
+            compile mod.source_code
+
+        pretty_toks =
+            case result of
+                Ok prog ->
+                    Html.pre [] (prog.src_tokens |> List.map Lexer.token_to_str |> List.map (\x -> x ++ "\n") |> List.map text)
+
+                Err e ->
+                    case e of
+                        Parse er toks -> Html.pre [] (toks |> List.map Lexer.token_to_str |> List.map (\x -> x ++ "\n") |> List.map text)
+                        Lex er -> Html.pre [] [text "Lex error"]
+
     in
     Html.div []
         [ Html.node "style" [] [ text global_css ]
@@ -122,7 +100,7 @@ make_output mod =
             ]
             [ Html.textarea
                 [ style "font-size" "15px"
-                , style "overflow" "scroll"
+                , style "overflow" "auto"
                 , style "height" "400px"
                 , style "width" "400px"
                 , style "padding" "10px"
@@ -146,9 +124,6 @@ make_output mod =
                         [ Parser.syntaxify_program prog
                         ]
             ]
-        , text ("Last Run Started: " ++ stringify_time Time.utc mod.last_run_start)
-        , Html.br [] []
-        , text ("Last Run Ended: " ++ stringify_time Time.utc mod.last_run_end)
         , htmlify_output result
         , Html.hr [] []
         , Util.collapsable (text "Tokens") pretty_toks
@@ -159,7 +134,7 @@ view : Maybe Model -> Html.Html Msg
 view mmod =
     case mmod of
         Nothing ->
-            text "NotLoadedYet"
+            text "Not Loaded Yet"
 
         Just mod ->
             mod.output
@@ -234,7 +209,7 @@ global_css =
 
 type Msg
     = DoUpdate String
-    | Recompile String
+      -- | Recompile String
     | GotTimeToStart String Time.Posix
     | GotTimeEnd Time.Posix
 
@@ -262,26 +237,32 @@ update msg mmod =
                 DoUpdate s ->
                     ( Just mod, Task.perform (GotTimeToStart s) Time.now )
 
-                Recompile s ->
-                    ( Just { mod | source_code = s }, Cmd.none )
-
                 GotTimeToStart s t ->
-                    ( { mod
-                        | last_run_start = t
-                        , output =
-                            case update (Recompile s) mmod |> Tuple.first of
-                                Nothing ->
-                                    text "terrible error this shouldnt happen"
-
-                                Just mod_after ->
-                                    make_output mod_after
-                      }
-                        |> Just
-                    , Task.perform GotTimeEnd Time.now
-                    )
+                    ( Just { mod | source_code = s, last_run_start = t, output = make_output { mod | source_code = s, last_run_start = t } }, Task.perform GotTimeEnd Time.now )
 
                 GotTimeEnd t ->
-                    ( { mod | last_run_end = t } |> Just, Cmd.none )
+                    ( { mod
+                        | last_run_end = t
+                        , output =
+                            Html.div []
+                                [ text ("CompileAndBuildTime: " ++ millis_elapsed mod.last_run_start t++" ms")
+                                , mod.output
+                                ]
+                      }
+                        |> Just
+                    , Cmd.none
+                    )
+
+
+millis_elapsed : Time.Posix -> Time.Posix -> String
+millis_elapsed start end =
+    let
+        differenceMillis =
+            Time.posixToMillis end - Time.posixToMillis start
+
+  
+    in
+        differenceMillis |> String.fromInt
 
 
 type alias Model =
