@@ -1,25 +1,28 @@
 module Main exposing (..)
 
--- import Browser.Navigation exposing (Key)
-import Html exposing (pre, text)
-import Html.Attributes exposing (style)
-import Language exposing (KeywordType(..))
-import ParserCommon exposing (Program)
-
-import Util
-import Pallete
-
+import Browser
+import Html exposing (..)
+import Html.Attributes exposing (spellcheck, style)
+import Html.Events exposing (onInput)
 import Lexer
+import Pallete
 import Parser
+import ParserCommon
+import Task
+import Time
+import Util
 
-{- 
-todo:
-- keyword not allowed error gets emitted from parseName with note about which words are reserved
-- 
+
+
+{-
+   todo:
+   - keyword not allowed error gets emitted from parseName with note about which words are reserved
+   -
 -}
 
-input : String
-input =
+
+initial_input : String
+initial_input =
     """module main
 
 // importing the standard library
@@ -89,11 +92,11 @@ wrap_parser_output res =
             Ok prog
 
 
-main : Html.Html msg
-main =
+make_output : Model -> Html.Html Msg
+make_output mod =
     let
         lex_result =
-            Lexer.lex input |> wrap_lexer_output
+            Lexer.lex mod.source_code |> wrap_lexer_output
 
         pretty_toks =
             case lex_result of
@@ -113,25 +116,26 @@ main =
     in
     Html.div []
         [ Html.node "style" [] [ text global_css ]
-        , htmlify_output result
-        , Html.hr [] []
         , Html.div
             [ style "font-size" "15px"
             , style "overflow" "auto"
             ]
-            [ Html.div
-                [ style "overflow" "scroll"
+            [ Html.textarea
+                [ style "font-size" "15px"
+                , style "overflow" "scroll"
                 , style "height" "400px"
                 , style "width" "400px"
-                , style "padding" "4px"
+                , style "padding" "10px"
                 , style "background-color" Pallete.bg
                 , style "border-radius" "8px"
                 , style "border-style" "solid"
                 , style "border-width" "2px"
                 , style "border-color" "black"
                 , style "float" "left"
+                , spellcheck False
+                , onInput (\s -> DoUpdate s)
                 ]
-                [ Html.code [] [ pre [] [ text input ] ]
+                [ text mod.source_code
                 ]
             , case result of
                 Err _ ->
@@ -142,9 +146,80 @@ main =
                         [ Parser.syntaxify_program prog
                         ]
             ]
+        , text ("Last Run Started: " ++ stringify_time Time.utc mod.last_run_start)
+        , Html.br [] []
+        , text ("Last Run Ended: " ++ stringify_time Time.utc mod.last_run_end)
+        , htmlify_output result
+        , Html.hr [] []
         , Util.collapsable (text "Tokens") pretty_toks
-
         ]
+
+
+view : Maybe Model -> Html.Html Msg
+view mmod =
+    case mmod of
+        Nothing ->
+            text "NotLoadedYet"
+
+        Just mod ->
+            mod.output
+
+
+stringify_time : Time.Zone -> Time.Posix -> String
+stringify_time zone p =
+    stringify_month (Time.toMonth zone p)
+        ++ " "
+        ++ (Time.toDay zone p |> String.fromInt)
+        ++ ", "
+        ++ (Time.toYear zone p |> String.fromInt)
+        ++ " "
+        ++ (Time.toHour zone p |> String.fromInt)
+        ++ ":"
+        ++ (Time.toMinute zone p |> String.fromInt)
+        ++ " "
+        ++ (Time.toSecond zone p |> String.fromInt)
+        ++ ":"
+        ++ (Time.toMillis zone p |> String.fromInt)
+
+
+stringify_month : Time.Month -> String
+stringify_month mon =
+    case mon of
+        Time.Jan ->
+            "Jan"
+
+        Time.Feb ->
+            "Feb"
+
+        Time.Mar ->
+            "Mar"
+
+        Time.Apr ->
+            "Apr"
+
+        Time.May ->
+            "May"
+
+        Time.Jun ->
+            "Jun"
+
+        Time.Jul ->
+            "Jul"
+
+        Time.Aug ->
+            "Aug"
+
+        Time.Sep ->
+            "Sep"
+
+        Time.Oct ->
+            "Oct"
+
+        Time.Nov ->
+            "Nov"
+
+        Time.Dec ->
+            "Dec"
 
 
 global_css : String
@@ -155,3 +230,77 @@ global_css =
         color : #fc3836";
     } 
     """
+
+
+type Msg
+    = DoUpdate String
+    | Recompile String
+    | GotTimeToStart String Time.Posix
+    | GotTimeEnd Time.Posix
+
+
+init : a -> ( Maybe Model, Cmd Msg )
+init _ =
+    ( Nothing, Task.perform (GotTimeToStart initial_input) Time.now )
+
+
+update : Msg -> Maybe Model -> ( Maybe Model, Cmd Msg )
+update msg mmod =
+    case mmod of
+        Nothing ->
+            ( Just
+                { source_code = initial_input
+                , last_run_start = Time.millisToPosix 0
+                , last_run_end = Time.millisToPosix 0
+                , output = text "Compiling..."
+                }
+            , Task.perform (GotTimeToStart initial_input) Time.now
+            )
+
+        Just mod ->
+            case msg of
+                DoUpdate s ->
+                    ( Just mod, Task.perform (GotTimeToStart s) Time.now )
+
+                Recompile s ->
+                    ( Just { mod | source_code = s }, Cmd.none )
+
+                GotTimeToStart s t ->
+                    ( { mod
+                        | last_run_start = t
+                        , output =
+                            case update (Recompile s) mmod |> Tuple.first of
+                                Nothing ->
+                                    text "terrible error this shouldnt happen"
+
+                                Just mod_after ->
+                                    make_output mod_after
+                      }
+                        |> Just
+                    , Task.perform GotTimeEnd Time.now
+                    )
+
+                GotTimeEnd t ->
+                    ( { mod | last_run_end = t } |> Just, Cmd.none )
+
+
+type alias Model =
+    { source_code : String
+    , last_run_start : Time.Posix
+    , last_run_end : Time.Posix
+    , output : Html.Html Msg
+    }
+
+
+
+-- main : Program () Model Msg
+
+
+main : Program () (Maybe Model) Msg
+main =
+    Browser.element
+        { init = init
+        , view = view
+        , update = update
+        , subscriptions = \_ -> Sub.none
+        }

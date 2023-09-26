@@ -13,6 +13,7 @@ parse_expr todo ps =
         Symbol s ->
             Next ps.prog (ParseFn (parse_expr_name_or_fcall s todo))
         CloseParen -> ParenWhereIDidntWantIt ps.tok.loc |> Err |> todo
+        NewlineToken -> IdkExpr ps.tok.loc "I Expected an expression but got the end of the line" |> Err |> todo
         _ ->
             IdkExpr ps.tok.loc "I don't know how to parse non name lookup expr" |> Err |> todo
 

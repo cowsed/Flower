@@ -47,6 +47,7 @@ type Error
     | RequireInitilizationWithValue Util.SourceView
     | UnknownThingWhileParsingFuncCallOrAssignment Util.SourceView
     | FailedFuncCallParse FuncCallParseError
+    | ExpectedOpenCurlyForFunction Util.SourceView
 
 
 type TypeParseError

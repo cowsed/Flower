@@ -1,12 +1,12 @@
 module Parser exposing (..)
 
+import ExpressionParser exposing (..)
 import Html exposing (text)
 import Html.Attributes exposing (style)
 import Language exposing (ASTExpression(..), ASTFunctionCall, ASTFunctionDefinition, ASTFunctionHeader, ASTStatement(..), KeywordType(..), Name(..), TypeWithName, stringify_name)
 import Lexer exposing (Token, TokenType(..), syntaxify_token)
-import ParserCommon exposing (..)
-import ExpressionParser exposing (..)
 import Pallete
+import ParserCommon exposing (..)
 import Util
 
 
@@ -18,9 +18,6 @@ parse toks =
             { module_name = Nothing, imports = [], global_functions = [], needs_more = Nothing }
     in
     rec_parse toks base_program (ParseFn parse_find_module_kw)
-
-
-
 
 
 parse_expected_token : String -> TokenType -> ParseFn -> ParseStep -> ParseRes
@@ -40,8 +37,6 @@ parse_type todo ps =
 
         _ ->
             Error (ExpectedTypeName ps.tok.loc)
-
-
 
 
 
@@ -102,8 +97,6 @@ parse_outer ps =
             Error (Unimplemented ps.prog "Parsing outer non function things")
 
 
-
-
 parse_global_fn_fn_call_args : (Result FuncCallParseError ASTFunctionCall -> ParseRes) -> ASTFunctionCall -> ASTFunctionDefinition -> ParseStep -> ParseRes
 parse_global_fn_fn_call_args todo fcall fdef ps =
     let
@@ -126,8 +119,6 @@ parse_global_fn_fn_call_args todo fcall fdef ps =
             apply_again (ParseFn (parse_expr what_to_do_with_expr)) ps
 
 
-
-
 parse_global_fn_return_statement : ASTFunctionDefinition -> ParseStep -> ParseRes
 parse_global_fn_return_statement fdef ps =
     let
@@ -140,7 +131,7 @@ parse_global_fn_return_statement fdef ps =
                 Ok expr ->
                     parse_global_fn_statements { fdef | statements = List.append fdef.statements [ ReturnStatement expr ] }
                         |> ParseFn
-                        |> parse_expected_token ("Expected newline after end of this return expression. Hint: I think im returning `"++stringify_expr expr++"`") NewlineToken
+                        |> parse_expected_token ("Expected newline after end of this return expression. Hint: I think im returning `" ++ stringify_expr expr ++ "`") NewlineToken
                         |> ParseFn
                         |> Next ps.prog
     in
@@ -272,12 +263,11 @@ parse_global_function_body fname header ps =
             ps.prog
     in
     case ps.tok.typ of
-        CloseCurly ->
-            Next { prog | global_functions = List.append prog.global_functions [ fdef ] } (ParseFn parse_outer)
 
-        _ ->
+        OpenCurly ->
             Next prog (ParseFn (parse_global_fn_statements fdef))
 
+        _ -> Error (ExpectedOpenCurlyForFunction ps.tok.loc)
 
 parse_global_fn_return : String -> ASTFunctionHeader -> ParseStep -> ParseRes
 parse_global_fn_return fname header_so_far ps =
@@ -289,14 +279,16 @@ parse_global_fn_return fname header_so_far ps =
                     Error (FailedTypeParse e)
 
                 Ok typ ->
-                    Next ps.prog (ParseFn (parse_global_function_body fname { header_so_far | return_type = Just typ }))
+                    parse_global_function_body fname { header_so_far | return_type = Just typ }
+                        |> ParseFn
+                        |> Next ps.prog
     in
     case ps.tok.typ of
         ReturnSpecifier ->
             Next ps.prog (ParseFn (parse_type what_to_do_with_ret_type))
 
         OpenCurly ->
-            Next ps.prog (ParseFn (parse_global_function_body fname header_so_far))
+            apply_again (ParseFn (parse_global_function_body fname header_so_far)) ps
 
         _ ->
             Error (ExpectedFunctionBody ps.tok.loc ps.tok.typ)
@@ -428,8 +420,6 @@ parse_find_module_kw ps =
             Next ps.prog (ParseFn parse_find_module_kw)
 
 
-
-
 rec_parse : List Token -> ParserCommon.Program -> ParseFn -> Result Error ParserCommon.Program
 rec_parse toks prog_sofar fn =
     let
@@ -514,8 +504,9 @@ stringify_error e =
             case er of
                 IdkExpr loc s ->
                     "Failed to parse expr: " ++ s ++ "\n" ++ Util.show_source_view loc
+
                 ParenWhereIDidntWantIt loc ->
-                    "I was expecting an expression but I found this parenthesis instead\n"++Util.show_source_view loc
+                    "I was expecting an expression but I found this parenthesis instead\n" ++ Util.show_source_view loc
 
         ExpectedFunctionBody loc got ->
             "Expected a `{` to start the function body but got `" ++ syntaxify_token got ++ "`\n" ++ Util.show_source_view loc
@@ -530,8 +521,12 @@ stringify_error e =
             case er of
                 IdkFuncCall loc s ->
                     "Failed to parse a function call: " ++ s ++ "\n" ++ Util.show_source_view loc
+
                 ExpectedAnotherArgument loc ->
-                    "I expected another argument after this comma\n"++Util.show_source_view loc
+                    "I expected another argument after this comma\n" ++ Util.show_source_view loc
+
+        ExpectedOpenCurlyForFunction loc ->
+            "I expected an opening curly to start a function body\n"++Util.show_source_view loc
 
 
 explain_error : Error -> Html.Html msg
@@ -668,8 +663,6 @@ explain_program prog =
         ]
 
 
-
-
 keyword_highlight : String -> Html.Html msg
 keyword_highlight s =
     Html.span [ style "color" Pallete.red ] [ text s ]
@@ -680,12 +673,18 @@ symbol_highlight s =
     Html.span [ style "color" Pallete.orange ] [ text s ]
 
 
-stringify_expr: ASTExpression -> String
+stringify_expr : ASTExpression -> String
 stringify_expr expr =
-    case expr of 
-        NameLookup n -> stringify_name n
-        FunctionCallExpr fc -> fc.fname++"("++(fc.args |> List.map stringify_expr |> String.join ", ")++")" 
-        _ -> Debug.todo "stringif expr other types" 
+    case expr of
+        NameLookup n ->
+            stringify_name n
+
+        FunctionCallExpr fc ->
+            fc.fname ++ "(" ++ (fc.args |> List.map stringify_expr |> String.join ", ") ++ ")"
+
+        _ ->
+            Debug.todo "stringif expr other types"
+
 
 syntaxify_expression : ASTExpression -> Html.Html msg
 syntaxify_expression expr =
@@ -805,7 +804,7 @@ syntaxify_program : ParserCommon.Program -> Html.Html msg
 syntaxify_program prog =
     Html.code
         [ style "overflow" "scroll"
-        , style "height" "400px"
+        , style "height" "100%"
         , style "width" "400px"
         , style "padding" "4px"
         , style "background-color" Pallete.bg

@@ -47,7 +47,7 @@ show_source_view sv =
             String.indices "\n" sv.src
 
         in_front_newlines =
-            newlines |> List.filter (\ind -> ind <= sv.start)
+            newlines |> List.filter (\ind -> ind < sv.start)
 
         front =
             case last_el in_front_newlines of
@@ -56,6 +56,10 @@ show_source_view sv =
 
                 Nothing ->
                     0
+        we_are_newline = case newlines |> List.filter (\ind -> ind == sv.start) |> List.length of
+            0 -> False
+            _ -> True
+
 
         line_pos =
             sv.start - front
@@ -70,12 +74,16 @@ show_source_view sv =
             newlines |> List.filter (\ind -> ind >= sv.end)
 
         end =
-            case List.head newlines_after of
-                Just ind ->
-                    ind
+            if we_are_newline then
+                sv.start
 
-                Nothing ->
-                    String.length sv.src
+            else
+                case List.head newlines_after of
+                    Just ind ->
+                        ind
+
+                    Nothing ->
+                        String.length sv.src
 
         prefix =
             String.fromInt line_num ++ " | "
