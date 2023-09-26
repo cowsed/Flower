@@ -150,7 +150,7 @@ parse_outer ps =
 
 type FuncCallParseError
     = IdkFuncCall Util.SourceView String
-
+    | ExpectedAnotherArgument Util.SourceView
 
 parse_func_call_continue_or_end : (Result FuncCallParseError ASTFunctionCall -> ParseRes) -> ASTFunctionCall -> ParseStep -> ParseRes
 parse_func_call_continue_or_end todo fcall ps =
@@ -159,7 +159,9 @@ parse_func_call_continue_or_end todo fcall ps =
         what_to_do_with_expr res =
             case res of
                 Err e ->
-                    Error (FailedExprParse e)
+                    case e of
+                        ParenWhereIDidntWantIt loc -> Error (FailedFuncCallParse (ExpectedAnotherArgument ps.tok.loc)) -- use this tok.loc because were looking at a paren right here
+                        _  -> Error (FailedExprParse  e)
 
                 Ok expr ->
                     ParseFn
@@ -232,6 +234,7 @@ parse_function_call name todo ps =
 
 type ExprParseError
     = IdkExpr Util.SourceView String
+    | ParenWhereIDidntWantIt Util.SourceView
 
 
 type alias ExprParseWhatTodo =
@@ -270,7 +273,7 @@ parse_expr todo ps =
     case ps.tok.typ of
         Symbol s ->
             Next ps.prog (ParseFn (parse_expr_name_or_fcall s todo))
-
+        CloseParen -> ParenWhereIDidntWantIt ps.tok.loc |> Err |> todo
         _ ->
             IdkExpr ps.tok.loc "I don't know how to parse non name lookup expr" |> Err |> todo
 
@@ -287,7 +290,7 @@ parse_global_fn_return_statement fdef ps =
                 Ok expr ->
                     parse_global_fn_statements { fdef | statements = List.append fdef.statements [ ReturnStatement expr ] }
                         |> ParseFn
-                        |> parse_expected_token "Expected newline after end of this return expression" NewlineToken
+                        |> parse_expected_token ("Expected newline after end of this return expression. Hint: I think im returning `"++stringify_expr expr++"`") NewlineToken
                         |> ParseFn
                         |> Next ps.prog
     in
@@ -664,6 +667,8 @@ stringify_error e =
             case er of
                 IdkExpr loc s ->
                     "Failed to parse expr: " ++ s ++ "\n" ++ Util.show_source_view loc
+                ParenWhereIDidntWantIt loc ->
+                    "I was expecting an expression but I found this parenthesis instead\n"++Util.show_source_view loc
 
         ExpectedFunctionBody loc got ->
             "Expected a `{` to start the function body but got `" ++ syntaxify_token got ++ "`\n" ++ Util.show_source_view loc
@@ -678,6 +683,8 @@ stringify_error e =
             case er of
                 IdkFuncCall loc s ->
                     "Failed to parse a function call: " ++ s ++ "\n" ++ Util.show_source_view loc
+                ExpectedAnotherArgument loc ->
+                    "I expected another argument after this comma\n"++Util.show_source_view loc
 
 
 explain_error : Error -> Html.Html msg
@@ -830,6 +837,13 @@ symbol_highlight : String -> Html.Html msg
 symbol_highlight s =
     Html.span [ style "color" Pallete.orange ] [ text s ]
 
+
+stringify_expr: ASTExpression -> String
+stringify_expr expr =
+    case expr of 
+        NameLookup n -> stringify_name n
+        FunctionCallExpr fc -> fc.fname++"("++(fc.args |> List.map stringify_expr |> String.join ", ")++")" 
+        _ -> Debug.todo "stringif expr other types" 
 
 syntaxify_expression : ASTExpression -> Html.Html msg
 syntaxify_expression expr =

@@ -32,7 +32,7 @@ fn add(a: u8, b: u8) -> u8{
     var c: u8 = a
     // this is not how adding works
     f(a, d(a))
-    return c
+    return a(c, d)
 }
 
 // doubling a number
