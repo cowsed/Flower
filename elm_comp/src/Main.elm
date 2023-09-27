@@ -35,20 +35,11 @@ import "github.com/cowsed/image"
 // adding 2 numbers
 fn add(a: u8, b: u8) -> u8{
     var c: u8 = a
-    // this is not how adding works
-    c = f(a, d(a))
-    return a(c, d)
+    return c
 }
 
-// doubling a number
-fn double(a: u8) -> u8{
-    return a
-}
-
-fn add2(a: u1, b: u6) {}
-
-fn main(){
-
+fn main() -> u8{
+    var res: u8 = add(1, 2)
 }
 """
 
@@ -57,12 +48,7 @@ htmlify_output : Result CompilerError ParserCommon.Program -> Html.Html msg
 htmlify_output res =
     case res of
         Err ce ->
-            case ce of
-                Lex le ->
-                    Lexer.explain_error le
-
-                Parse pe _ ->
-                    Parser.explain_error pe
+            Html.div [] []
 
         Ok prog ->
             Parser.explain_program prog
@@ -96,8 +82,10 @@ make_output mod =
             ]
             [ code_editor mod.source_code (\s -> DoUpdate s)
             , case result of
-                Err _ ->
-                    Html.span [] [ text "Program Error" ]
+                Err e ->
+                    Html.span []
+                        [ Compiler.explain_error e
+                        ]
 
                 Ok prog ->
                     Html.div [ style "float" "left" ]

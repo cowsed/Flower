@@ -332,7 +332,7 @@ parse_global_fn_arg_list_or_close args_sofar fname ps =
             apply_again (ParseFn (parse_named_type_name after_typedarg_occurs)) ps
 
         CloseParen ->
-            Next ps.prog (ParseFn (parse_global_function_body fname { args = args_sofar, return_type = Nothing }))
+            Next ps.prog (ParseFn (parse_global_fn_return fname { args = args_sofar, return_type = Nothing }))
 
         _ ->
             Error (Unimplemented ps.prog ("Failing to close func param list: name = " ++ fname))

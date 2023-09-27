@@ -1,4 +1,5 @@
 module Compiler exposing (..)
+import Html
 
 import Lexer 
 import ParserCommon
@@ -10,6 +11,11 @@ type CompilerError
     = Lex Lexer.Error
     | Parse ParserCommon.Error (List Token)
 
+explain_error: CompilerError -> Html.Html msg
+explain_error e= 
+    case e of
+        Lex le -> Lexer.explain_error le
+        Parse pe _ -> Parser.explain_error pe
 
 wrap_lexer_output : Result Lexer.Error (List Lexer.Token) -> Result CompilerError (List Lexer.Token)
 wrap_lexer_output res =
