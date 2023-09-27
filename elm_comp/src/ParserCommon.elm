@@ -49,6 +49,7 @@ type Error
     | UnknownThingWhileParsingFuncCallOrAssignment Util.SourceView
     | FailedFuncCallParse FuncCallParseError
     | ExpectedOpenCurlyForFunction Util.SourceView
+    | ExpectedNameAfterDot Util.SourceView
 
 
 type TypeParseError

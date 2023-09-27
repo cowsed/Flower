@@ -8,6 +8,7 @@ import Lexer exposing (Token, TokenType(..), syntaxify_token)
 import Pallete
 import ParserCommon exposing (..)
 import Util
+import Language exposing (append_name)
 
 
 parse : List Lexer.Token -> Result Error ParserCommon.Program
@@ -116,7 +117,7 @@ parse_global_fn_fn_call_args todo fcall fdef ps =
             parse_global_fn_statements { fdef | statements = List.append fdef.statements [ FunctionCallStatement fcall ] } |> ParseFn |> Next ps.prog
 
         _ ->
-            apply_again (ParseFn (parse_expr what_to_do_with_expr)) ps
+            apply_again (ParseFn (parse_expr EmptyName what_to_do_with_expr)) ps
 
 
 parse_global_fn_return_statement : ASTFunctionDefinition -> ParseStep -> ParseRes
@@ -135,7 +136,7 @@ parse_global_fn_return_statement fdef ps =
                         |> ParseFn
                         |> Next ps.prog
     in
-    apply_again (ParseFn (parse_expr what_to_do_with_expr)) ps
+    apply_again (ParseFn (parse_expr EmptyName what_to_do_with_expr)) ps
 
 
 parse_global_fn_initilization : ASTFunctionDefinition -> TypeWithName -> ParseStep -> ParseRes
@@ -152,7 +153,7 @@ parse_global_fn_initilization fdef nt ps =
     in
     case ps.tok.typ of
         AssignmentToken ->
-            Next ps.prog (ParseFn (parse_expr todo_with_expr))
+            Next ps.prog (ParseFn (parse_expr EmptyName todo_with_expr))
 
         NewlineToken ->
             Error (RequireInitilizationWithValue ps.tok.loc)
@@ -161,7 +162,7 @@ parse_global_fn_initilization fdef nt ps =
             Error (Unimplemented ps.prog "what happens if no = after var a: Type = ")
 
 
-parse_global_fn_assignment : String -> ASTFunctionDefinition -> ParseStep -> ParseRes
+parse_global_fn_assignment : Name -> ASTFunctionDefinition -> ParseStep -> ParseRes
 parse_global_fn_assignment name fdef ps =
     let
         after_expr_parse res =
@@ -172,14 +173,19 @@ parse_global_fn_assignment name fdef ps =
                 Ok expr ->
                     Next ps.prog (ParseFn (parse_global_fn_statements { fdef | statements = List.append fdef.statements [ AssignmentStatement name expr ] }))
     in
-    apply_again (ParseFn (parse_expr after_expr_parse)) ps
+    apply_again (ParseFn (parse_expr EmptyName after_expr_parse)) ps
 
 
 
 -- Next ps.prog (ParseFn (parse_expr after_expr_parse))
 
 
-parse_global_fn_assignment_or_fn_call : String -> ASTFunctionDefinition -> ParseStep -> ParseRes
+parse_global_fn_assignment_or_fn_call_qualified_name: Name -> ASTFunctionDefinition -> ParseStep -> ParseRes
+parse_global_fn_assignment_or_fn_call_qualified_name name fdef ps = 
+    case ps.tok.typ of 
+        Symbol s -> Next ps.prog (ParseFn (parse_global_fn_assignment_or_fn_call (append_name name s) fdef))
+        _ -> Error (ExpectedNameAfterDot ps.tok.loc)
+parse_global_fn_assignment_or_fn_call : Name -> ASTFunctionDefinition -> ParseStep -> ParseRes
 parse_global_fn_assignment_or_fn_call name fdef ps =
     let
         todo : FuncCallTodo
@@ -194,6 +200,7 @@ parse_global_fn_assignment_or_fn_call name fdef ps =
                         |> Next ps.prog
     in
     case ps.tok.typ of
+        DotToken -> Next ps.prog (ParseFn (parse_global_fn_assignment_or_fn_call_qualified_name (name) fdef))
         OpenParen ->
             parse_global_fn_fn_call_args todo (ASTFunctionCall name []) fdef
                 |> ParseFn
@@ -234,7 +241,7 @@ parse_global_fn_statements fdef ps =
             Next ps.prog (ParseFn (parse_global_fn_statements { fdef | statements = List.append fdef.statements [ CommentStatement c ] }))
 
         Symbol s ->
-            Next ps.prog (ParseFn (parse_global_fn_assignment_or_fn_call s fdef))
+            Next ps.prog (ParseFn (parse_global_fn_assignment_or_fn_call (BaseName s) fdef))
 
         CloseCurly ->
             let
@@ -528,6 +535,9 @@ stringify_error e =
         ExpectedOpenCurlyForFunction loc ->
             "I expected an opening curly to start a function body\n"++Util.show_source_view loc
 
+        ExpectedNameAfterDot loc ->
+            "I expected another name after this dot. ie `a.b.c` but got "++Util.show_source_view_not_line loc++"\n"++Util.show_source_view loc
+
 
 explain_error : Error -> Html.Html msg
 explain_error e =
@@ -595,7 +605,7 @@ explain_expression expr =
         FunctionCallExpr fcall ->
             Html.span []
                 [ text "Calling function: "
-                , text fcall.fname
+                , text (stringify_name fcall.fname)
                 , text " with args "
                 , Html.ul [] (fcall.args |> List.map (\a -> Html.li [] [ explain_expression a ]))
                 ]
@@ -617,11 +627,11 @@ explain_statement s =
             Html.span [] [ text ("Initialize `" ++ stringify_name name.name ++ "` of type " ++ stringify_name name.typename ++ " to "), explain_expression expr ]
 
         AssignmentStatement name expr ->
-            Html.span [] [ text ("assigning " ++ name ++ " with "), explain_expression expr ]
+            Html.span [] [ text ("assigning " ++ stringify_name name ++ " with "), explain_expression expr ]
 
         FunctionCallStatement fcal ->
             Html.span []
-                [ text ("call the function " ++ fcal.fname ++ " with args:")
+                [ text ("call the function " ++ stringify_name fcal.fname ++ " with args:")
                 , Html.ul []
                     (fcal.args
                         |> List.map (\n -> Html.li [] [ explain_expression n ])
@@ -680,7 +690,7 @@ stringify_expr expr =
             stringify_name n
 
         FunctionCallExpr fc ->
-            fc.fname ++ "(" ++ (fc.args |> List.map stringify_expr |> String.join ", ") ++ ")"
+            stringify_name fc.fname ++ "(" ++ (fc.args |> List.map stringify_expr |> String.join ", ") ++ ")"
 
         _ ->
             Debug.todo "stringif expr other types"
@@ -694,7 +704,7 @@ syntaxify_expression expr =
 
         FunctionCallExpr fcall ->
             Html.span []
-                [ symbol_highlight fcall.fname
+                [ symbol_highlight (stringify_name fcall.fname)
                 , text "("
                 , Html.span [] (fcall.args |> List.map (\arg -> syntaxify_expression arg) |> List.intersperse (text ", "))
                 , text ")"
@@ -732,12 +742,12 @@ syntaxify_statement s =
             Html.span [ style "color" Pallete.gray ] [ tab, text ("// " ++ src), text "\n" ]
 
         AssignmentStatement name expr ->
-            Html.span [] [ tab, symbol_highlight name, text " = ", syntaxify_expression expr, text "\n" ]
+            Html.span [] [ tab, symbol_highlight (stringify_name name), text " = ", syntaxify_expression expr, text "\n" ]
 
         FunctionCallStatement fcal ->
             Html.span []
                 [ tab
-                , symbol_highlight fcal.fname
+                , symbol_highlight (stringify_name fcal.fname)
                 , text "("
                 , Html.span [] (fcal.args |> List.map (\e -> syntaxify_expression e) |> List.intersperse (Html.span [] [ text ", " ]))
                 , text ")"

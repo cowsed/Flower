@@ -1,13 +1,22 @@
 module Language exposing (..)
 
 type Name
-    = BaseName String
+    = EmptyName
+    | BaseName String
     | Qualified (List String)
+
+append_name: Name -> String -> Name
+append_name n new =
+    case n of
+        EmptyName -> BaseName new
+        BaseName s -> Qualified [s, new]
+        Qualified l -> Qualified (List.append l [new])
 stringify_name : Name -> String
 stringify_name n = 
     case n of
+        EmptyName -> Debug.log "stringify empty name should never happen, signals a compiler error" ""
         BaseName s -> s
-        Qualified l -> (String.join "," l)
+        Qualified l -> (String.join "." l)
 
 
 type LiteralType
@@ -88,7 +97,7 @@ type ASTStatement
     = CommentStatement String
     | ReturnStatement ASTExpression
     | InitilizationStatement TypeWithName ASTExpression
-    | AssignmentStatement String ASTExpression
+    | AssignmentStatement Name ASTExpression
     | FunctionCallStatement ASTFunctionCall
     | IfStatement
 
@@ -98,6 +107,6 @@ type ASTExpression
     | NameLookup Name -- InfixOperation InfixType
 
 type alias ASTFunctionCall =
-    { fname : String
+    { fname : Name
     , args : List ASTExpression
     }

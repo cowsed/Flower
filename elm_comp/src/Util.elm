@@ -40,6 +40,10 @@ always_tail l =
             []
 
 
+show_source_view_not_line: SourceView -> String
+show_source_view_not_line sv =
+    String.slice sv.start sv.end sv.src
+
 show_source_view : SourceView -> String
 show_source_view sv =
     let

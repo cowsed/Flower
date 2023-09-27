@@ -1,17 +1,15 @@
 module Main exposing (..)
 
 import Browser
+import Compiler exposing (CompilerError(..), compile)
 import Html exposing (..)
-import Html.Attributes exposing (spellcheck, style)
-import Html.Events exposing (onInput)
+import Html.Attributes exposing (style)
 import Lexer
-import Pallete
 import Parser
 import ParserCommon
-import Platform.Cmd exposing (Cmd(..))
-import Compiler exposing (compile, CompilerError(..))
 import Task
 import Time
+import Ui exposing (code_editor)
 import Util
 
 
@@ -19,7 +17,8 @@ import Util
 {-
    todo:
    - keyword not allowed error gets emitted from parseName with note about which words are reserved
-   -
+   - infix operator expressions
+   - fullnames std.print(std.time)
 -}
 
 
@@ -54,7 +53,6 @@ fn main(){
 """
 
 
-
 htmlify_output : Result CompilerError ParserCommon.Program -> Html.Html msg
 htmlify_output res =
     case res of
@@ -63,20 +61,16 @@ htmlify_output res =
                 Lex le ->
                     Lexer.explain_error le
 
-                Parse pe toks->
+                Parse pe _ ->
                     Parser.explain_error pe
 
         Ok prog ->
             Parser.explain_program prog
 
 
-
-
 make_output : Model -> Html.Html Msg
 make_output mod =
     let
-    
-
         result : Result CompilerError ParserCommon.Program
         result =
             compile mod.source_code
@@ -88,9 +82,11 @@ make_output mod =
 
                 Err e ->
                     case e of
-                        Parse er toks -> Html.pre [] (toks |> List.map Lexer.token_to_str |> List.map (\x -> x ++ "\n") |> List.map text)
-                        Lex er -> Html.pre [] [text "Lex error"]
+                        Parse _ toks ->
+                            Html.pre [] (toks |> List.map Lexer.token_to_str |> List.map (\x -> x ++ "\n") |> List.map text)
 
+                        Lex _ ->
+                            Html.pre [] [ text "Lex error" ]
     in
     Html.div []
         [ Html.node "style" [] [ text global_css ]
@@ -98,26 +94,10 @@ make_output mod =
             [ style "font-size" "15px"
             , style "overflow" "auto"
             ]
-            [ Html.textarea
-                [ style "font-size" "15px"
-                , style "overflow" "auto"
-                , style "height" "400px"
-                , style "width" "400px"
-                , style "padding" "10px"
-                , style "background-color" Pallete.bg
-                , style "border-radius" "8px"
-                , style "border-style" "solid"
-                , style "border-width" "2px"
-                , style "border-color" "black"
-                , style "float" "left"
-                , spellcheck False
-                , onInput (\s -> DoUpdate s)
-                ]
-                [ text mod.source_code
-                ]
+            [ code_editor mod.source_code (\s -> DoUpdate s)
             , case result of
                 Err _ ->
-                    Html.span [] []
+                    Html.span [] [ text "Program Error" ]
 
                 Ok prog ->
                     Html.div [ style "float" "left" ]
@@ -138,63 +118,6 @@ view mmod =
 
         Just mod ->
             mod.output
-
-
-stringify_time : Time.Zone -> Time.Posix -> String
-stringify_time zone p =
-    stringify_month (Time.toMonth zone p)
-        ++ " "
-        ++ (Time.toDay zone p |> String.fromInt)
-        ++ ", "
-        ++ (Time.toYear zone p |> String.fromInt)
-        ++ " "
-        ++ (Time.toHour zone p |> String.fromInt)
-        ++ ":"
-        ++ (Time.toMinute zone p |> String.fromInt)
-        ++ " "
-        ++ (Time.toSecond zone p |> String.fromInt)
-        ++ ":"
-        ++ (Time.toMillis zone p |> String.fromInt)
-
-
-stringify_month : Time.Month -> String
-stringify_month mon =
-    case mon of
-        Time.Jan ->
-            "Jan"
-
-        Time.Feb ->
-            "Feb"
-
-        Time.Mar ->
-            "Mar"
-
-        Time.Apr ->
-            "Apr"
-
-        Time.May ->
-            "May"
-
-        Time.Jun ->
-            "Jun"
-
-        Time.Jul ->
-            "Jul"
-
-        Time.Aug ->
-            "Aug"
-
-        Time.Sep ->
-            "Sep"
-
-        Time.Oct ->
-            "Oct"
-
-        Time.Nov ->
-            "Nov"
-
-        Time.Dec ->
-            "Dec"
 
 
 global_css : String
@@ -245,7 +168,7 @@ update msg mmod =
                         | last_run_end = t
                         , output =
                             Html.div []
-                                [ text ("CompileAndBuildTime: " ++ millis_elapsed mod.last_run_start t++" ms")
+                                [ text ("CompileAndBuildTime: " ++ millis_elapsed mod.last_run_start t ++ " ms")
                                 , mod.output
                                 ]
                       }
@@ -259,10 +182,8 @@ millis_elapsed start end =
     let
         differenceMillis =
             Time.posixToMillis end - Time.posixToMillis start
-
-  
     in
-        differenceMillis |> String.fromInt
+    differenceMillis |> String.fromInt
 
 
 type alias Model =

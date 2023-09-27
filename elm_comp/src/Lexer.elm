@@ -142,8 +142,8 @@ apply_again my_toks next_lf lsi =
         Tokens toks lf ->
             Tokens (List.append my_toks toks) lf
 
-        Error _ ->
-            Debug.todo "branch 'Error _' not implemented"
+        Error e ->
+            Error e
 
 
 lex_integer : Int -> String -> LexStepInfo -> LexRes
@@ -254,6 +254,8 @@ lex_unknown lsi =
 
     else if c == ',' then
         Tokens [ Token lsi.view_this CommaToken ] begin_lex
+    else if c == '.' then
+        Tokens [Token lsi.view_this DotToken] begin_lex
 
     else if c == '=' then
         Tokens [ Token lsi.view_this AssignmentToken ] begin_lex

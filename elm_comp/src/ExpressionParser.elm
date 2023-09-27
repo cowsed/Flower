@@ -7,17 +7,17 @@ type alias FuncCallTodo =
     Result FuncCallParseError ASTFunctionCall -> ParseRes
 
 
-parse_expr : ExprParseWhatTodo -> ParseStep -> ParseRes
-parse_expr todo ps =
+parse_expr : Name -> ExprParseWhatTodo -> ParseStep -> ParseRes
+parse_expr name todo ps =
     case ps.tok.typ of
         Symbol s ->
-            Next ps.prog (ParseFn (parse_expr_name_or_fcall s todo))
+            Next ps.prog (ParseFn (parse_expr_name_or_fcall (Language.append_name name s) todo))
         CloseParen -> ParenWhereIDidntWantIt ps.tok.loc |> Err |> todo
         NewlineToken -> IdkExpr ps.tok.loc "I Expected an expression but got the end of the line" |> Err |> todo
         _ ->
             IdkExpr ps.tok.loc "I don't know how to parse non name lookup expr" |> Err |> todo
 
-parse_expr_name_or_fcall : String -> ExprParseWhatTodo -> ParseStep -> ParseRes
+parse_expr_name_or_fcall : Name -> ExprParseWhatTodo -> ParseStep -> ParseRes
 parse_expr_name_or_fcall name todo ps =
     let
         func_todo : FuncCallTodo
@@ -33,10 +33,11 @@ parse_expr_name_or_fcall name todo ps =
         -- start func
         OpenParen ->
             parse_function_call name func_todo |> ParseFn |> Next ps.prog
-
+        --continue building name
+        DotToken -> parse_expr (Debug.log "building name "name) todo |> ParseFn |> Next ps.prog 
         -- was just a name
         _ ->
-            case NameLookup (BaseName name) |> Ok |> todo of
+            case NameLookup name |> Ok |> todo of
                 Error e ->
                     Error e
 
@@ -44,7 +45,7 @@ parse_expr_name_or_fcall name todo ps =
                     apply_again fn { ps | prog = prog }
 
 
-parse_function_call : String -> FuncCallTodo -> ParseStep -> ParseRes
+parse_function_call : Name -> FuncCallTodo -> ParseStep -> ParseRes
 parse_function_call name todo ps =
     let
         what_to_do : ExprParseWhatTodo
@@ -61,7 +62,7 @@ parse_function_call name todo ps =
             todo (Ok (ASTFunctionCall name []))
 
         _ ->
-            apply_again (ParseFn (parse_expr what_to_do)) ps
+            apply_again (ParseFn (parse_expr EmptyName what_to_do)) ps
 
 
 
@@ -87,7 +88,7 @@ parse_func_call_continue_or_end todo fcall ps =
     in
     case ps.tok.typ of
         CommaToken ->
-            parse_expr what_to_do_with_expr |> ParseFn |> Next ps.prog
+            parse_expr EmptyName what_to_do_with_expr |> ParseFn |> Next ps.prog
 
         CloseParen ->
             todo (Ok fcall)
