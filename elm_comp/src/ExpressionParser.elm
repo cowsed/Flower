@@ -12,6 +12,8 @@ parse_expr name todo ps =
     case ps.tok.typ of
         Symbol s ->
             Next ps.prog (ParseFn (parse_expr_name_or_fcall (Language.append_name name s) todo))
+        Literal lt s ->LiteralExpr lt s |> Ok |> todo 
+
         CloseParen -> ParenWhereIDidntWantIt ps.tok.loc |> Err |> todo
         NewlineToken -> IdkExpr ps.tok.loc "I Expected an expression but got the end of the line" |> Err |> todo
         _ ->

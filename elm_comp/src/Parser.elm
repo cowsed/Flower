@@ -9,6 +9,7 @@ import Pallete
 import ParserCommon exposing (..)
 import Util
 import Language exposing (append_name)
+import Language exposing (LiteralType(..))
 
 
 parse : List Lexer.Token -> Result Error ParserCommon.Program
@@ -610,8 +611,15 @@ explain_expression expr =
                 , Html.ul [] (fcall.args |> List.map (\a -> Html.li [] [ explain_expression a ]))
                 ]
 
-        LiteralExpr _ _ ->
-            Debug.todo "branch 'LiteralExpr _ _' not implemented"
+        LiteralExpr lt s ->
+            case lt of
+                StringLiteral -> Html.span [] [text ("String Literal: "++s)]
+
+                BooleanLiteral ->
+                                 Debug.todo "branch 'BooleanLiteral' not implemented"
+
+                NumberLiteral ->
+                                 Html.span [] [text ("Number Literal: "++s)]
 
 
 explain_statement : ASTStatement -> Html.Html msg
@@ -691,9 +699,8 @@ stringify_expr expr =
 
         FunctionCallExpr fc ->
             stringify_name fc.fname ++ "(" ++ (fc.args |> List.map stringify_expr |> String.join ", ") ++ ")"
+        LiteralExpr _ s -> s
 
-        _ ->
-            Debug.todo "stringif expr other types"
 
 
 syntaxify_expression : ASTExpression -> Html.Html msg
@@ -710,13 +717,17 @@ syntaxify_expression expr =
                 , text ")"
                 ]
 
-        LiteralExpr _ _ ->
-            Debug.todo "branch 'LiteralExpr _ _' not implemented"
-
-
+        LiteralExpr lt s ->
+            case lt of 
+                StringLiteral -> Html.span [] [string_literal_highlight s]
+                NumberLiteral -> Html.span [] [number_literal_highlight s]
+                BooleanLiteral -> Html.span [] [number_literal_highlight s]
 string_literal_highlight : String -> Html.Html msg
 string_literal_highlight s =
     Html.span [ style "color" "DarkSlateBlue" ] [ text ("\"" ++ s ++ "\"") ]
+
+number_literal_highlight: String -> Html.Html msg
+number_literal_highlight s = Html.span [style "color" Pallete.aqua ] [text s]
 
 
 tab : Html.Html msg
