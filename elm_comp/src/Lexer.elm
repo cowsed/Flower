@@ -51,18 +51,24 @@ type LexRes
 type Error
     = UnknownCharacter Util.SourceView Char
     | UnclosedStringLiteral Util.SourceView
+    | UnknownCharacterInIntegerLiteral Util.SourceView
 
 
 explain_error : Error -> Html.Html msg
 explain_error e =
     Html.div []
         [ Html.h1 [] [ text "Lexer Error" ]
-        , case e of
-            UnknownCharacter sv c ->
-                pre [ style "color" Pallete.red ] [ text (Util.addchar "Unknown character: " c ++ "\n" ++ Util.show_source_view sv) ]
+        , pre [ style "color" Pallete.red ]
+            [ case e of
+                UnknownCharacter sv c ->
+                    text (Util.addchar "Unknown character: " c ++ "\n" ++ Util.show_source_view sv)
 
-            UnclosedStringLiteral sv ->
-                pre [ style "color" Pallete.red ] [ text ("Unclosed String Literal here: \n" ++ Util.show_source_view sv) ]
+                UnclosedStringLiteral sv ->
+                    text ("Unclosed String Literal here: \n" ++ Util.show_source_view sv)
+
+                UnknownCharacterInIntegerLiteral sv ->
+                    text ("Unknown character in Integer Literal\n"++Util.show_source_view sv)
+            ]
         ]
 
 
@@ -146,13 +152,26 @@ apply_again my_toks next_lf lsi =
             Error e
 
 
+is_integer_ender: Char -> Bool
+is_integer_ender c = 
+    case c of
+        ' ' -> True
+        '\n' -> True
+        '\t' -> True
+        ',' -> True
+        ')' -> True
+        '}' -> True
+        _ -> False
 lex_integer : Int -> String -> LexStepInfo -> LexRes
 lex_integer start sofar lsi =
     if Char.isDigit lsi.char then
         Tokens [] (LexFn (lex_integer start (Util.addchar sofar lsi.char)))
 
-    else
+    else if is_integer_ender lsi.char then
         apply_again [ Token (lsi.view_from_start start) (Literal Language.NumberLiteral sofar) ] begin_lex lsi
+
+    else
+        Error (UnknownCharacterInIntegerLiteral lsi.view_this)
 
 
 lex_symbol : Int -> String -> LexStepInfo -> LexRes
