@@ -40,7 +40,7 @@ fn add(a: u8, b: u8) -> u8{
 fn main() -> u8{
     a: u8 = 1
     b: u8 = 2
-    var res: u8 = add(1, 2)
+    var res: u8 = add(a, b)
     std.println("{a} + {b} = {res}")
 }
 """

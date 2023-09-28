@@ -44,7 +44,6 @@ stringify_utname utn =
 
         Generic _ _ ->
             Debug.todo "branch 'Generic _ _' not implemented"
-        
 
 
 stringify_type_name : TypeName -> String
@@ -74,6 +73,8 @@ type KeywordType
     | VarKeyword
     | StructKeyword
 
+
+
 -- sumtype, product type, list
 
 
@@ -83,17 +84,42 @@ type InfixOpType
     | Multiplication
     | Division
 
-stringify_infix_op: InfixOpType -> String
-stringify_infix_op op = 
+
+precedence : InfixOpType -> Int
+precedence op =
     case op of
-        Addition -> "+"
-        Subtraction -> "-"
-        Multiplication -> "*"
-        Division -> "/"
+        Addition ->
+            2
+
+        Subtraction ->
+            2
+
+        Multiplication ->
+            3
+
+        Division ->
+            3
+
+
+stringify_infix_op : InfixOpType -> String
+stringify_infix_op op =
+    case op of
+        Addition ->
+            "+"
+
+        Subtraction ->
+            "-"
+
+        Multiplication ->
+            "*"
+
+        Division ->
+            "/"
 
 
 type alias InfixOp =
     { op : InfixOpType, precedence : Int }
+
 
 type Integers
     = U8
@@ -141,11 +167,17 @@ type Qualifier
     = Variable
     | Constant
 
-make_qualified_typename: Qualifier -> UnqualifiedTypeName -> TypeName
-make_qualified_typename q uq = 
+
+make_qualified_typename : Qualifier -> UnqualifiedTypeName -> TypeName
+make_qualified_typename q uq =
     case q of
-        Variable -> VariableTypename uq
-        Constant -> ConstantTypename uq
+        Variable ->
+            VariableTypename uq
+
+        Constant ->
+            ConstantTypename uq
+
+
 type TypeName
     = VariableTypename UnqualifiedTypeName
     | ConstantTypename UnqualifiedTypeName

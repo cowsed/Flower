@@ -722,22 +722,6 @@ symbol_highlight s =
     Html.span [ style "color" Pallete.orange ] [ text s ]
 
 
-stringify_expression : ASTExpression -> String
-stringify_expression expr =
-    case expr of
-        NameLookup n ->
-            stringify_name n
-
-        FunctionCallExpr fc ->
-            stringify_name fc.fname ++ "(" ++ (fc.args |> List.map stringify_expression |> String.join ", ") ++ ")"
-
-        LiteralExpr _ s ->
-            s
-
-        Parenthesized e ->
-            stringify_expression e
-        InfixExpr lhs rhs op ->
-            stringify_expression lhs ++ stringify_infix_op op ++ stringify_expression rhs
 
 
 syntaxify_expression : ASTExpression -> Html.Html msg

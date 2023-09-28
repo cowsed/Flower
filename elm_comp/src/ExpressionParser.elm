@@ -1,36 +1,66 @@
 module ExpressionParser exposing (..)
 
-import Language exposing (ASTExpression(..), ASTFunctionCall, Name(..))
-import Lexer exposing (TokenType(..))
+import Language exposing (ASTExpression(..), ASTFunctionCall, Name(..), precedence, stringify_name, stringify_infix_op)
+import Lexer exposing (TokenType(..), infix_op_from_token)
 import ParserCommon exposing (..)
 import Util
-import Lexer exposing (infix_op_from_token)
 
 
 type alias FuncCallExprTodo =
     Result FuncCallParseError ASTFunctionCall -> ParseRes
 
+stringify_expression : ASTExpression -> String
+stringify_expression expr =
+    case expr of
+        NameLookup n ->
+            stringify_name n
 
-parse_expr_check_for_infix: ASTExpression ->  ExprParseWhatTodo -> ParseStep -> ParseRes
-parse_expr_check_for_infix expr_so_far todo ps = 
-    case infix_op_from_token (Debug.log "Checking infixness of " ps.tok) of
-        Nothing -> reapply_token_or_fail (todo (Ok expr_so_far)) ps
+        FunctionCallExpr fc ->
+            stringify_name fc.fname ++ "(" ++ (fc.args |> List.map stringify_expression |> String.join ", ") ++ ")"
+
+        LiteralExpr _ s ->
+            s
+
+        Parenthesized e ->
+            stringify_expression e
+        InfixExpr lhs rhs op ->
+            stringify_expression lhs ++ stringify_infix_op op ++ stringify_expression rhs
+
+
+parse_expr_check_for_infix : ASTExpression -> ExprParseWhatTodo -> ParseStep -> ParseRes
+parse_expr_check_for_infix lhs outer_todo ps =
+    case infix_op_from_token ps.tok of
+        Nothing ->
+            reapply_token_or_fail (outer_todo (Ok lhs)) ps
 
         Just op ->
-                   parse_second_expr_of_infix_expr expr_so_far op todo |> ParseFn |> Next ps.prog 
-parse_second_expr_of_infix_expr: ASTExpression -> Language.InfixOpType -> ExprParseWhatTodo -> ParseStep -> ParseRes
-parse_second_expr_of_infix_expr first_expr op outer_todo ps = 
-    let
-        todo res = case res of 
-            Err e -> Error (FailedExprParse e)
-            Ok e -> (outer_todo (Ok (InfixExpr first_expr e op)))
-    in
-        reapply_token (parse_expr todo |> ParseFn) ps
-    
+            let
+                expr_after_todo : ExprParseWhatTodo
+                expr_after_todo res =
+                    case res of
+                        Err _ ->
+                            outer_todo res
 
-parse_expr: ExprParseWhatTodo -> ParseStep -> ParseRes
-parse_expr todo ps = 
+                        Ok this_rhs ->
+                            case this_rhs of
+                                InfixExpr next_lhs next_rhs next_op ->
+                                    if precedence next_op >= precedence op then
+                                        Ok (InfixExpr lhs this_rhs op) |> outer_todo
+
+                                    else
+                                        Ok (InfixExpr (InfixExpr lhs next_lhs op) next_rhs next_op) |> outer_todo
+
+                                _ ->
+                                    outer_todo (Ok (InfixExpr lhs this_rhs op))
+            in
+            parse_expr expr_after_todo |> ParseFn |> Next ps.prog
+
+
+
+parse_expr : ExprParseWhatTodo -> ParseStep -> ParseRes
+parse_expr todo ps =
     parse_expr_continued_name Nothing todo ps
+
 
 parse_expr_continued_name : Maybe Name -> ExprParseWhatTodo -> ParseStep -> ParseRes
 parse_expr_continued_name qualled_name_so_far outer_todo ps =
@@ -42,7 +72,7 @@ parse_expr_continued_name qualled_name_so_far outer_todo ps =
                     Error (FailedExprParse e)
 
                 Ok e ->
-                    parse_expr_check_for_infix e outer_todo|> ParseFn |> Next ps.prog 
+                    parse_expr_check_for_infix e outer_todo |> ParseFn |> Next ps.prog
     in
     case ps.tok.typ of
         Symbol s ->

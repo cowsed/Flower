@@ -239,7 +239,7 @@ lex_minus_or_return start lsi =
         Tokens [ Token (lsi.input_view start (start + 2)) ReturnSpecifier ] begin_lex
 
     else
-        apply_again [ Token (lsi.input_view start (start + 1)) ReturnSpecifier ] begin_lex lsi
+        apply_again [ Token (lsi.input_view start (start + 1)) MinusToken ] begin_lex lsi
 
 
 lex_rest_of_comment : Int -> String -> LexStepInfo -> LexRes
