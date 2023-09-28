@@ -3,13 +3,11 @@ module Parser exposing (..)
 import ExpressionParser exposing (..)
 import Html exposing (text)
 import Html.Attributes exposing (style)
-import Language exposing (ASTExpression(..), ASTFunctionCall, ASTFunctionDefinition, ASTFunctionHeader, ASTStatement(..), KeywordType(..), Name(..), TypeWithName, stringify_name)
+import Language exposing (..)
 import Lexer exposing (Token, TokenType(..), syntaxify_token)
 import Pallete
 import ParserCommon exposing (..)
 import Util
-import Language exposing (append_name)
-import Language exposing (LiteralType(..))
 
 
 parse : List Lexer.Token -> Result Error ParserCommon.Program
@@ -17,9 +15,14 @@ parse toks =
     let
         base_program : ParserCommon.Program
         base_program =
-            { module_name = Nothing, imports = [], global_functions = [], needs_more = Just "Need at least a `module name` line", src_tokens = toks }
+            { module_name = Nothing
+            , imports = []
+            , global_functions = []
+            , needs_more = Just "Need at least a `module name` line"
+            , src_tokens = toks
+            }
     in
-    rec_parse toks base_program (ParseFn parse_find_module_kw)
+    parse_find_module_kw |> ParseFn |> rec_parse toks base_program
 
 
 parse_expected_token : String -> TokenType -> ParseFn -> ParseStep -> ParseRes
@@ -31,32 +34,30 @@ parse_expected_token reason expected after ps =
         Error (ExpectedToken reason ps.tok.loc)
 
 
-parse_type : (Result TypeParseError Name -> ParseRes) -> ParseStep -> ParseRes
+parse_type : (Result TypeParseError UnqualifiedTypeName -> ParseRes) -> ParseStep -> ParseRes
 parse_type todo ps =
     case ps.tok.typ of
         Symbol s ->
-            todo (Ok (Language.BaseName s))
+            todo (Ok (Basic (Language.BaseName s)))
 
         _ ->
             Error (ExpectedTypeName ps.tok.loc)
 
 
-
--- parse the following `name: Type`
-
-
 parse_named_type_type : String -> (Result NamedTypeParseError TypeWithName -> ParseRes) -> ParseStep -> ParseRes
 parse_named_type_type valname todo ps =
+    -- parse the Type of `name: Type`
     case ps.tok.typ of
         Symbol typename ->
-            todo (Ok (TypeWithName (BaseName valname) (BaseName typename)))
+            todo (Ok (TypeWithName (BaseName valname) (VariableTypename (Basic (BaseName typename)))))
 
         _ ->
             Error (Unimplemented ps.prog "When parsing name: Type if Type is not a symbol")
 
 
-parse_named_type_name : (Result NamedTypeParseError TypeWithName -> ParseRes) -> ParseStep -> ParseRes
-parse_named_type_name todo ps =
+parse_named_type : (Result NamedTypeParseError TypeWithName -> ParseRes) -> ParseStep -> ParseRes
+parse_named_type todo ps =
+    -- parse things of the form `name: Type
     let
         after_colon valname =
             ParseFn (parse_named_type_type valname todo)
@@ -118,7 +119,7 @@ parse_global_fn_fn_call_args todo fcall fdef ps =
             parse_global_fn_statements { fdef | statements = List.append fdef.statements [ FunctionCallStatement fcall ] } |> ParseFn |> Next ps.prog
 
         _ ->
-            apply_again (ParseFn (parse_expr EmptyName what_to_do_with_expr)) ps
+            reapply_token (ParseFn (parse_expr Nothing what_to_do_with_expr)) ps
 
 
 parse_global_fn_return_statement : ASTFunctionDefinition -> ParseStep -> ParseRes
@@ -137,12 +138,15 @@ parse_global_fn_return_statement fdef ps =
                         |> ParseFn
                         |> Next ps.prog
     in
-    apply_again (ParseFn (parse_expr EmptyName what_to_do_with_expr)) ps
+    reapply_token (ParseFn (parse_expr Nothing what_to_do_with_expr)) ps
 
 
-parse_global_fn_initilization : ASTFunctionDefinition -> TypeWithName -> ParseStep -> ParseRes
-parse_global_fn_initilization fdef nt ps =
+parse_initilization_statement : Qualifier -> ASTFunctionDefinition -> TypeWithName -> ParseStep -> ParseRes
+parse_initilization_statement qual fdef nt ps =
     let
+        newtype =
+            { nt | typename = make_qualified_typename qual (remove_type_qualifier nt.typename) }
+
         todo_with_expr : Result ExprParseError ASTExpression -> ParseRes
         todo_with_expr res =
             case res of
@@ -150,11 +154,11 @@ parse_global_fn_initilization fdef nt ps =
                     Error (FailedExprParse e)
 
                 Ok expr ->
-                    Next ps.prog (ParseFn (parse_global_fn_statements { fdef | statements = List.append fdef.statements [ InitilizationStatement nt expr ] }))
+                    Next ps.prog (ParseFn (parse_global_fn_statements { fdef | statements = List.append fdef.statements [ InitilizationStatement newtype expr ] }))
     in
     case ps.tok.typ of
         AssignmentToken ->
-            Next ps.prog (ParseFn (parse_expr EmptyName todo_with_expr))
+            Next ps.prog (ParseFn (parse_expr Nothing todo_with_expr))
 
         NewlineToken ->
             Error (RequireInitilizationWithValue ps.tok.loc)
@@ -172,24 +176,25 @@ parse_global_fn_assignment name fdef ps =
                     Error (FailedExprParse e)
 
                 Ok expr ->
-                    Next ps.prog (ParseFn (parse_global_fn_statements { fdef | statements = List.append fdef.statements [ AssignmentStatement name expr ] }))
+                    parse_global_fn_statements { fdef | statements = List.append fdef.statements [ AssignmentStatement name expr ] } |> ParseFn |> Next ps.prog
     in
-    apply_again (ParseFn (parse_expr EmptyName after_expr_parse)) ps
+    parse_expr Nothing after_expr_parse ps
 
 
+parse_global_fn_assignment_or_fn_call_qualified_name : Name -> ASTFunctionDefinition -> ParseStep -> ParseRes
+parse_global_fn_assignment_or_fn_call_qualified_name name fdef ps =
+    case ps.tok.typ of
+        Symbol s ->
+            Next ps.prog (ParseFn (parse_global_fn_assignment_or_fn_call (append_name name s) fdef))
 
--- Next ps.prog (ParseFn (parse_expr after_expr_parse))
+        _ ->
+            Error (ExpectedNameAfterDot ps.tok.loc)
 
 
-parse_global_fn_assignment_or_fn_call_qualified_name: Name -> ASTFunctionDefinition -> ParseStep -> ParseRes
-parse_global_fn_assignment_or_fn_call_qualified_name name fdef ps = 
-    case ps.tok.typ of 
-        Symbol s -> Next ps.prog (ParseFn (parse_global_fn_assignment_or_fn_call (append_name name s) fdef))
-        _ -> Error (ExpectedNameAfterDot ps.tok.loc)
 parse_global_fn_assignment_or_fn_call : Name -> ASTFunctionDefinition -> ParseStep -> ParseRes
 parse_global_fn_assignment_or_fn_call name fdef ps =
     let
-        todo : FuncCallTodo
+        todo : FuncCallExprTodo
         todo res =
             case res of
                 Err e ->
@@ -199,29 +204,47 @@ parse_global_fn_assignment_or_fn_call name fdef ps =
                     parse_global_fn_statements { fdef | statements = List.append fdef.statements [ FunctionCallStatement fcall ] }
                         |> ParseFn
                         |> Next ps.prog
+
+        what_todo_with_type : Result TypeParseError UnqualifiedTypeName -> ParseRes
+        what_todo_with_type res =
+            case res of
+                Err e ->
+                    FailedTypeParse e |> Error
+
+                Ok t ->
+                    parse_initilization_statement Constant fdef (TypeWithName name (NonQualified t)) |> ParseFn |> Next ps.prog
     in
     case ps.tok.typ of
-        DotToken -> Next ps.prog (ParseFn (parse_global_fn_assignment_or_fn_call_qualified_name (name) fdef))
+        DotToken ->
+            Next ps.prog (ParseFn (parse_global_fn_assignment_or_fn_call_qualified_name name fdef))
+
         OpenParen ->
             parse_global_fn_fn_call_args todo (ASTFunctionCall name []) fdef
                 |> ParseFn
                 |> Next ps.prog
 
+        TypeSpecifier ->
+            parse_type what_todo_with_type |> ParseFn |> Next ps.prog
+
         AssignmentToken ->
-            Next ps.prog (ParseFn (parse_global_fn_assignment name fdef))
+            parse_global_fn_assignment name fdef |> ParseFn |> Next ps.prog
 
         _ ->
             Error (UnknownThingWhileParsingFuncCallOrAssignment ps.tok.loc)
 
 
+type alias NamedTypeParseTodo =
+    Result NamedTypeParseError TypeWithName -> ParseRes
+
+
 parse_global_fn_statements : ASTFunctionDefinition -> ParseStep -> ParseRes
 parse_global_fn_statements fdef ps =
     let
-        todo_if_var : Result NamedTypeParseError TypeWithName -> ParseRes
+        todo_if_var : NamedTypeParseTodo
         todo_if_var res =
             case res of
                 Ok nt ->
-                    Next ps.prog (ParseFn (parse_global_fn_initilization fdef nt))
+                    parse_initilization_statement Variable fdef nt |> ParseFn |> Next ps.prog
 
                 Err e ->
                     Error (FailedNamedTypeParse e)
@@ -230,16 +253,16 @@ parse_global_fn_statements fdef ps =
         Keyword kwt ->
             case kwt of
                 ReturnKeyword ->
-                    Next ps.prog (ParseFn (parse_global_fn_return_statement fdef))
+                    parse_global_fn_return_statement fdef |> ParseFn |> Next ps.prog
 
                 VarKeyword ->
-                    Next ps.prog (ParseFn (parse_named_type_name todo_if_var))
+                    parse_named_type todo_if_var |> ParseFn |> Next ps.prog
 
                 _ ->
                     Error (KeywordNotAllowedHere ps.tok.loc)
 
         CommentToken c ->
-            Next ps.prog (ParseFn (parse_global_fn_statements { fdef | statements = List.append fdef.statements [ CommentStatement c ] }))
+            parse_global_fn_statements { fdef | statements = List.append fdef.statements [ CommentStatement c ] } |> ParseFn |> Next ps.prog
 
         Symbol s ->
             Next ps.prog (ParseFn (parse_global_fn_assignment_or_fn_call (BaseName s) fdef))
@@ -250,7 +273,7 @@ parse_global_fn_statements fdef ps =
                     ps.prog
 
                 prog =
-                    { old_prog | global_functions = List.append old_prog.global_functions [ fdef ] }
+                    { old_prog | global_functions = List.append old_prog.global_functions [ fdef ], needs_more = Nothing }
             in
             Next prog (ParseFn parse_outer)
 
@@ -271,78 +294,87 @@ parse_global_function_body fname header ps =
             ps.prog
     in
     case ps.tok.typ of
-
         OpenCurly ->
-            Next prog (ParseFn (parse_global_fn_statements fdef))
+            parse_global_fn_statements fdef |> ParseFn |> Next prog
 
-        _ -> Error (ExpectedOpenCurlyForFunction ps.tok.loc)
+        _ ->
+            Error (ExpectedOpenCurlyForFunction ps.tok.loc)
+
+
+type alias TypeParseTodo =
+    Result TypeParseError UnqualifiedTypeName -> ParseRes
+
 
 parse_global_fn_return : String -> ASTFunctionHeader -> ParseStep -> ParseRes
 parse_global_fn_return fname header_so_far ps =
     let
-        what_to_do_with_ret_type : Result TypeParseError Name -> ParseRes
+        what_to_do_with_ret_type : TypeParseTodo
         what_to_do_with_ret_type typ_res =
             case typ_res of
                 Err e ->
                     Error (FailedTypeParse e)
 
                 Ok typ ->
-                    parse_global_function_body fname { header_so_far | return_type = Just typ }
+                    parse_global_function_body fname { header_so_far | return_type = Just (NonQualified typ) }
                         |> ParseFn
                         |> Next ps.prog
     in
     case ps.tok.typ of
         ReturnSpecifier ->
-            Next ps.prog (ParseFn (parse_type what_to_do_with_ret_type))
+            parse_type what_to_do_with_ret_type |> ParseFn |> Next ps.prog
 
         OpenCurly ->
-            apply_again (ParseFn (parse_global_function_body fname header_so_far)) ps
+            reapply_token (parse_global_function_body fname header_so_far |> ParseFn) ps
 
         _ ->
             Error (ExpectedFunctionBody ps.tok.loc ps.tok.typ)
 
 
-parse_global_fn_arg_list_comma_or_close : List TypeWithName -> String -> ParseStep -> ParseRes
-parse_global_fn_arg_list_comma_or_close args fname ps =
+parse_fn_def_arg_list_comma_or_close : List TypeWithName -> String -> ParseStep -> ParseRes
+parse_fn_def_arg_list_comma_or_close args fname ps =
     case ps.tok.typ of
         CommaToken ->
-            Next ps.prog (ParseFn (parse_global_fn_arg_list_or_close args fname))
+            parse_fn_definition_arg_list_or_close args fname |> ParseFn |> Next ps.prog
 
         CloseParen ->
-            Next ps.prog (ParseFn (parse_global_fn_return fname { args = args, return_type = Nothing }))
+            parse_global_fn_return fname { args = args, return_type = Nothing } |> ParseFn |> Next ps.prog
 
         _ ->
             Error (ExpectedEndOfArgListOrComma ps.tok.loc)
 
 
-parse_global_fn_arg_list_or_close : List TypeWithName -> String -> ParseStep -> ParseRes
-parse_global_fn_arg_list_or_close args_sofar fname ps =
+type alias NameAndTypeParseTodo =
+    Result NamedTypeParseError TypeWithName -> ParseRes
+
+
+parse_fn_definition_arg_list_or_close : List TypeWithName -> String -> ParseStep -> ParseRes
+parse_fn_definition_arg_list_or_close args_sofar fname ps =
     let
-        after_typedarg_occurs : Result NamedTypeParseError TypeWithName -> ParseRes
-        after_typedarg_occurs res =
+        todo : NameAndTypeParseTodo
+        todo res =
             case res of
                 Err e ->
                     Error (FailedNamedTypeParse e)
 
                 Ok nt ->
-                    Next ps.prog (ParseFn (parse_global_fn_arg_list_comma_or_close (List.append args_sofar [ nt ]) fname))
+                    parse_fn_def_arg_list_comma_or_close (List.append args_sofar [ nt ]) fname |> ParseFn |> Next ps.prog
     in
     case ps.tok.typ of
         Symbol _ ->
-            apply_again (ParseFn (parse_named_type_name after_typedarg_occurs)) ps
+            reapply_token (parse_named_type todo |> ParseFn) ps
 
         CloseParen ->
-            Next ps.prog (ParseFn (parse_global_fn_return fname { args = args_sofar, return_type = Nothing }))
+            parse_global_fn_return fname { args = args_sofar, return_type = Nothing } |> ParseFn |> Next ps.prog 
 
         _ ->
             Error (Unimplemented ps.prog ("Failing to close func param list: name = " ++ fname))
 
 
-parse_global_fn_named_open_paren : String -> ParseStep -> ParseRes
-parse_global_fn_named_open_paren fname ps =
+parse_fn_definition_open_paren : String -> ParseStep -> ParseRes
+parse_fn_definition_open_paren fname ps =
     case ps.tok.typ of
         OpenParen ->
-            Next ps.prog (ParseFn (parse_global_fn_arg_list_or_close [] fname))
+            parse_fn_definition_arg_list_or_close [] fname |> ParseFn |> Next ps.prog 
 
         _ ->
             Error (ExpectedOpenParenAfterFn fname ps.tok.loc)
@@ -350,9 +382,12 @@ parse_global_fn_named_open_paren fname ps =
 
 parse_global_fn : ParseStep -> ParseRes
 parse_global_fn ps =
+    let 
+        prog = ps.prog 
+    in
     case ps.tok.typ of
-        Symbol s ->
-            Next ps.prog (ParseFn (parse_global_fn_named_open_paren s))
+        Symbol fname ->
+            parse_fn_definition_open_paren fname |> ParseFn |> Next {prog | needs_more = Just ("I was in the middle of parsing the function `"++fname++"` definition when the file ended. Did you forget a closing bracket?") } 
 
         _ ->
             Error (ExpectedNameAfterFn ps.tok.loc)
@@ -456,8 +491,6 @@ rec_parse toks prog_sofar fn =
 
 
 
--- end of tokens
-
 
 stringify_error : Error -> String
 stringify_error e =
@@ -534,10 +567,10 @@ stringify_error e =
                     "I expected another argument after this comma\n" ++ Util.show_source_view loc
 
         ExpectedOpenCurlyForFunction loc ->
-            "I expected an opening curly to start a function body\n"++Util.show_source_view loc
+            "I expected an opening curly to start a function body\n" ++ Util.show_source_view loc
 
         ExpectedNameAfterDot loc ->
-            "I expected another name after this dot. ie `a.b.c` but got "++Util.show_source_view_not_line loc++"\n"++Util.show_source_view loc
+            "I expected another name after this dot. ie `a.b.c` but got " ++ Util.show_source_view_not_line loc ++ "\n" ++ Util.show_source_view loc
 
 
 explain_error : Error -> Html.Html msg
@@ -558,10 +591,10 @@ explain_error e =
                 ]
 
 
-syntax_highlight_type : Name -> Html.Html msg
+syntax_highlight_type : TypeName -> Html.Html msg
 syntax_highlight_type name =
     Html.span [ style "color" Pallete.blue ]
-        [ text (Language.stringify_name name)
+        [ text (Language.stringify_type_name name)
         ]
 
 
@@ -613,13 +646,14 @@ explain_expression expr =
 
         LiteralExpr lt s ->
             case lt of
-                StringLiteral -> Html.span [] [text ("String Literal: "++s)]
+                StringLiteral ->
+                    Html.span [] [ text ("String Literal: " ++ s) ]
 
                 BooleanLiteral ->
-                                 Debug.todo "branch 'BooleanLiteral' not implemented"
+                    Debug.todo "branch 'BooleanLiteral' not implemented"
 
                 NumberLiteral ->
-                                 Html.span [] [text ("Number Literal: "++s)]
+                    Html.span [] [ text ("Number Literal: " ++ s) ]
 
 
 explain_statement : ASTStatement -> Html.Html msg
@@ -632,7 +666,7 @@ explain_statement s =
             Html.span [] [ text "// ", text src ]
 
         InitilizationStatement name expr ->
-            Html.span [] [ text ("Initialize `" ++ stringify_name name.name ++ "` of type " ++ stringify_name name.typename ++ " to "), explain_expression expr ]
+            Html.span [] [ text ("Initialize `" ++ stringify_name name.name ++ "` of type " ++ stringify_type_name name.typename ++ " to "), explain_expression expr ]
 
         AssignmentStatement name expr ->
             Html.span [] [ text ("assigning " ++ stringify_name name ++ " with "), explain_expression expr ]
@@ -699,8 +733,9 @@ stringify_expr expr =
 
         FunctionCallExpr fc ->
             stringify_name fc.fname ++ "(" ++ (fc.args |> List.map stringify_expr |> String.join ", ") ++ ")"
-        LiteralExpr _ s -> s
 
+        LiteralExpr _ s ->
+            s
 
 
 syntaxify_expression : ASTExpression -> Html.Html msg
@@ -718,16 +753,25 @@ syntaxify_expression expr =
                 ]
 
         LiteralExpr lt s ->
-            case lt of 
-                StringLiteral -> Html.span [] [string_literal_highlight s]
-                NumberLiteral -> Html.span [] [number_literal_highlight s]
-                BooleanLiteral -> Html.span [] [number_literal_highlight s]
+            case lt of
+                StringLiteral ->
+                    Html.span [] [ string_literal_highlight s ]
+
+                NumberLiteral ->
+                    Html.span [] [ number_literal_highlight s ]
+
+                BooleanLiteral ->
+                    Html.span [] [ number_literal_highlight s ]
+
+
 string_literal_highlight : String -> Html.Html msg
 string_literal_highlight s =
     Html.span [ style "color" "DarkSlateBlue" ] [ text ("\"" ++ s ++ "\"") ]
 
-number_literal_highlight: String -> Html.Html msg
-number_literal_highlight s = Html.span [style "color" Pallete.aqua ] [text s]
+
+number_literal_highlight : String -> Html.Html msg
+number_literal_highlight s =
+    Html.span [ style "color" Pallete.aqua ] [ text s ]
 
 
 tab : Html.Html msg
@@ -746,8 +790,20 @@ syntaxify_statement s =
                 , text "\n"
                 ]
 
-        InitilizationStatement name expr ->
-            Html.span [] (List.concat [ [ tab, keyword_highlight "var " ], htmlify_namedarg name, [ text " = ", syntaxify_expression expr, text "\n" ] ])
+        InitilizationStatement taname expr ->
+            let
+                qual =
+                    case taname.typename of
+                        VariableTypename _ ->
+                            "var "
+
+                        ConstantTypename _ ->
+                            ""
+
+                        NonQualified _ ->
+                            ""
+            in
+            Html.span [] (List.concat [ [ tab, keyword_highlight qual ], htmlify_namedarg taname, [ text " = ", syntaxify_expression expr, text "\n" ] ])
 
         CommentStatement src ->
             Html.span [ style "color" Pallete.gray ] [ tab, text ("// " ++ src), text "\n" ]
@@ -824,7 +880,8 @@ syntaxify_function fdef =
 syntaxify_program : ParserCommon.Program -> Html.Html msg
 syntaxify_program prog =
     Html.code
-        [ style "overflow" "auto"
+        [ style "font-size" "15px"
+        , style "overflow" "auto"
         , style "height" "100%"
         , style "width" "400px"
         , style "padding" "4px"

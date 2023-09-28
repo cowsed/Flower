@@ -18,7 +18,8 @@ import Util
    todo:
    - keyword not allowed error gets emitted from parseName with note about which words are reserved
    - infix operator expressions
-   - fullnames std.print(std.time)
+   - ~~fullnames std.print(std.time)~~
+   - ~~a: Type = 123123213123 is a const thing~~
 -}
 
 
@@ -28,8 +29,6 @@ initial_input =
 
 // importing the standard library
 import "std"
-import "math" // importing another library
-import "github.com/cowsed/image"
 
 
 // adding 2 numbers
@@ -39,7 +38,10 @@ fn add(a: u8, b: u8) -> u8{
 }
 
 fn main() -> u8{
+    a: u8 = 1
+    b: u8 = 2
     var res: u8 = add(1, 2)
+    std.println("{a} + {b} = {res}")
 }
 """
 
@@ -47,7 +49,7 @@ fn main() -> u8{
 htmlify_output : Result CompilerError ParserCommon.Program -> Html.Html msg
 htmlify_output res =
     case res of
-        Err ce ->
+        Err _ ->
             Html.div [] []
 
         Ok prog ->
@@ -77,8 +79,7 @@ make_output mod =
     Html.div []
         [ Html.node "style" [] [ text global_css ]
         , Html.div
-            [ style "font-size" "15px"
-            , style "overflow" "auto"
+            [  style "overflow" "auto"
             ]
             [ code_editor mod.source_code (\s -> DoUpdate s)
             , case result of

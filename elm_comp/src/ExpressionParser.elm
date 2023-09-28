@@ -3,15 +3,15 @@ import ParserCommon exposing (..)
 import Lexer exposing (TokenType(..))
 import Language exposing (ASTFunctionCall, ASTExpression(..), Name(..))
 
-type alias FuncCallTodo =
+type alias FuncCallExprTodo =
     Result FuncCallParseError ASTFunctionCall -> ParseRes
 
 
-parse_expr : Name -> ExprParseWhatTodo -> ParseStep -> ParseRes
+parse_expr : Maybe Name -> ExprParseWhatTodo -> ParseStep -> ParseRes
 parse_expr name todo ps =
     case ps.tok.typ of
         Symbol s ->
-            Next ps.prog (ParseFn (parse_expr_name_or_fcall (Language.append_name name s) todo))
+            Next ps.prog (ParseFn (parse_expr_name_or_fcall (Language.append_maybe_name name s) todo))
         Literal lt s ->LiteralExpr lt s |> Ok |> todo 
 
         CloseParen -> ParenWhereIDidntWantIt ps.tok.loc |> Err |> todo
@@ -22,7 +22,7 @@ parse_expr name todo ps =
 parse_expr_name_or_fcall : Name -> ExprParseWhatTodo -> ParseStep -> ParseRes
 parse_expr_name_or_fcall name todo ps =
     let
-        func_todo : FuncCallTodo
+        func_todo : FuncCallExprTodo
         func_todo res =
             case res of
                 Ok fcall ->
@@ -36,7 +36,7 @@ parse_expr_name_or_fcall name todo ps =
         OpenParen ->
             parse_function_call name func_todo |> ParseFn |> Next ps.prog
         --continue building name
-        DotToken -> parse_expr (Debug.log "building name "name) todo |> ParseFn |> Next ps.prog 
+        DotToken -> parse_expr (Just name) todo |> ParseFn |> Next ps.prog 
         -- was just a name
         _ ->
             case NameLookup name |> Ok |> todo of
@@ -44,10 +44,10 @@ parse_expr_name_or_fcall name todo ps =
                     Error e
 
                 Next prog fn ->
-                    apply_again fn { ps | prog = prog }
+                    reapply_token fn { ps | prog = prog }
 
 
-parse_function_call : Name -> FuncCallTodo -> ParseStep -> ParseRes
+parse_function_call : Name -> FuncCallExprTodo -> ParseStep -> ParseRes
 parse_function_call name todo ps =
     let
         what_to_do : ExprParseWhatTodo
@@ -64,7 +64,7 @@ parse_function_call name todo ps =
             todo (Ok (ASTFunctionCall name []))
 
         _ ->
-            apply_again (ParseFn (parse_expr EmptyName what_to_do)) ps
+            reapply_token (ParseFn (parse_expr Nothing what_to_do)) ps
 
 
 
@@ -90,7 +90,7 @@ parse_func_call_continue_or_end todo fcall ps =
     in
     case ps.tok.typ of
         CommaToken ->
-            parse_expr EmptyName what_to_do_with_expr |> ParseFn |> Next ps.prog
+            parse_expr Nothing what_to_do_with_expr |> ParseFn |> Next ps.prog
 
         CloseParen ->
             todo (Ok fcall)

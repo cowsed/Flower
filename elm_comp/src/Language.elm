@@ -1,22 +1,63 @@
 module Language exposing (..)
 
+
 type Name
-    = EmptyName
-    | BaseName String
+    = BaseName String
     | Qualified (List String)
 
-append_name: Name -> String -> Name
+
+append_name : Name -> String -> Name
 append_name n new =
     case n of
-        EmptyName -> BaseName new
-        BaseName s -> Qualified [s, new]
-        Qualified l -> Qualified (List.append l [new])
-stringify_name : Name -> String
-stringify_name n = 
+        BaseName s ->
+            Qualified [ s, new ]
+
+        Qualified l ->
+            Qualified (List.append l [ new ])
+
+
+append_maybe_name : Maybe Name -> String -> Name
+append_maybe_name n new =
     case n of
-        EmptyName -> Debug.log "stringify empty name should never happen, signals a compiler error" ""
-        BaseName s -> s
-        Qualified l -> (String.join "." l)
+        Just nam ->
+            append_name nam new
+
+        Nothing ->
+            BaseName new
+
+
+stringify_name : Name -> String
+stringify_name n =
+    case n of
+        BaseName s ->
+            s
+
+        Qualified l ->
+            String.join "." l
+
+
+stringify_utname : UnqualifiedTypeName -> String
+stringify_utname utn =
+    case utn of
+        Basic n ->
+            stringify_name n
+
+        Generic _ _ ->
+            Debug.todo "branch 'Generic _ _' not implemented"
+        
+
+
+stringify_type_name : TypeName -> String
+stringify_type_name tn =
+    case tn of
+        VariableTypename n ->
+            stringify_utname n
+
+        ConstantTypename n ->
+            stringify_utname n
+
+        NonQualified n ->
+            stringify_utname n
 
 
 type LiteralType
@@ -31,6 +72,7 @@ type KeywordType
     | ModuleKeyword
     | ImportKeyword
     | VarKeyword
+    | StructKeyword
 
 
 
@@ -53,11 +95,16 @@ type Type
     | IntegerType Integers
     | StringType
 
-builtin_type_from_name: String -> Maybe Type
-builtin_type_from_name s = 
+
+builtin_type_from_name : String -> Maybe Type
+builtin_type_from_name s =
     case s of
-        "u8" -> IntegerType U8 |> Just 
-        _ -> Nothing
+        "u8" ->
+            IntegerType U8 |> Just
+
+        _ ->
+            Nothing
+
 
 builtin_types : List Type
 builtin_types =
@@ -74,17 +121,46 @@ builtin_types =
     ]
 
 
+type Qualifier
+    = Variable
+    | Constant
+
+make_qualified_typename: Qualifier -> UnqualifiedTypeName -> TypeName
+make_qualified_typename q uq = 
+    case q of
+        Variable -> VariableTypename uq
+        Constant -> ConstantTypename uq
 type TypeName
+    = VariableTypename UnqualifiedTypeName
+    | ConstantTypename UnqualifiedTypeName
+    | NonQualified UnqualifiedTypeName
+
+
+remove_type_qualifier : TypeName -> UnqualifiedTypeName
+remove_type_qualifier tn =
+    case tn of
+        VariableTypename n ->
+            n
+
+        ConstantTypename n ->
+            n
+
+        NonQualified n ->
+            n
+
+
+type UnqualifiedTypeName
     = Basic Name
-    | ConstName TypeName
+    | Generic Name (List TypeName)
+
 
 type alias TypeWithName =
-    { name : Name, typename : Name }
-
+    { name : Name, typename : TypeName }
 
 
 type alias ASTFunctionHeader =
-    { args : List TypeWithName, return_type : Maybe Name }
+    { args : List TypeWithName, return_type : Maybe TypeName }
+
 
 type alias ASTFunctionDefinition =
     { name : String
@@ -101,10 +177,12 @@ type ASTStatement
     | FunctionCallStatement ASTFunctionCall
     | IfStatement
 
+
 type ASTExpression
     = FunctionCallExpr ASTFunctionCall
     | LiteralExpr LiteralType String
     | NameLookup Name -- InfixOperation InfixType
+
 
 type alias ASTFunctionCall =
     { fname : Name

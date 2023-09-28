@@ -254,8 +254,9 @@ lex_unknown lsi =
 
     else if c == ',' then
         Tokens [ Token lsi.view_this CommaToken ] begin_lex
+
     else if c == '.' then
-        Tokens [Token lsi.view_this DotToken] begin_lex
+        Tokens [ Token lsi.view_this DotToken ] begin_lex
 
     else if c == '=' then
         Tokens [ Token lsi.view_this AssignmentToken ] begin_lex
@@ -299,8 +300,13 @@ is_keyword s =
 
     else if s == "import" then
         Just ImportKeyword
+
     else if s == "var" then
         Just VarKeyword
+
+    else if s == "struct" then
+        Just StructKeyword
+
     else
         Nothing
 
@@ -322,6 +328,9 @@ kwt_to_string kwt =
 
         VarKeyword ->
             "var"
+
+        StructKeyword ->
+            "struct"
 
 
 syntaxify_token : TokenType -> String
@@ -360,7 +369,8 @@ syntaxify_token tok =
         ReturnSpecifier ->
             " -> "
 
-        AssignmentToken -> " = "
+        AssignmentToken ->
+            " = "
 
         PlusToken ->
             " + "
@@ -448,7 +458,6 @@ token_to_str tok =
 
         CommentToken s ->
             "[Comment: " ++ s ++ "]"
-
 
         AssignmentToken ->
             "[=]"

@@ -72,8 +72,8 @@ type ExprParseError
 type alias ExprParseWhatTodo =
     Result ExprParseError ASTExpression -> ParseRes
 
-apply_again : ParseFn -> ParseStep -> ParseRes
-apply_again fn ps =
+reapply_token : ParseFn -> ParseStep -> ParseRes
+reapply_token fn ps =
     extract_fn fn ps
 
 extract_fn : ParseFn -> (ParseStep -> ParseRes)
