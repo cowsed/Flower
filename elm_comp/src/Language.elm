@@ -42,8 +42,8 @@ stringify_utname utn =
         Basic n ->
             stringify_name n
 
-        Generic _ _ ->
-            Debug.todo "branch 'Generic _ _' not implemented"
+        Generic n l ->
+            (stringify_name n) ++ "["++(l |> List.map (\tn -> stringify_type_name tn) |> String.join ", ")++"]"
 
 
 stringify_type_name : TypeName -> String
@@ -121,7 +121,7 @@ type alias InfixOp =
     { op : InfixOpType, precedence : Int }
 
 
-type Integers
+type IntegerSize
     = U8
     | U16
     | U32
@@ -134,7 +134,7 @@ type Integers
 
 type Type
     = BooleanType
-    | IntegerType Integers
+    | IntegerType IntegerSize
     | StringType
 
 

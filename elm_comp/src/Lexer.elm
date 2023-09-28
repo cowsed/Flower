@@ -206,7 +206,7 @@ is_integer_ender c =
 lex_integer : Int -> String -> LexStepInfo -> LexRes
 lex_integer start sofar lsi =
     if Char.isDigit lsi.char then
-        Tokens [] (LexFn (lex_integer start (Util.addchar sofar lsi.char)))
+        LexFn (lex_integer start (Util.addchar sofar lsi.char)) |> Tokens []
 
     else if is_integer_ender lsi.char then
         apply_again [ Token (lsi.view_from_start start) (Literal Language.NumberLiteral sofar) ] begin_lex lsi
@@ -218,7 +218,7 @@ lex_integer start sofar lsi =
 lex_symbol : Int -> String -> LexStepInfo -> LexRes
 lex_symbol start sofar lsi =
     if Char.isAlphaNum lsi.char then
-        Tokens [] (LexFn (lex_symbol start (Util.addchar sofar lsi.char)))
+        lex_symbol start (Util.addchar sofar lsi.char) |> LexFn |> Tokens [] 
 
     else
         apply_again [ Token (lsi.view_from_start start) (symbol_or_keyword sofar) ] begin_lex lsi
@@ -252,7 +252,7 @@ lex_rest_of_comment start sofar lsi =
             begin_lex
 
     else
-        Tokens [] (LexFn (lex_rest_of_comment start (Util.addchar sofar lsi.char)))
+        lex_rest_of_comment start (Util.addchar sofar lsi.char) |> LexFn |> Tokens [] 
 
 
 lex_divide_or_comment : LexStepInfo -> LexRes
@@ -273,7 +273,7 @@ lex_string_literal start sofar lsi =
         Error (UnclosedStringLiteral (lsi.view_from_start start))
 
     else
-        Tokens [] (LexFn (lex_string_literal start (Util.addchar sofar lsi.char)))
+        lex_string_literal start (Util.addchar sofar lsi.char) |> LexFn |> Tokens [] 
 
 
 lex_unknown : LexStepInfo -> LexRes
@@ -289,10 +289,10 @@ lex_unknown lsi =
         Tokens [ Token lsi.view_this NewlineToken ] begin_lex
 
     else if Char.isAlpha c then
-        Tokens [] (LexFn (lex_symbol lsi.pos (String.fromChar c)))
+        lex_symbol lsi.pos (String.fromChar c) |> LexFn |> Tokens [] 
 
     else if Char.isDigit c then
-        Tokens [] (LexFn (lex_integer lsi.pos (String.fromChar c)))
+        lex_integer lsi.pos (String.fromChar c) |> LexFn |> Tokens []
 
     else if c == '"' then
         Tokens [] (LexFn (lex_string_literal lsi.pos ""))

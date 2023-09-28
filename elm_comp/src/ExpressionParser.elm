@@ -140,7 +140,7 @@ parse_function_call name todo ps =
                     Error (FailedExprParse e)
 
                 Ok expr ->
-                    Next ps.prog (ParseFn (parse_func_call_continue_or_end todo (ASTFunctionCall name [ expr ])))
+                    parse_func_call_continue_or_end todo (ASTFunctionCall name [ expr ]) |> ParseFn |> Next ps.prog 
     in
     case ps.tok.typ of
         CloseParen ->

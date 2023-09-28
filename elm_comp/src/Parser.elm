@@ -40,7 +40,7 @@ parse_named_type_type valname todo ps =
     -- parse the Type of `name: Type`
     case ps.tok.typ of
         Symbol typename ->
-            todo (Ok (TypeWithName (BaseName valname) (VariableTypename (Basic (BaseName typename)))))
+            TypeWithName (BaseName valname) (Basic (BaseName typename) |> VariableTypename) |> Ok |> todo
 
         _ ->
             Error (Unimplemented ps.prog "When parsing name: Type if Type is not a symbol")
@@ -55,7 +55,7 @@ parse_named_type todo ps =
     in
     case ps.tok.typ of
         Symbol valname ->
-            Next ps.prog (ParseFn (parse_expected_token "Expected `:` to split betweem value name and type" Lexer.TypeSpecifier (after_colon valname |> Next ps.prog)))
+            parse_expected_token "Expected `:` to split betweem value name and type" Lexer.TypeSpecifier (after_colon valname |> Next ps.prog) |> ParseFn |> Next ps.prog
 
         _ ->
             Error (ExpectedToken "expected a symbol name like `a` or `name` for something like `a: Type`" ps.tok.loc)
@@ -641,16 +641,16 @@ explain_expression expr =
                     Html.span [] [ text ("String Literal: " ++ s) ]
 
                 BooleanLiteral ->
-                    Debug.todo "branch 'BooleanLiteral' not implemented"
+                    Html.span [] [ text ("Boolean Literal: " ++ s) ]
 
                 NumberLiteral ->
                     Html.span [] [ text ("Number Literal: " ++ s) ]
 
         Parenthesized e ->
             Html.span [] [ text "(", explain_expression e, text ")" ]
-        
-        InfixExpr lhs rhs op -> 
-            Html.span [] [text ("Infix op: "++stringify_infix_op op), Html.ul [] [Html.li [] [explain_expression lhs], Html.li [] [explain_expression rhs]]]
+
+        InfixExpr lhs rhs op ->
+            Html.span [] [ text ("Infix op: " ++ stringify_infix_op op), Html.ul [] [ Html.li [] [ explain_expression lhs ], Html.li [] [ explain_expression rhs ] ] ]
 
 
 explain_statement : ASTStatement -> Html.Html msg
@@ -722,8 +722,6 @@ symbol_highlight s =
     Html.span [ style "color" Pallete.orange ] [ text s ]
 
 
-
-
 syntaxify_expression : ASTExpression -> Html.Html msg
 syntaxify_expression expr =
     case expr of
@@ -753,7 +751,7 @@ syntaxify_expression expr =
                     Html.span [] [ number_literal_highlight s ]
 
         InfixExpr lhs rhs op ->
-            Html.span [] [syntaxify_expression lhs, text (stringify_infix_op op), syntaxify_expression rhs]
+            Html.span [] [ syntaxify_expression lhs, text (stringify_infix_op op), syntaxify_expression rhs ]
 
 
 string_literal_highlight : String -> Html.Html msg
@@ -875,7 +873,6 @@ syntaxify_program prog =
         [ style "font-size" "15px"
         , style "overflow" "auto"
         , style "height" "100%"
-        , style "width" "400px"
         , style "padding" "4px"
         , style "background-color" Pallete.bg
         , style "border-radius" "8px"
