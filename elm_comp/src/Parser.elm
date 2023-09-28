@@ -25,8 +25,6 @@ parse toks =
     parse_find_module_kw |> ParseFn |> rec_parse toks base_program
 
 
-
-
 parse_type : (Result TypeParseError UnqualifiedTypeName -> ParseRes) -> ParseStep -> ParseRes
 parse_type todo ps =
     case ps.tok.typ of
@@ -112,7 +110,7 @@ parse_global_fn_fn_call_args todo fcall fdef ps =
             parse_global_fn_statements { fdef | statements = List.append fdef.statements [ FunctionCallStatement fcall ] } |> ParseFn |> Next ps.prog
 
         _ ->
-            reapply_token (ParseFn (parse_expr Nothing what_to_do_with_expr)) ps
+            reapply_token (ParseFn (parse_expr what_to_do_with_expr)) ps
 
 
 parse_global_fn_return_statement : ASTFunctionDefinition -> ParseStep -> ParseRes
@@ -128,11 +126,11 @@ parse_global_fn_return_statement fdef ps =
                     parse_global_fn_statements { fdef | statements = List.append fdef.statements [ ReturnStatement expr ] }
                         |> ParseFn
                         |> Next ps.prog
-                        |> parse_expected_token ("Expected newline after end of this return expression. Hint: I think im returning `" ++ stringify_expr expr ++ "`") NewlineToken
+                        |> parse_expected_token ("Expected newline after end of this return expression. Hint: I think im returning `" ++ stringify_expression expr ++ "`") NewlineToken
                         |> ParseFn
                         |> Next ps.prog
     in
-    reapply_token (ParseFn (parse_expr Nothing what_to_do_with_expr)) ps
+    reapply_token (ParseFn (parse_expr what_to_do_with_expr)) ps
 
 
 parse_initilization_statement : Qualifier -> ASTFunctionDefinition -> TypeWithName -> ParseStep -> ParseRes
@@ -152,7 +150,7 @@ parse_initilization_statement qual fdef nt ps =
     in
     case ps.tok.typ of
         AssignmentToken ->
-            Next ps.prog (ParseFn (parse_expr Nothing todo_with_expr))
+            Next ps.prog (ParseFn (parse_expr todo_with_expr))
 
         NewlineToken ->
             Error (RequireInitilizationWithValue ps.tok.loc)
@@ -172,7 +170,7 @@ parse_global_fn_assignment name fdef ps =
                 Ok expr ->
                     parse_global_fn_statements { fdef | statements = List.append fdef.statements [ AssignmentStatement name expr ] } |> ParseFn |> Next ps.prog
     in
-    parse_expr Nothing after_expr_parse ps
+    parse_expr after_expr_parse ps
 
 
 parse_global_fn_assignment_or_fn_call_qualified_name : Name -> ASTFunctionDefinition -> ParseStep -> ParseRes
@@ -358,7 +356,7 @@ parse_fn_definition_arg_list_or_close args_sofar fname ps =
             reapply_token (parse_named_type todo |> ParseFn) ps
 
         CloseParen ->
-            parse_global_fn_return fname { args = args_sofar, return_type = Nothing } |> ParseFn |> Next ps.prog 
+            parse_global_fn_return fname { args = args_sofar, return_type = Nothing } |> ParseFn |> Next ps.prog
 
         _ ->
             Error (Unimplemented ps.prog ("Failing to close func param list: name = " ++ fname))
@@ -368,7 +366,7 @@ parse_fn_definition_open_paren : String -> ParseStep -> ParseRes
 parse_fn_definition_open_paren fname ps =
     case ps.tok.typ of
         OpenParen ->
-            parse_fn_definition_arg_list_or_close [] fname |> ParseFn |> Next ps.prog 
+            parse_fn_definition_arg_list_or_close [] fname |> ParseFn |> Next ps.prog
 
         _ ->
             Error (ExpectedOpenParenAfterFn fname ps.tok.loc)
@@ -376,12 +374,13 @@ parse_fn_definition_open_paren fname ps =
 
 parse_global_fn : ParseStep -> ParseRes
 parse_global_fn ps =
-    let 
-        prog = ps.prog 
+    let
+        prog =
+            ps.prog
     in
     case ps.tok.typ of
         Symbol fname ->
-            parse_fn_definition_open_paren fname |> ParseFn |> Next {prog | needs_more = Just ("I was in the middle of parsing the function `"++fname++"` definition when the file ended. Did you forget a closing bracket?") } 
+            parse_fn_definition_open_paren fname |> ParseFn |> Next { prog | needs_more = Just ("I was in the middle of parsing the function `" ++ fname ++ "` definition when the file ended. Did you forget a closing bracket?") }
 
         _ ->
             Error (ExpectedNameAfterFn ps.tok.loc)
@@ -482,8 +481,6 @@ rec_parse toks prog_sofar fn =
 
                 Just reason ->
                     Err (NeededMoreTokens reason)
-
-
 
 
 stringify_error : Error -> String
@@ -649,6 +646,12 @@ explain_expression expr =
                 NumberLiteral ->
                     Html.span [] [ text ("Number Literal: " ++ s) ]
 
+        Parenthesized e ->
+            Html.span [] [ text "(", explain_expression e, text ")" ]
+        
+        InfixExpr lhs rhs op -> 
+            Html.span [] [text ("Infix op: "++stringify_infix_op op), Html.ul [] [Html.li [] [explain_expression lhs], Html.li [] [explain_expression rhs]]]
+
 
 explain_statement : ASTStatement -> Html.Html msg
 explain_statement s =
@@ -719,17 +722,22 @@ symbol_highlight s =
     Html.span [ style "color" Pallete.orange ] [ text s ]
 
 
-stringify_expr : ASTExpression -> String
-stringify_expr expr =
+stringify_expression : ASTExpression -> String
+stringify_expression expr =
     case expr of
         NameLookup n ->
             stringify_name n
 
         FunctionCallExpr fc ->
-            stringify_name fc.fname ++ "(" ++ (fc.args |> List.map stringify_expr |> String.join ", ") ++ ")"
+            stringify_name fc.fname ++ "(" ++ (fc.args |> List.map stringify_expression |> String.join ", ") ++ ")"
 
         LiteralExpr _ s ->
             s
+
+        Parenthesized e ->
+            stringify_expression e
+        InfixExpr lhs rhs op ->
+            stringify_expression lhs ++ stringify_infix_op op ++ stringify_expression rhs
 
 
 syntaxify_expression : ASTExpression -> Html.Html msg
@@ -746,6 +754,9 @@ syntaxify_expression expr =
                 , text ")"
                 ]
 
+        Parenthesized e ->
+            Html.span [] [ text "(", syntaxify_expression e, text ")" ]
+
         LiteralExpr lt s ->
             case lt of
                 StringLiteral ->
@@ -756,6 +767,9 @@ syntaxify_expression expr =
 
                 BooleanLiteral ->
                     Html.span [] [ number_literal_highlight s ]
+
+        InfixExpr lhs rhs op ->
+            Html.span [] [syntaxify_expression lhs, text (stringify_infix_op op), syntaxify_expression rhs]
 
 
 string_literal_highlight : String -> Html.Html msg

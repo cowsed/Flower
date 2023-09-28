@@ -74,10 +74,26 @@ type KeywordType
     | VarKeyword
     | StructKeyword
 
-
-
 -- sumtype, product type, list
 
+
+type InfixOpType
+    = Addition
+    | Subtraction
+    | Multiplication
+    | Division
+
+stringify_infix_op: InfixOpType -> String
+stringify_infix_op op = 
+    case op of
+        Addition -> "+"
+        Subtraction -> "-"
+        Multiplication -> "*"
+        Division -> "/"
+
+
+type alias InfixOp =
+    { op : InfixOpType, precedence : Int }
 
 type Integers
     = U8
@@ -181,7 +197,9 @@ type ASTStatement
 type ASTExpression
     = FunctionCallExpr ASTFunctionCall
     | LiteralExpr LiteralType String
-    | NameLookup Name -- InfixOperation InfixType
+    | NameLookup Name
+    | Parenthesized ASTExpression
+    | InfixExpr ASTExpression ASTExpression InfixOpType
 
 
 type alias ASTFunctionCall =

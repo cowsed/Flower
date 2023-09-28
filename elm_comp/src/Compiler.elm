@@ -2,7 +2,7 @@ module Compiler exposing (..)
 
 import Html
 import Lexer exposing (Token)
-import Parser exposing (parse)
+import Parser 
 import ParserCommon
 
 
@@ -44,10 +44,9 @@ wrap_parser_output toks res =
 compile : String -> Result CompilerError ParserCommon.Program
 compile src =
     let
+        lex_result : Result CompilerError (List Token)
         lex_result =
-            Lexer.lex src |> wrap_lexer_output
-
-        parse toks =
-            Parser.parse toks |> wrap_parser_output toks
+            Lexer.lex src |> Result.mapError (\e -> Lex e)
     in
-    lex_result |> Result.andThen parse
+    lex_result
+        |> Result.andThen (\toks -> Parser.parse toks |> Result.mapError (\e -> Parse e toks))

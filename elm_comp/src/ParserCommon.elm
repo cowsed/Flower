@@ -73,6 +73,15 @@ type alias ExprParseWhatTodo =
     Result ExprParseError ASTExpression -> ParseRes
 
 
+reapply_token_or_fail : ParseRes -> ParseStep -> ParseRes
+reapply_token_or_fail res ps =
+    case res of 
+        Next prog fn -> extract_fn fn {ps | prog = prog}
+
+        Error e ->
+                        Error e
+
+
 reapply_token : ParseFn -> ParseStep -> ParseRes
 reapply_token fn ps =
     extract_fn fn ps

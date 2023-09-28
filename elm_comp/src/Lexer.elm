@@ -54,6 +54,19 @@ type Error
     | UnknownCharacterInIntegerLiteral Util.SourceView
 
 
+
+
+infix_op_from_token : Token -> Maybe Language.InfixOpType
+infix_op_from_token tok =
+    case tok.typ of
+        PlusToken -> Just Language.Addition
+        MinusToken -> Just Language.Subtraction
+
+        MultiplyToken -> Just Language.Multiplication
+        DivideToken -> Just Language.Division
+
+
+        _ -> Nothing
 explain_error : Error -> Html.Html msg
 explain_error e =
     Html.div []
@@ -67,7 +80,7 @@ explain_error e =
                     text ("Unclosed String Literal here: \n" ++ Util.show_source_view sv)
 
                 UnknownCharacterInIntegerLiteral sv ->
-                    text ("Unknown character in Integer Literal\n"++Util.show_source_view sv)
+                    text ("Unknown character in Integer Literal\n" ++ Util.show_source_view sv)
             ]
         ]
 
@@ -152,16 +165,44 @@ apply_again my_toks next_lf lsi =
             Error e
 
 
-is_integer_ender: Char -> Bool
-is_integer_ender c = 
+is_integer_ender : Char -> Bool
+is_integer_ender c =
     case c of
-        ' ' -> True
-        '\n' -> True
-        '\t' -> True
-        ',' -> True
-        ')' -> True
-        '}' -> True
-        _ -> False
+        ' ' ->
+            True
+
+        '\n' ->
+            True
+
+        '\t' ->
+            True
+
+        ',' ->
+            True
+
+        ')' ->
+            True
+
+        '}' ->
+            True
+
+        '+' ->
+            True
+
+        '-' ->
+            True
+
+        '*' ->
+            True
+
+        '/' ->
+            True
+
+
+        _ ->
+            False
+
+
 lex_integer : Int -> String -> LexStepInfo -> LexRes
 lex_integer start sofar lsi =
     if Char.isDigit lsi.char then
