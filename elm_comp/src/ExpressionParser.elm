@@ -1,7 +1,10 @@
 module ExpressionParser exposing (..)
-import ParserCommon exposing (..)
+
+import Language exposing (ASTExpression(..), ASTFunctionCall, Name(..))
 import Lexer exposing (TokenType(..))
-import Language exposing (ASTFunctionCall, ASTExpression(..), Name(..))
+import ParserCommon exposing (..)
+import Util
+
 
 type alias FuncCallExprTodo =
     Result FuncCallParseError ASTFunctionCall -> ParseRes
@@ -12,12 +15,27 @@ parse_expr name todo ps =
     case ps.tok.typ of
         Symbol s ->
             Next ps.prog (ParseFn (parse_expr_name_or_fcall (Language.append_maybe_name name s) todo))
-        Literal lt s ->LiteralExpr lt s |> Ok |> todo 
 
-        CloseParen -> ParenWhereIDidntWantIt ps.tok.loc |> Err |> todo
-        NewlineToken -> IdkExpr ps.tok.loc "I Expected an expression but got the end of the line" |> Err |> todo
+        Literal lt s ->
+            LiteralExpr lt s |> Ok |> todo
+
+        OpenParen ->
+            let
+                after: ExprParseWhatTodo
+                after res =
+                    parse_expected_token ("Expected a closing ) to match this\n"++Util.show_source_view ps.tok.loc) CloseParen (todo res) |> ParseFn |> Next ps.prog
+            in
+            parse_expr name after |> ParseFn |> Next ps.prog
+
+        NewlineToken ->
+            IdkExpr ps.tok.loc "I Expected an expression but got the end of the line" |> Err |> todo
+
+        CloseParen ->
+            ParenWhereIDidntWantIt ps.tok.loc |> Err |> todo
+
         _ ->
             IdkExpr ps.tok.loc "I don't know how to parse non name lookup expr" |> Err |> todo
+
 
 parse_expr_name_or_fcall : Name -> ExprParseWhatTodo -> ParseStep -> ParseRes
 parse_expr_name_or_fcall name todo ps =
@@ -35,8 +53,11 @@ parse_expr_name_or_fcall name todo ps =
         -- start func
         OpenParen ->
             parse_function_call name func_todo |> ParseFn |> Next ps.prog
+
         --continue building name
-        DotToken -> parse_expr (Just name) todo |> ParseFn |> Next ps.prog 
+        DotToken ->
+            parse_expr (Just name) todo |> ParseFn |> Next ps.prog
+
         -- was just a name
         _ ->
             case NameLookup name |> Ok |> todo of
@@ -67,8 +88,6 @@ parse_function_call name todo ps =
             reapply_token (ParseFn (parse_expr Nothing what_to_do)) ps
 
 
-
-
 parse_func_call_continue_or_end : (Result FuncCallParseError ASTFunctionCall -> ParseRes) -> ASTFunctionCall -> ParseStep -> ParseRes
 parse_func_call_continue_or_end todo fcall ps =
     let
@@ -77,8 +96,12 @@ parse_func_call_continue_or_end todo fcall ps =
             case res of
                 Err e ->
                     case e of
-                        ParenWhereIDidntWantIt _ -> Error (FailedFuncCallParse (ExpectedAnotherArgument ps.tok.loc)) -- use this tok.loc because were looking at a paren right here
-                        _  -> Error (FailedExprParse  e)
+                        ParenWhereIDidntWantIt _ ->
+                            Error (FailedFuncCallParse (ExpectedAnotherArgument ps.tok.loc))
+
+                        -- use this tok.loc because were looking at a paren right here
+                        _ ->
+                            Error (FailedExprParse e)
 
                 Ok expr ->
                     ParseFn
@@ -100,9 +123,4 @@ parse_func_call_continue_or_end todo fcall ps =
 
 
 
-
-
-
 -- called after name(
-
-

@@ -25,13 +25,6 @@ parse toks =
     parse_find_module_kw |> ParseFn |> rec_parse toks base_program
 
 
-parse_expected_token : String -> TokenType -> ParseFn -> ParseStep -> ParseRes
-parse_expected_token reason expected after ps =
-    if ps.tok.typ == expected then
-        Next ps.prog after
-
-    else
-        Error (ExpectedToken reason ps.tok.loc)
 
 
 parse_type : (Result TypeParseError UnqualifiedTypeName -> ParseRes) -> ParseStep -> ParseRes
@@ -64,7 +57,7 @@ parse_named_type todo ps =
     in
     case ps.tok.typ of
         Symbol valname ->
-            Next ps.prog (ParseFn (parse_expected_token "Expected `:` to split betweem value name and type" Lexer.TypeSpecifier (after_colon valname)))
+            Next ps.prog (ParseFn (parse_expected_token "Expected `:` to split betweem value name and type" Lexer.TypeSpecifier (after_colon valname |> Next ps.prog)))
 
         _ ->
             Error (ExpectedToken "expected a symbol name like `a` or `name` for something like `a: Type`" ps.tok.loc)
@@ -134,6 +127,7 @@ parse_global_fn_return_statement fdef ps =
                 Ok expr ->
                     parse_global_fn_statements { fdef | statements = List.append fdef.statements [ ReturnStatement expr ] }
                         |> ParseFn
+                        |> Next ps.prog
                         |> parse_expected_token ("Expected newline after end of this return expression. Hint: I think im returning `" ++ stringify_expr expr ++ "`") NewlineToken
                         |> ParseFn
                         |> Next ps.prog

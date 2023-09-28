@@ -72,6 +72,7 @@ type ExprParseError
 type alias ExprParseWhatTodo =
     Result ExprParseError ASTExpression -> ParseRes
 
+
 reapply_token : ParseFn -> ParseStep -> ParseRes
 reapply_token fn ps =
     extract_fn fn ps
@@ -81,3 +82,11 @@ extract_fn fn =
     case fn of
         ParseFn f ->
             f
+
+parse_expected_token : String -> TokenType -> ParseRes -> ParseStep -> ParseRes
+parse_expected_token reason expected after ps =
+    if ps.tok.typ == expected then
+        after
+
+    else
+        Error (ExpectedToken reason ps.tok.loc)
