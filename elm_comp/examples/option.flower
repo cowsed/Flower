@@ -1,0 +1,6 @@
+
+fn (o: Option[T]) has_value() -> bool{}
+
+fn (o: Option[T] | o.has_value()) value() -> T&{
+
+}

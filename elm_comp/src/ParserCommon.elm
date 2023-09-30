@@ -1,8 +1,9 @@
 module ParserCommon exposing (..)
 
-import Language exposing (ASTExpression(..), ASTFunctionDefinition)
+import Language exposing (ASTExpression(..), ASTFunctionDefinition, ASTStatement(..), UnqualifiedTypeWithName)
 import Lexer exposing (Token, TokenType(..))
 import Util
+import Language exposing (UnqualifiedTypeName)
 
 
 type alias Program =
@@ -48,8 +49,14 @@ type Error
     | RequireInitilizationWithValue Util.SourceView
     | UnknownThingWhileParsingFuncCallOrAssignment Util.SourceView
     | FailedFuncCallParse FuncCallParseError
+    | FailedBlockParse StatementParseError
     | ExpectedOpenCurlyForFunction Util.SourceView
     | ExpectedNameAfterDot Util.SourceView
+    | UnexpectedTokenInGenArgList Util.SourceView
+
+type StatementParseError
+    = None
+
 
 
 type TypeParseError
@@ -71,7 +78,25 @@ type ExprParseError
 
 type alias ExprParseWhatTodo =
     Result ExprParseError ASTExpression -> ParseRes
+type alias TypenameParseTodo = 
+    Result TypeParseError UnqualifiedTypeName -> ParseRes
 
+    
+
+type alias NamedTypeParseTodo =
+    Result NamedTypeParseError UnqualifiedTypeWithName -> ParseRes
+
+
+type alias StatementParseTodo =
+    Result StatementParseError Language.ASTStatement -> ParseRes
+
+
+type alias StatementBlockParseTodo =
+    Result StatementParseError (List ASTStatement) -> ParseRes
+
+
+type alias FuncCallExprTodo =
+    Result FuncCallParseError Language.ASTFunctionCall -> ParseRes
 
 reapply_token_or_fail : ParseRes -> ParseStep -> ParseRes
 reapply_token_or_fail res ps =

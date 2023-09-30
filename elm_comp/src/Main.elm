@@ -20,6 +20,7 @@ import Util
    - infix operator expressions
    - ~~fullnames std.print(std.time)~~
    - ~~a: Type = 123123213123 is a const thing~~
+   - qualified name for types everywhere not just expressons
 -}
 
 
@@ -34,6 +35,9 @@ import "std"
 // adding 2 numbers
 fn add(a: u8, b: u8) -> u8{
     var c: u8 = a
+    if a {
+        return a
+    }
     return c
 }
 

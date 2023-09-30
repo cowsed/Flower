@@ -2,7 +2,7 @@ module Lexer exposing (..)
 
 import Html exposing (pre, text)
 import Html.Attributes exposing (style)
-import Language exposing (KeywordType(..), LiteralType)
+import Language exposing (InfixOpType(..), KeywordType(..), LiteralType(..))
 import Pallete
 import Util
 
@@ -23,6 +23,11 @@ type TokenType
     | DotToken -- .
     | ReturnSpecifier -- ->
     | AssignmentToken
+    | EqualityToken -- ==
+    | LessThanToken -- <
+    | LessThanEqualToken -- <=
+    | GreaterThanToken -- >
+    | GreaterThanEqualToken -- >=
     | PlusToken
     | MinusToken
     | MultiplyToken
@@ -31,6 +36,8 @@ type TokenType
     | CloseCurly
     | OpenParen
     | CloseParen
+    | OpenSquare
+    | CloseSquare
     | CommentToken String
 
 
@@ -54,19 +61,40 @@ type Error
     | UnknownCharacterInIntegerLiteral Util.SourceView
 
 
-
-
 infix_op_from_token : Token -> Maybe Language.InfixOpType
 infix_op_from_token tok =
     case tok.typ of
-        PlusToken -> Just Language.Addition
-        MinusToken -> Just Language.Subtraction
+        PlusToken ->
+            Just Language.Addition
 
-        MultiplyToken -> Just Language.Multiplication
-        DivideToken -> Just Language.Division
+        MinusToken ->
+            Just Language.Subtraction
+
+        MultiplyToken ->
+            Just Language.Multiplication
+
+        DivideToken ->
+            Just Language.Division
+
+        GreaterThanToken ->
+            Just Language.GreaterThan
+
+        GreaterThanEqualToken ->
+            Just Language.GreaterThanEqualTo
+
+        LessThanToken ->
+            Just Language.LessThan
+
+        LessThanEqualToken ->
+            Just Language.LessThanEqualTo
+
+        EqualityToken ->
+            Just Language.Equality
+
+        _ ->
+            Nothing
 
 
-        _ -> Nothing
 explain_error : Error -> Html.Html msg
 explain_error e =
     Html.div []
@@ -186,6 +214,9 @@ is_integer_ender c =
         '}' ->
             True
 
+        '{' ->
+            True
+
         '+' ->
             True
 
@@ -197,7 +228,6 @@ is_integer_ender c =
 
         '/' ->
             True
-
 
         _ ->
             False
@@ -218,10 +248,13 @@ lex_integer start sofar lsi =
 lex_symbol : Int -> String -> LexStepInfo -> LexRes
 lex_symbol start sofar lsi =
     if Char.isAlphaNum lsi.char then
-        lex_symbol start (Util.addchar sofar lsi.char) |> LexFn |> Tokens [] 
+        lex_symbol start (Util.addchar sofar lsi.char) |> LexFn |> Tokens []
+
+    else if lsi.char == '_' then
+        lex_symbol start (Util.addchar sofar lsi.char) |> LexFn |> Tokens []
 
     else
-        apply_again [ Token (lsi.view_from_start start) (symbol_or_keyword sofar) ] begin_lex lsi
+        apply_again [ Token (lsi.view_from_start start) (is_special_or_symbol sofar) ] begin_lex lsi
 
 
 
@@ -252,7 +285,7 @@ lex_rest_of_comment start sofar lsi =
             begin_lex
 
     else
-        lex_rest_of_comment start (Util.addchar sofar lsi.char) |> LexFn |> Tokens [] 
+        lex_rest_of_comment start (Util.addchar sofar lsi.char) |> LexFn |> Tokens []
 
 
 lex_divide_or_comment : LexStepInfo -> LexRes
@@ -273,7 +306,17 @@ lex_string_literal start sofar lsi =
         Error (UnclosedStringLiteral (lsi.view_from_start start))
 
     else
-        lex_string_literal start (Util.addchar sofar lsi.char) |> LexFn |> Tokens [] 
+        lex_string_literal start (Util.addchar sofar lsi.char) |> LexFn |> Tokens []
+
+
+lex_this_or_equal_to : TokenType -> TokenType -> Int -> LexStepInfo -> LexRes
+lex_this_or_equal_to type_if_e type_if_note pos lsi =
+    case lsi.char of
+        '=' ->
+            Tokens [ Token (lsi.view_from_start pos) type_if_e ] (LexFn lex_unknown)
+
+        _ ->
+            apply_again [ Token (lsi.input_view pos (pos + 1)) type_if_note ] (LexFn lex_unknown) lsi
 
 
 lex_unknown : LexStepInfo -> LexRes
@@ -289,7 +332,7 @@ lex_unknown lsi =
         Tokens [ Token lsi.view_this NewlineToken ] begin_lex
 
     else if Char.isAlpha c then
-        lex_symbol lsi.pos (String.fromChar c) |> LexFn |> Tokens [] 
+        lex_symbol lsi.pos (String.fromChar c) |> LexFn |> Tokens []
 
     else if Char.isDigit c then
         lex_integer lsi.pos (String.fromChar c) |> LexFn |> Tokens []
@@ -309,6 +352,12 @@ lex_unknown lsi =
     else if c == ')' then
         Tokens [ Token lsi.view_this CloseParen ] begin_lex
 
+    else if c == '[' then
+        Tokens [ Token lsi.view_this OpenSquare ] begin_lex
+
+    else if c == ']' then
+        Tokens [ Token lsi.view_this CloseSquare ] begin_lex
+
     else if c == ':' then
         Tokens [ Token lsi.view_this TypeSpecifier ] begin_lex
 
@@ -319,7 +368,13 @@ lex_unknown lsi =
         Tokens [ Token lsi.view_this DotToken ] begin_lex
 
     else if c == '=' then
-        Tokens [ Token lsi.view_this AssignmentToken ] begin_lex
+        lex_this_or_equal_to EqualityToken AssignmentToken lsi.pos |> LexFn |> Tokens []
+
+    else if c == '<' then
+        lex_this_or_equal_to LessThanEqualToken LessThanToken lsi.pos |> LexFn |> Tokens []
+
+    else if c == '>' then
+        lex_this_or_equal_to GreaterThanEqualToken GreaterThanToken lsi.pos |> LexFn |> Tokens []
 
     else if c == '+' then
         Tokens [ Token lsi.view_this PlusToken ] begin_lex
@@ -337,38 +392,49 @@ lex_unknown lsi =
         Error (UnknownCharacter (lsi.input_view lsi.pos (lsi.pos + 1)) c)
 
 
-symbol_or_keyword : String -> TokenType
-symbol_or_keyword s =
-    case is_keyword s of
-        Just kwt ->
-            Keyword kwt
+is_special_or_symbol : String -> TokenType
+is_special_or_symbol s =
+    if s == "true" then
+        Literal BooleanLiteral s
 
-        Nothing ->
-            Symbol s
+    else if s == "false" then
+        Literal BooleanLiteral s
+
+    else
+        case is_keyword s of
+            Just kwt ->
+                Keyword kwt
+
+            Nothing ->
+                Symbol s
 
 
 is_keyword : String -> Maybe KeywordType
 is_keyword s =
-    if s == "fn" then
-        Just FnKeyword
+    case s of
+        "fn" ->
+            Just FnKeyword
 
-    else if s == "return" then
-        Just ReturnKeyword
+        "return" ->
+            Just ReturnKeyword
 
-    else if s == "module" then
-        Just ModuleKeyword
+        "module" ->
+            Just ModuleKeyword
 
-    else if s == "import" then
-        Just ImportKeyword
+        "import" ->
+            Just ImportKeyword
 
-    else if s == "var" then
-        Just VarKeyword
+        "var" ->
+            Just VarKeyword
 
-    else if s == "struct" then
-        Just StructKeyword
+        "struct" ->
+            Just StructKeyword
 
-    else
-        Nothing
+        "if" ->
+            Just IfKeyword
+
+        _ ->
+            Nothing
 
 
 kwt_to_string : KeywordType -> String
@@ -391,6 +457,9 @@ kwt_to_string kwt =
 
         StructKeyword ->
             "struct"
+
+        IfKeyword ->
+            "if"
 
 
 syntaxify_token : TokenType -> String
@@ -449,6 +518,27 @@ syntaxify_token tok =
 
         CommentToken s ->
             "//" ++ s
+
+        EqualityToken ->
+            "=="
+
+        LessThanToken ->
+            "<"
+
+        LessThanEqualToken ->
+            ">"
+
+        GreaterThanToken ->
+            ">"
+
+        GreaterThanEqualToken ->
+            ">="
+
+        OpenSquare ->
+            "["
+
+        CloseSquare ->
+            "]"
 
 
 token_to_str : Token -> String
@@ -521,3 +611,24 @@ token_to_str tok =
 
         AssignmentToken ->
             "[=]"
+
+        EqualityToken ->
+            "[==]"
+
+        LessThanToken ->
+            "[<]"
+
+        LessThanEqualToken ->
+            "[<=]"
+
+        GreaterThanToken ->
+            "[>]"
+
+        GreaterThanEqualToken ->
+            "[>=]"
+
+        OpenSquare ->
+             "[ [ ]"
+
+        CloseSquare ->
+             "[ ] ]"

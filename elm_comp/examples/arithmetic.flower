@@ -1,0 +1,30 @@
+
+fn op_add[U: UnsignedInteger](
+    args: (U, U) | !will_overflow[U](args)
+) -> u8 {
+    return a + b
+}
+
+
+
+fn next_unsigned_integer(type u: UnsignedInteger) -> Maybe[type UnsignedInteger]{
+    match u {
+        u8 ->  Some(u16)
+        u16 -> Some(u32)
+        u32 -> Some(u64)
+        u64 -> Nothing
+    }
+}
+
+
+fn op_add(args: (u8, u8)) -> u16{
+    return args.a + args.b
+}
+
+fn op_add(args: (u16, u16)) -> u32{
+    return args.a + args.b
+}
+
+fn op_add(args: (u32, u32)) -> u64{
+    return args.a + args.b
+}

@@ -43,7 +43,7 @@ stringify_utname utn =
             stringify_name n
 
         Generic n l ->
-            (stringify_name n) ++ "["++(l |> List.map (\tn -> stringify_type_name tn) |> String.join ", ")++"]"
+            (stringify_name n) ++ "["++(l |> List.map (\tn -> stringify_utname tn) |> String.join ", ")++"]"
 
 
 stringify_type_name : TypeName -> String
@@ -59,6 +59,8 @@ stringify_type_name tn =
             stringify_utname n
 
 
+
+
 type LiteralType
     = BooleanLiteral
     | NumberLiteral
@@ -72,6 +74,7 @@ type KeywordType
     | ImportKeyword
     | VarKeyword
     | StructKeyword
+    | IfKeyword
 
 
 
@@ -83,6 +86,12 @@ type InfixOpType
     | Subtraction
     | Multiplication
     | Division
+    | Equality
+    | NotEqualTo
+    | LessThan
+    | LessThanEqualTo
+    | GreaterThan
+    | GreaterThanEqualTo
 
 
 precedence : InfixOpType -> Int
@@ -100,6 +109,24 @@ precedence op =
         Division ->
             3
 
+        Equality ->
+            1
+
+        NotEqualTo ->
+            1
+
+        LessThan ->
+            1
+
+        LessThanEqualTo ->
+            1
+
+        GreaterThan ->
+            1
+
+        GreaterThanEqualTo ->
+            1
+
 
 stringify_infix_op : InfixOpType -> String
 stringify_infix_op op =
@@ -115,6 +142,24 @@ stringify_infix_op op =
 
         Division ->
             "/"
+
+        Equality ->
+            "=="
+
+        NotEqualTo ->
+            "!="
+
+        LessThan ->
+            "<"
+
+        LessThanEqualTo ->
+            "<="
+
+        GreaterThan ->
+            ">"
+
+        GreaterThanEqualTo ->
+            ">="
 
 
 type alias InfixOp =
@@ -199,15 +244,22 @@ remove_type_qualifier tn =
 
 type UnqualifiedTypeName
     = Basic Name
-    | Generic Name (List TypeName)
+    | Generic Name (List UnqualifiedTypeName)
 
 
-type alias TypeWithName =
+type alias UnqualifiedTypeWithName =
+    { name : Name, typename : UnqualifiedTypeName }
+
+make_qualified_typewithname: UnqualifiedTypeWithName -> Qualifier -> QualifiedTypeWithName
+make_qualified_typewithname t q = 
+    QualifiedTypeWithName t.name (make_qualified_typename q t.typename)
+
+type alias QualifiedTypeWithName =
     { name : Name, typename : TypeName }
 
 
 type alias ASTFunctionHeader =
-    { args : List TypeWithName, return_type : Maybe TypeName }
+    { generic_args : List UnqualifiedTypeName, args : List QualifiedTypeWithName, return_type : Maybe TypeName }
 
 
 type alias ASTFunctionDefinition =
@@ -220,10 +272,10 @@ type alias ASTFunctionDefinition =
 type ASTStatement
     = CommentStatement String
     | ReturnStatement ASTExpression
-    | InitilizationStatement TypeWithName ASTExpression
+    | InitilizationStatement QualifiedTypeWithName ASTExpression
     | AssignmentStatement Name ASTExpression
     | FunctionCallStatement ASTFunctionCall
-    | IfStatement
+    | IfStatement ASTExpression (List ASTStatement)
 
 
 type ASTExpression

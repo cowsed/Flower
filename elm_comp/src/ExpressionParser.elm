@@ -6,8 +6,6 @@ import ParserCommon exposing (..)
 import Util
 
 
-type alias FuncCallExprTodo =
-    Result FuncCallParseError ASTFunctionCall -> ParseRes
 
 stringify_expression : ASTExpression -> String
 stringify_expression expr =
@@ -119,6 +117,7 @@ parse_expr_name_or_fcall name todo ps =
         --continue building name
         DotToken ->
             parse_expr_continued_name (Just name) todo |> ParseFn |> Next ps.prog
+        OpenSquare -> Debug.todo "Generics"
 
         -- was just a name
         _ ->
