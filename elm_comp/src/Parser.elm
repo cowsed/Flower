@@ -199,8 +199,18 @@ parse_typename todo ps =
 
                 Ok nt ->
                     todo <| Ok nt
+        todo_with_type_and_args_ref : TypenameParseTodo
+        todo_with_type_and_args_ref res =
+            case res of
+                Err e ->
+                    Error (FailedTypeParse e)
+
+                Ok nt ->
+                    todo <| Ok (make_reference_type nt)
     in
-    parse_name_with_gen_args todo_with_type_and_args ps
+    case ps.tok.typ of
+        ReferenceToken -> parse_typename todo_with_type_and_args_ref |> ParseFn |> Next ps.prog
+        _ -> parse_name_with_gen_args todo_with_type_and_args ps
 
 
 parse_named_type_type : String -> (Result NamedTypeParseError UnqualifiedTypeWithName -> ParseRes) -> ParseStep -> ParseRes

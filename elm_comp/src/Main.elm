@@ -25,10 +25,12 @@ import ParserExplanations
    - infix operator expressions
    - ~~fullnames std.print(std.time)~~
    - ~~a: Type = 123123213123 is a const thing~~
-   - module.thing.name for types everywhere not just expressons
+   - ~~module.thing.name for types everywhere not just expressons~~
    - struct parsing
    - enum parsing
-   - reference type parsing
+   - ~~reference type parsing~~
+   - while and for loops
+   - concept checking for types `T: UnsignedIneger`
 -}
 
 

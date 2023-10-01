@@ -228,7 +228,7 @@ syntaxify_struct indent struct =
             struct.fields
                 |> List.map (\f -> make_qualified_typewithname f Language.Constant)
                 |> List.map syntaxify_namedarg
-                |> List.map (\f -> Html.span [] [ tabs (indent+1), Html.span [] f ])
+                |> List.map (\f -> Html.span [] [ tabs (indent+1), Html.span [] f , Html.text "\n"])
                 |> Html.div [] 
     in
     Html.div []
@@ -419,7 +419,7 @@ stringify_error e =
             "Couldnt end because I needed more tokens: " ++ why
 
         ParserCommon.UnknownOuterLevelObject loc ->
-            "The only things allowed at this point are `import`, a variable or a function definition\n" ++ Util.show_source_view loc
+            "The only things allowed at this point are `import`, a variable or a function definition, or a type definition (struct, alias, enum)\n" ++ Util.show_source_view loc
 
         ParserCommon.ExpectedNameAfterFn loc ->
             "Expected a name after the fn keyword to name a function. Something like `fn name()` \n" ++ Util.show_source_view loc

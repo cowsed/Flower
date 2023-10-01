@@ -30,6 +30,7 @@ type TokenType
     | LessThanEqualToken -- <=
     | GreaterThanToken -- >
     | GreaterThanEqualToken -- >=
+    | ReferenceToken --&
     | PlusToken
     | MinusToken
     | MultiplyToken
@@ -382,6 +383,8 @@ lex_unknown lsi =
     else if c == '!' then
         lex_this_or_equal_to NotEqualToken NotToken lsi.pos |> LexFn |> Tokens []
 
+    else if c == '&' then
+        Tokens [Token lsi.view_this ReferenceToken] begin_lex
     else if c == '<' then
         lex_this_or_equal_to LessThanEqualToken LessThanToken lsi.pos |> LexFn |> Tokens []
 
@@ -558,6 +561,9 @@ syntaxify_token tok =
         NotEqualToken ->
             "!="
 
+        ReferenceToken ->
+            "&"
+
 
 token_to_str : Token -> String
 token_to_str tok =
@@ -656,3 +662,7 @@ token_to_str tok =
 
         NotToken ->
             "[ ! ]"
+
+        ReferenceToken ->
+            
+            "[ & ] "

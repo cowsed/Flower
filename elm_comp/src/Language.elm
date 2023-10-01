@@ -217,12 +217,16 @@ remove_type_qualifier tn =
 type UnqualifiedTypeName
     = Basic Name
     | Generic Name (List UnqualifiedTypeName)
+    | ReferenceUnqual UnqualifiedTypeName
 
+make_reference_type: UnqualifiedTypeName -> UnqualifiedTypeName
+make_reference_type ut = ReferenceUnqual ut
 append_generic_name: UnqualifiedTypeName -> UnqualifiedTypeName -> UnqualifiedTypeName
 append_generic_name me tn = 
     case me of 
         Basic n -> Generic n [tn]
         Generic n l -> Generic n (List.append l [tn]) 
+        ReferenceUnqual u -> append_generic_name u tn
 
 type alias UnqualifiedTypeWithName =
     { name : Name, typename : UnqualifiedTypeName }
@@ -293,6 +297,9 @@ stringify_utname utn =
 
         Generic n l ->
             (stringify_name n) ++ "["++(l |> List.map (\tn -> stringify_utname tn) |> String.join ", ")++"]"
+
+        ReferenceUnqual u ->
+            "&"++(stringify_utname u)
 
 stringify_name : Name -> String
 stringify_name n =
