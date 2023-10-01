@@ -1,12 +1,11 @@
 module Compiler exposing (..)
 
 import Html
-import Html.Attributes exposing (style)
 import Lexer exposing (Token)
 import Parser 
 import ParserCommon
 import Lexer exposing (token_to_str)
-import Element exposing (Attribute)
+import ParserExplanations
 
 
 type CompilerError
@@ -24,7 +23,7 @@ explain_error e =
             Lexer.explain_error le
 
         Parse pe toks->
-            Html.div []  [Parser.explain_error pe, explain_toks toks]
+            Html.div []  [ParserExplanations.explain_error pe, explain_toks toks]
 
 
 wrap_lexer_output : Result Lexer.Error (List Lexer.Token) -> Result CompilerError (List Lexer.Token)

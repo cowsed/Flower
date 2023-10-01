@@ -26,37 +26,9 @@ append_maybe_name n new =
             BaseName new
 
 
-stringify_name : Name -> String
-stringify_name n =
-    case n of
-        BaseName s ->
-            s
-
-        Qualified l ->
-            String.join "." l
 
 
-stringify_utname : UnqualifiedTypeName -> String
-stringify_utname utn =
-    case utn of
-        Basic n ->
-            stringify_name n
 
-        Generic n l ->
-            (stringify_name n) ++ "["++(l |> List.map (\tn -> stringify_utname tn) |> String.join ", ")++"]"
-
-
-stringify_type_name : TypeName -> String
-stringify_type_name tn =
-    case tn of
-        VariableTypename n ->
-            stringify_utname n
-
-        ConstantTypename n ->
-            stringify_utname n
-
-        NonQualified n ->
-            stringify_utname n
 
 
 
@@ -295,3 +267,38 @@ type alias ASTFunctionCall =
     { fname : Name
     , args : List ASTExpression
     }
+
+
+
+
+-- simple to strings with no additional info
+stringify_type_name : TypeName -> String
+stringify_type_name tn =
+    case tn of
+        VariableTypename n ->
+            stringify_utname n
+
+        ConstantTypename n ->
+            stringify_utname n
+
+        NonQualified n ->
+            stringify_utname n
+
+
+stringify_utname : UnqualifiedTypeName -> String
+stringify_utname utn =
+    case utn of
+        Basic n ->
+            stringify_name n
+
+        Generic n l ->
+            (stringify_name n) ++ "["++(l |> List.map (\tn -> stringify_utname tn) |> String.join ", ")++"]"
+
+stringify_name : Name -> String
+stringify_name n =
+    case n of
+        BaseName s ->
+            s
+
+        Qualified l ->
+            String.join "." l

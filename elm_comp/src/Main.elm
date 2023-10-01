@@ -20,6 +20,7 @@ import Time
 import Ui exposing (code_editor, code_rep)
 import Util
 import Compiler exposing (explain_error)
+import ParserExplanations
 
 
 
@@ -70,7 +71,7 @@ htmlify_output res =
                 Html.div [] []
 
             Ok prog ->
-                Html.div [style "padding-left" "20px"] [Parser.explain_program prog]
+                Html.div [style "padding-left" "20px"] [ParserExplanations.explain_program prog]
         ]
 
 

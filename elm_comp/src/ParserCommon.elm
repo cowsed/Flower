@@ -8,8 +8,8 @@ import Util
 type alias Program =
     { module_name : Maybe String
     , imports : List String
-    , global_functions : List ASTFunctionDefinition
     , global_structs : List ASTStructDefnition
+    , global_functions : List ASTFunctionDefinition
     , needs_more : Maybe String
     , src_tokens : List Token
     }

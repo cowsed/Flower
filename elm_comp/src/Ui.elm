@@ -10,6 +10,7 @@ import Parser
 import ParserCommon
 import Time exposing (..)
 import Element.Border as Border
+import ParserExplanations
 
 
 code_rep : ParserCommon.Program -> Element msg
@@ -19,7 +20,7 @@ code_rep prog =
         , Element.height Element.fill
         , Font.family [ Font.monospace ]
         ]
-        [ Element.html (Parser.syntaxify_program prog)
+        [ Element.html (ParserExplanations.syntaxify_program prog)
         ]
 
 
