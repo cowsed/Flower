@@ -1,32 +1,44 @@
 module Ui exposing (..)
-import Time exposing (..)
-import Html exposing (..)
-import Html.Attributes exposing (style, spellcheck)
+
+import Element exposing (Element, el, text)
+import Element.Font as Font
+import Html
+import Html.Attributes exposing (spellcheck, style)
 import Html.Events exposing (onInput)
-
 import Pallete
+import Parser
+import ParserCommon
+import Time exposing (..)
+import Element.Border as Border
 
 
-code_editor : String -> (String -> msg)-> Html msg
-code_editor src onedit=
+code_rep : ParserCommon.Program -> Element msg
+code_rep prog =
+    Element.column
+        [ Element.width Element.fill
+        , Element.height Element.fill
+        , Font.family [ Font.monospace ]
+        ]
+        [ Element.html (Parser.syntaxify_program prog)
+        ]
+
+
+code_editor : String -> (String -> msg) -> Html.Html msg
+code_editor src onedit =
     Html.textarea
         [ style "font-size" "15px"
-        , style "overflow" "auto"
-        , style "height" "400px"
-        , style "width" "400px"
-        , style "padding" "10px"
         , style "background-color" Pallete.bg
-        , style "border-radius" "8px"
-        , style "border-style" "solid"
-        , style "border-width" "2px"
-        , style "border-color" "black"
-        , style "float" "left"
+        , style "overflow" "none"
+        , style "border-color" Pallete.fg
+        , style "width" "50%"
+        , style "height" "99%"
+                -- , style "padding" "5px"
+        , style "resize" "none"
         , spellcheck False
         , onInput onedit
         ]
-        [ text src
+        [ Html.text src
         ]
-
 
 
 stringify_time : Time.Zone -> Time.Posix -> String

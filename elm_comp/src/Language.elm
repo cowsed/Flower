@@ -147,13 +147,13 @@ stringify_infix_op op =
             "=="
 
         NotEqualTo ->
-            "!="
+            "≠"
 
         LessThan ->
             "<"
 
         LessThanEqualTo ->
-            "<="
+            "≤"
 
         GreaterThan ->
             ">"

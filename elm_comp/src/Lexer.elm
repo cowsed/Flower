@@ -24,6 +24,8 @@ type TokenType
     | ReturnSpecifier -- ->
     | AssignmentToken
     | EqualityToken -- ==
+    | NotEqualToken
+    | NotToken
     | LessThanToken -- <
     | LessThanEqualToken -- <=
     | GreaterThanToken -- >
@@ -90,6 +92,7 @@ infix_op_from_token tok =
 
         EqualityToken ->
             Just Language.Equality
+        NotEqualToken -> Just Language.NotEqualTo
 
         _ ->
             Nothing
@@ -208,6 +211,9 @@ is_integer_ender c =
         ',' ->
             True
 
+        '(' ->
+            True
+
         ')' ->
             True
 
@@ -215,6 +221,9 @@ is_integer_ender c =
             True
 
         '{' ->
+            True
+
+        ']' ->
             True
 
         '+' ->
@@ -369,6 +378,9 @@ lex_unknown lsi =
 
     else if c == '=' then
         lex_this_or_equal_to EqualityToken AssignmentToken lsi.pos |> LexFn |> Tokens []
+
+    else if c == '!' then
+        lex_this_or_equal_to NotEqualToken NotToken lsi.pos |> LexFn |> Tokens []
 
     else if c == '<' then
         lex_this_or_equal_to LessThanEqualToken LessThanToken lsi.pos |> LexFn |> Tokens []
@@ -540,6 +552,12 @@ syntaxify_token tok =
         CloseSquare ->
             "]"
 
+        NotToken ->
+            "!"
+
+        NotEqualToken ->
+            "!="
+
 
 token_to_str : Token -> String
 token_to_str tok =
@@ -628,7 +646,13 @@ token_to_str tok =
             "[>=]"
 
         OpenSquare ->
-             "[ [ ]"
+            "[ [ ]"
 
         CloseSquare ->
-             "[ ] ]"
+            "[ ] ]"
+
+        NotEqualToken ->
+            "[ != ]"
+
+        NotToken ->
+            "[ ! ]"

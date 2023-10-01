@@ -61,7 +61,7 @@ type StatementParseError
 
 type TypeParseError
     = Idk Util.SourceView
-
+    | UnexpectedTokenInTypesGenArgList Util.SourceView
 
 type NamedTypeParseError
     = NameError Util.SourceView String
@@ -81,6 +81,7 @@ type alias ExprParseWhatTodo =
 type alias TypenameParseTodo = 
     Result TypeParseError UnqualifiedTypeName -> ParseRes
 
+type alias NameWithGenArgsTodo = Result Error (Language.Name, List Language.UnqualifiedTypeName) -> ParseRes 
     
 
 type alias NamedTypeParseTodo =

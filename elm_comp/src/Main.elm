@@ -1,16 +1,25 @@
 module Main exposing (..)
 
+-- import Element exposing (Element, el)
+
 import Browser
+import Browser.Dom
 import Compiler exposing (CompilerError(..), compile)
+import Element exposing (Element, alignBottom, alignRight, el, fill, html)
+import Element.Background as Background
+import Element.Font as Font
+import Element.Input as Input
 import Html exposing (..)
 import Html.Attributes exposing (style)
 import Lexer
+import Pallete
 import Parser
 import ParserCommon
 import Task
 import Time
-import Ui exposing (code_editor)
+import Ui exposing (code_editor, code_rep)
 import Util
+import Compiler exposing (explain_error)
 
 
 
@@ -20,7 +29,10 @@ import Util
    - infix operator expressions
    - ~~fullnames std.print(std.time)~~
    - ~~a: Type = 123123213123 is a const thing~~
-   - qualified name for types everywhere not just expressons
+   - module.thing.name for types everywhere not just expressons
+   - struct parsing
+   - enum parsing
+   - reference type parsing
 -}
 
 
@@ -52,55 +64,88 @@ fn main() -> u8{
 
 htmlify_output : Result CompilerError ParserCommon.Program -> Html.Html msg
 htmlify_output res =
-    case res of
-        Err _ ->
-            Html.div [] []
+    Html.div []
+        [ case res of
+            Err _ ->
+                Html.div [] []
 
-        Ok prog ->
-            Parser.explain_program prog
+            Ok prog ->
+                Html.div [style "padding-left" "20px"] [Parser.explain_program prog]
+        ]
 
 
-make_output : Model -> Html.Html Msg
+make_output : Model -> Element Msg
 make_output mod =
     let
-        result : Result CompilerError ParserCommon.Program
-        result =
-            compile mod.source_code
+        title_bar =
+            Element.row
+                [ Font.size 30
+                , Element.width fill
+                , Background.color Pallete.bg1_c
+                , Element.paddingXY 10 6
+                ]
+                [ el [ Element.alignLeft ] (Element.text ("Flower" ++ " v0.0.2"))
+                , el [ alignRight ] (Element.text "About")
+                ]
 
-        pretty_toks =
-            case result of
-                Ok prog ->
-                    Html.pre [] (prog.src_tokens |> List.map Lexer.token_to_str |> List.map (\x -> x ++ "\n") |> List.map text)
+        footer =
+            Element.row [ Element.width fill, alignBottom, Element.padding 4 ]
+                [ Element.text ("Compiled in " ++ millis_elapsed mod.last_run_start mod.last_run_end ++ " ms")
+                ]
 
+        left_pane =
+            Element.html (Ui.code_editor mod.source_code (\s -> Compile s))
+
+        right_pane =
+            case mod.output of
                 Err e ->
-                    case e of
-                        Parse _ toks ->
-                            Html.pre [] (toks |> List.map Lexer.token_to_str |> List.map (\x -> x ++ "\n") |> List.map text)
+                    el [ Element.width fill, Element.height fill ] <| Element.html (explain_error e)
 
-                        Lex _ ->
-                            Html.pre [] [ text "Lex error" ]
+                Ok prog ->
+                    code_rep prog
     in
-    Html.div []
-        [ Html.node "style" [] [ text global_css ]
-        , Html.div
-            [  style "overflow" "auto"
-            ]
-            [ code_editor mod.source_code (\s -> DoUpdate s)
-            , case result of
-                Err e ->
-                    Html.span []
-                        [ Compiler.explain_error e
-                        ]
-
-                Ok prog ->
-                    Html.div [ style "float" "left" ]
-                        [ Parser.syntaxify_program prog
-                        ]
-            ]
-        , htmlify_output result
-        , Html.hr [] []
-        , Util.collapsable (text "Tokens") pretty_toks
+    Element.column
+        [ Element.width fill
+        , Element.height fill
         ]
+        [ title_bar
+        , Element.row
+            [ Element.width fill
+            , Element.height Element.fill
+            ]
+            [ left_pane
+            , right_pane
+            , Element.el
+                [ Element.width fill
+                , Element.height Element.fill
+                ]
+                (Element.html (htmlify_output mod.output))
+            ]
+        , footer
+        ]
+
+
+
+-- Html.div []
+--     [ Html.node "style" [] [ text global_css ]
+--     , Html.div
+--         [ style "overflow" "auto"
+--         ]
+--         [ code_editor source_code (\s -> Compile s)
+--         , case result of
+--             Err e ->
+--                 Html.span []
+--                     [ Compiler.explain_error e
+--                     ]
+--             Ok prog ->
+--                 Html.div [ style "float" "left" ]
+--                     [ Parser.syntaxify_program prog
+--                     ]
+--         ]
+--     , htmlify_output result
+--     , Html.hr [] []
+--     , Util.collapsable (text "Tokens") pretty_toks
+--     ]
 
 
 view : Maybe Model -> Html.Html Msg
@@ -110,23 +155,23 @@ view mmod =
             text "Not Loaded Yet"
 
         Just mod ->
-            mod.output
+            Element.row [ Element.height (Element.fill |> Element.maximum 1800), Element.width fill ] [ make_output mod ]
+                |> Element.layout
+                    [ Background.color Pallete.bg_c
+                    , Font.color Pallete.fg_c
 
+                    -- , Element.scrollbars
+                    , Element.clip
+                    , Element.height Element.fill
+                    , Element.width Element.fill
 
-global_css : String
-global_css =
-    """
-    body { 
-        background: #fbf1c7;
-        color : #fc3836";
-    } 
-    """
+                    -- , Element.explain Debug.todo
+                    ]
 
 
 type Msg
-    = DoUpdate String
-      -- | Recompile String
-    | GotTimeToStart String Time.Posix
+    = Compile String
+    | GotTimeToStart String Time.Posix -- for timing
     | GotTimeEnd Time.Posix
 
 
@@ -143,28 +188,21 @@ update msg mmod =
                 { source_code = initial_input
                 , last_run_start = Time.millisToPosix 0
                 , last_run_end = Time.millisToPosix 0
-                , output = text "Compiling..."
+                , output = compile initial_input
                 }
             , Task.perform (GotTimeToStart initial_input) Time.now
             )
 
         Just mod ->
             case msg of
-                DoUpdate s ->
+                Compile s ->
                     ( Just mod, Task.perform (GotTimeToStart s) Time.now )
 
                 GotTimeToStart s t ->
-                    ( Just { mod | source_code = s, last_run_start = t, output = make_output { mod | source_code = s, last_run_start = t } }, Task.perform GotTimeEnd Time.now )
+                    ( Just { mod | source_code = s, last_run_start = t, output = compile s }, Task.perform GotTimeEnd Time.now )
 
                 GotTimeEnd t ->
-                    ( { mod
-                        | last_run_end = t
-                        , output =
-                            Html.div []
-                                [ text ("CompileAndBuildTime: " ++ millis_elapsed mod.last_run_start t ++ " ms")
-                                , mod.output
-                                ]
-                      }
+                    ( { mod | last_run_end = t }
                         |> Just
                     , Cmd.none
                     )
@@ -183,7 +221,7 @@ type alias Model =
     { source_code : String
     , last_run_start : Time.Posix
     , last_run_end : Time.Posix
-    , output : Html.Html Msg
+    , output : Result Compiler.CompilerError ParserCommon.Program
     }
 
 

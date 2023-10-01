@@ -51,69 +51,105 @@ parse_outer_scope ps =
             Error (Unimplemented ps.prog "Parsing outer non function things")
 
 
-parse_type_name_gen_arg_list_comma_or_end : TypeParseTodo -> String -> List UnqualifiedTypeName -> ParseStep -> ParseRes
-parse_type_name_gen_arg_list_comma_or_end todo base_name gen_list ps =
+parse_name_with_gen_args_comma_or_end : NameWithGenArgsTodo -> Name -> List UnqualifiedTypeName -> ParseStep -> ParseRes
+parse_name_with_gen_args_comma_or_end todo name gen_args ps =
     let
-        todo_with_type : TypeParseTodo
+        todo_with_type : TypenameParseTodo
         todo_with_type res =
             case res of
                 Err e ->
-                    todo (Err e)
+                    Error (FailedTypeParse e)
 
                 Ok t ->
-                    parse_type_name_gen_arg_list_comma_or_end todo base_name (List.append gen_list [ t ]) |> ParseFn |> Next ps.prog
-
-        this_type =
-            Generic (BaseName base_name) gen_list
+                    parse_name_with_gen_args_comma_or_end todo name (List.append gen_args [ t ]) |> ParseFn |> Next ps.prog
     in
     case ps.tok.typ of
         CommaToken ->
-            parse_type_name todo_with_type |> ParseFn |> Next ps.prog
+            parse_typename todo_with_type |> ParseFn |> Next ps.prog
 
         CloseSquare ->
-            todo (Ok this_type)
+            Ok ( name, gen_args ) |> todo
 
         _ ->
-            Error (Unimplemented ps.prog ("Make an error for unhandled token when parsing generic arg list on a typename\n"++Util.show_source_view ps.tok.loc))
+            todo <| Err (UnexpectedTokenInGenArgList ps.tok.loc)
 
 
-parse_type_name_gen_arg_list_continue_or_end : TypeParseTodo -> String -> List UnqualifiedTypeName -> ParseStep -> ParseRes
-parse_type_name_gen_arg_list_continue_or_end todo base_name gen_list ps =
+parse_name_with_gen_args_ga_start_or_end : NameWithGenArgsTodo -> Name -> List UnqualifiedTypeName -> ParseStep -> ParseRes
+parse_name_with_gen_args_ga_start_or_end todo name gen_args ps =
     let
-        todo_with_type : TypeParseTodo
+        todo_with_type : Result TypeParseError UnqualifiedTypeName -> ParseRes
         todo_with_type res =
             case res of
                 Err e ->
-                    todo (Err e)
+                    Error (FailedTypeParse e)
 
                 Ok t ->
-                    parse_type_name_gen_arg_list_comma_or_end todo base_name (List.append gen_list [ t ]) |> ParseFn |> Next ps.prog
+                    parse_name_with_gen_args_comma_or_end todo name (List.append gen_args [ t ]) |> ParseFn |> Next ps.prog
     in
-    parse_type_name todo_with_type ps
-
-
-parse_type_name_gen_arg_list_start : TypeParseTodo -> String -> ParseStep -> ParseRes
-parse_type_name_gen_arg_list_start todo base_name ps =
     case ps.tok.typ of
-        OpenSquare ->
-            parse_type_name_gen_arg_list_continue_or_end todo base_name [] |> ParseFn |> Next ps.prog
+        CloseSquare ->
+            todo (Ok ( name, gen_args ))
 
         _ ->
-            reapply_token_or_fail (todo (Ok (Basic (Language.BaseName base_name)))) ps
+            parse_typename todo_with_type ps
 
+
+parse_name_with_gen_args_continue_name : NameWithGenArgsTodo -> Name -> ParseStep -> ParseRes
+parse_name_with_gen_args_continue_name todo name ps =
+    case ps.tok.typ of
+        Symbol s ->
+            parse_name_with_gen_args_dot_or_end todo (append_name name s) |> ParseFn |> Next ps.prog
+
+        CommaToken -> todo (Ok (name, []))
+
+        _ ->
+            Err (FailedNamedTypeParse (NameError ps.tok.loc "Expected a symbol like 'a' or 'std' here")) |> todo
+
+
+parse_name_with_gen_args_dot_or_end : NameWithGenArgsTodo -> Name -> ParseStep -> ParseRes
+parse_name_with_gen_args_dot_or_end todo name_so_far ps =
+    case ps.tok.typ of
+        DotToken ->
+            parse_name_with_gen_args_continue_name todo name_so_far |> ParseFn |> Next ps.prog
+
+        OpenSquare ->
+            parse_name_with_gen_args_ga_start_or_end todo name_so_far [] |> ParseFn |> Next ps.prog
+
+        _ ->
+            reapply_token_or_fail (todo (Ok ( name_so_far, [] )) )ps
+
+
+
+
+parse_full_name : NameWithGenArgsTodo -> ParseStep -> ParseRes
+parse_full_name todo ps =
+    case ps.tok.typ of
+        Symbol s ->
+            parse_name_with_gen_args_dot_or_end todo (BaseName s) |> ParseFn |> Next ps.prog
+
+        _ ->
+            Err (FailedNamedTypeParse (NameError ps.tok.loc "AAAExpected a symbol like 'a' or 'std' here")) |> todo
 
 
 -- no gen arg list
 
 
-parse_type_name : TypenameParseTodo -> ParseStep -> ParseRes
-parse_type_name todo ps =
-    case Debug.log "parsing type " ps.tok.typ of
-        Symbol s ->
-            parse_type_name_gen_arg_list_start todo s |> ParseFn |> Next ps.prog
+parse_typename : TypenameParseTodo -> ParseStep -> ParseRes
+parse_typename todo ps =
+    let
+        todo_with_type_and_args : NameWithGenArgsTodo
+        todo_with_type_and_args res =
+            case res of
+                Err e ->
+                    Error e
 
-        _ ->
-            Error (ExpectedTypeName ps.tok.loc)
+                Ok nt ->
+                    case List.length (Tuple.second nt) of
+                        0 ->
+                            todo (Ok (Basic <| Tuple.first nt))
+                        _ -> todo (Ok (Generic (Tuple.first nt) (Tuple.second nt)))
+    in
+    parse_full_name todo_with_type_and_args ps
 
 
 parse_named_type_type : String -> (Result NamedTypeParseError UnqualifiedTypeWithName -> ParseRes) -> ParseStep -> ParseRes
@@ -129,7 +165,7 @@ parse_named_type_type valname todo ps =
                     todo (Ok (UnqualifiedTypeWithName (BaseName valname) t))
     in
     -- parse the Type of `name: Type`
-    parse_type_name todo_with_type ps
+    parse_typename todo_with_type ps
 
 
 
@@ -286,7 +322,7 @@ parse_global_fn_assignment_or_fn_call name statement_todo ps =
                 |> Next ps.prog
 
         TypeSpecifier ->
-            parse_type_name what_todo_with_type |> ParseFn |> Next ps.prog
+            parse_typename what_todo_with_type |> ParseFn |> Next ps.prog
 
         AssignmentToken ->
             parse_global_fn_assignment name statement_todo |> ParseFn |> Next ps.prog
@@ -428,7 +464,7 @@ parse_global_fn_return fname header_so_far ps =
     in
     case ps.tok.typ of
         ReturnSpecifier ->
-            parse_type_name what_to_do_with_ret_type |> ParseFn |> Next ps.prog
+            parse_typename what_to_do_with_ret_type |> ParseFn |> Next ps.prog
 
         OpenCurly ->
             reapply_token (parse_global_function_body fname header_so_far |> ParseFn) ps
@@ -497,7 +533,7 @@ parse_fn_def_generic_arg_list_comma_or_close fname gen_list ps =
     in
     case ps.tok.typ of
         CommaToken ->
-            parse_type_name todo_with_typ |> ParseFn |> Next ps.prog
+            parse_typename todo_with_typ |> ParseFn |> Next ps.prog
 
         CloseSquare ->
             parse_fn_definition_open_paren fname gen_list |> ParseFn |> Next ps.prog
@@ -523,7 +559,7 @@ parse_fn_def_generic_arg_list_or_close fname gen_list ps =
             parse_fn_definition_open_paren fname gen_list |> ParseFn |> Next ps.prog
 
         _ ->
-            parse_type_name todo_with_typ ps
+            parse_typename todo_with_typ ps
 
 
 parse_global_fn_args_or_generics : String -> ParseStep -> ParseRes
@@ -689,6 +725,9 @@ stringify_error e =
             case tpe of
                 Idk loc ->
                     "Failed to parse type\n" ++ Util.show_source_view loc
+
+                UnexpectedTokenInTypesGenArgList loc ->
+                    "Unexpexted otken in types generic arg list \n" ++ Util.show_source_view loc
 
         FailedNamedTypeParse tpe ->
             case tpe of
@@ -872,7 +911,7 @@ explain_statement s =
                 ]
 
         IfStatement expr block ->
-            Html.span [] [ text "If statement, checks", explain_expression expr, text "then does", explain_statments block ]
+            Html.span [] [ text "If statement, checks (", explain_expression expr, text ") then does", explain_statments block ]
 
 
 
@@ -904,7 +943,7 @@ explain_program prog =
                     )
                 )
     in
-    Html.div []
+    Html.div [ style "font-size" "14px" ]
         [ Html.h4 [] [ Html.text ("Module: " ++ Maybe.withDefault "[No name]" prog.module_name) ]
         , imports
         , funcs
@@ -1050,7 +1089,7 @@ collapsing_block indentation header block =
                     ]
     in
     if List.length block == 0 then
-        Html.div [] [ tabs indentation, header, text "{}" ]
+        Html.div [] [ tabs indentation, header, text "{}\n" ]
 
     else
         Html.details
@@ -1069,12 +1108,12 @@ collapsing_block indentation header block =
                         ]
                         [ indent
                         , header
-                        , text " {"
+                        , text " {\n"
                         ]
                   ]
                 , block
                     |> List.map (\s -> syntaxify_statement (indentation + 1) s)
-                , [ tabs indentation, text "}" ]
+                , [ tabs indentation, text "}\n" ]
                 ]
             )
 
@@ -1097,23 +1136,21 @@ syntaxify_function indentation fdef =
                 , syntaxify_fheader fdef.header
                 ]
     in
-    [ collapsing_block indentation header fdef.statements ]
+    [ collapsing_block indentation header fdef.statements, text "\n" ]
 
 
 syntaxify_program : ParserCommon.Program -> Html.Html msg
 syntaxify_program prog =
     Html.code
         [ style "font-size" "15px"
-        , style "overflow" "auto"
-        , style "height" "100%"
-        , style "padding" "4px"
         , style "background-color" Pallete.bg
-        , style "border-radius" "8px"
-        , style "border-style" "solid"
+        , style "overflow" "none"
+        , style "border-color" Pallete.fg
+        , style "width" "100%"
+        , style "height" "100%"
+        , style "border-style" "solid solid solid none"
         , style "border-width" "2px"
-        , style "border-color" "black"
-        , style "float" "left"
-        , style "margin-left" "10px "
+        , style "padding" "5px"
         ]
         [ Html.pre []
             (List.concat
