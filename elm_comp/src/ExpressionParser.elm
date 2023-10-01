@@ -1,17 +1,19 @@
 module ExpressionParser exposing (..)
 
-import Language exposing (ASTExpression(..), ASTFunctionCall, Name(..), precedence, stringify_name, stringify_infix_op)
+import Language exposing (ASTExpression(..), ASTFunctionCall, Identifier(..), precedence, stringify_name, stringify_infix_op)
 import Lexer exposing (TokenType(..), infix_op_from_token)
 import ParserCommon exposing (..)
 import Util
+import Language exposing (stringify_name_lookup_type)
 
 
 
 stringify_expression : ASTExpression -> String
 stringify_expression expr =
     case expr of
-        NameLookup n ->
-            stringify_name n
+        NameWithArgsLookup n ->
+            stringify_name_lookup_type n
+
 
         FunctionCallExpr fc ->
             stringify_name fc.fname ++ "(" ++ (fc.args |> List.map stringify_expression |> String.join ", ") ++ ")"
@@ -60,7 +62,7 @@ parse_expr todo ps =
     parse_expr_continued_name Nothing todo ps
 
 
-parse_expr_continued_name : Maybe Name -> ExprParseWhatTodo -> ParseStep -> ParseRes
+parse_expr_continued_name : Maybe Identifier -> ExprParseWhatTodo -> ParseStep -> ParseRes
 parse_expr_continued_name qualled_name_so_far outer_todo ps =
     let
         todo : ExprParseWhatTodo
@@ -74,7 +76,7 @@ parse_expr_continued_name qualled_name_so_far outer_todo ps =
     in
     case ps.tok.typ of
         Symbol s ->
-            Next ps.prog (ParseFn (parse_expr_name_or_fcall (Language.append_maybe_name qualled_name_so_far s) todo))
+            Next ps.prog (ParseFn (parse_expr_name_or_fcall (Language.append_maybe_identifier qualled_name_so_far s) todo))
 
         Literal lt s ->
             LiteralExpr lt s |> Ok |> todo
@@ -97,7 +99,7 @@ parse_expr_continued_name qualled_name_so_far outer_todo ps =
             IdkExpr ps.tok.loc "I don't know how to parse non name lookup expr" |> Err |> todo
 
 
-parse_expr_name_or_fcall : Name -> ExprParseWhatTodo -> ParseStep -> ParseRes
+parse_expr_name_or_fcall : Identifier -> ExprParseWhatTodo -> ParseStep -> ParseRes
 parse_expr_name_or_fcall name todo ps =
     let
         func_todo : FuncCallExprTodo
@@ -121,7 +123,7 @@ parse_expr_name_or_fcall name todo ps =
 
         -- was just a name
         _ ->
-            case NameLookup name |> Ok |> todo of
+            case NameWithArgsLookup (Language.NameWithoutArgs name) |> Ok |> todo of
                 Error e ->
                     Error e
 
@@ -129,7 +131,7 @@ parse_expr_name_or_fcall name todo ps =
                     reapply_token fn { ps | prog = prog }
 
 
-parse_function_call : Name -> FuncCallExprTodo -> ParseStep -> ParseRes
+parse_function_call : Identifier -> FuncCallExprTodo -> ParseStep -> ParseRes
 parse_function_call name todo ps =
     let
         what_to_do : ExprParseWhatTodo

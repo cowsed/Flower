@@ -31,6 +31,9 @@ import ParserExplanations
    - ~~reference type parsing~~
    - while and for loops
    - concept checking for types `T: UnsignedIneger`
+   - THERE IS A SYNTACTIC AMBIGUITY BETWEEN
+    - name1[name2](expr) - generic function call of name1 with generic args name2 with expr 
+    - name1[name2](expr) - array of functions lookup on name1 with index variable name2 then 
 -}
 
 

@@ -2,13 +2,12 @@ module ParserExplanations exposing (..)
 
 import Html
 import Html.Attributes exposing (style)
-import Language
+import Language exposing (TypeName(..), make_qualified_typewithname)
 import Lexer
 import Pallete
 import ParserCommon
 import Util
-import Language exposing (make_qualified_typewithname)
-import Language exposing (TypeName(..))
+import Language exposing (stringify_name_lookup_type)
 
 
 
@@ -60,8 +59,8 @@ syntaxify_number_literal s =
 syntaxify_expression : Language.ASTExpression -> Html.Html msg
 syntaxify_expression expr =
     case expr of
-        Language.NameLookup n ->
-            symbol_highlight (Language.stringify_name n)
+        Language.NameWithArgsLookup n ->
+            symbol_highlight (Language.stringify_name_lookup_type n)
 
         Language.FunctionCallExpr fcall ->
             Html.span []
@@ -228,8 +227,8 @@ syntaxify_struct indent struct =
             struct.fields
                 |> List.map (\f -> make_qualified_typewithname f Language.Constant)
                 |> List.map syntaxify_namedarg
-                |> List.map (\f -> Html.span [] [ tabs (indent+1), Html.span [] f , Html.text "\n"])
-                |> Html.div [] 
+                |> List.map (\f -> Html.span [] [ tabs (indent + 1), Html.span [] f, Html.text "\n" ])
+                |> Html.div []
     in
     Html.div []
         [ tabs indent
@@ -501,8 +500,9 @@ stringify_error e =
 explain_expression : Language.ASTExpression -> Html.Html msg
 explain_expression expr =
     case expr of
-        Language.NameLookup n ->
-            Html.text ("Name look up: " ++ Language.stringify_name n)
+
+        Language.NameWithArgsLookup nwargs ->
+            Html.span [] [Html.text ("name look up of `"++stringify_name_lookup_type nwargs++"`")]
 
         Language.FunctionCallExpr fcall ->
             Html.span []

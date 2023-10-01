@@ -28,7 +28,7 @@ type alias TypeParseTodo =
     Result TypeParseError UnqualifiedTypeName -> ParseRes
 
 
-parse_struct_fields : UnqualifiedTypeName -> List Language.UnqualifiedTypeWithName -> ParseStep -> ParseRes
+parse_struct_fields : Language.FullName -> List Language.UnqualifiedTypeWithName -> ParseStep -> ParseRes
 parse_struct_fields name list ps =
     let
         prog =
@@ -59,7 +59,7 @@ parse_struct_fields name list ps =
 parse_struct : ParseStep -> ParseRes
 parse_struct ps =
     let
-        todo : NameWithGenArgsTodo
+        todo : NameWithSquareArgsTodo
         todo res =
             case res of
                 Err e ->
@@ -75,7 +75,7 @@ parse_struct ps =
     in
     case ps.tok.typ of
         Symbol _ ->
-            parse_name_with_gen_args todo ps
+            parse_name_with_square_args todo ps
 
         _ ->
             Error (ExpectedNameForStruct ps.tok.loc)
@@ -105,100 +105,29 @@ parse_outer_scope ps =
             Error (Unimplemented ps.prog "Parsing outer non function things")
 
 
-parse_name_with_gen_args_comma_or_end : NameWithGenArgsTodo -> UnqualifiedTypeName -> ParseStep -> ParseRes
-parse_name_with_gen_args_comma_or_end todo name_and_args ps =
-    let
-        todo_with_type : TypenameParseTodo
-        todo_with_type res =
-            case res of
-                Err e ->
-                    Error (FailedTypeParse e)
-
-                Ok t ->
-                    parse_name_with_gen_args_comma_or_end todo (append_generic_name name_and_args t) |> ParseFn |> Next ps.prog
-    in
-    case ps.tok.typ of
-        CommaToken ->
-            parse_typename todo_with_type |> ParseFn |> Next ps.prog
-
-        CloseSquare ->
-            Ok name_and_args |> todo
-
-        _ ->
-            todo <| Err (UnexpectedTokenInGenArgList ps.tok.loc)
-
-
-parse_name_with_gen_args_ga_start_or_end : NameWithGenArgsTodo -> UnqualifiedTypeName -> ParseStep -> ParseRes
-parse_name_with_gen_args_ga_start_or_end todo name_and_args ps =
-    let
-        todo_with_type : Result TypeParseError UnqualifiedTypeName -> ParseRes
-        todo_with_type res =
-            case res of
-                Err e ->
-                    Error (FailedTypeParse e)
-
-                Ok t ->
-                    parse_name_with_gen_args_comma_or_end todo (append_generic_name name_and_args t) |> ParseFn |> Next ps.prog
-    in
-    case ps.tok.typ of
-        CloseSquare ->
-            todo (Ok name_and_args)
-
-        _ ->
-            parse_typename todo_with_type ps
-
-
-parse_name_with_gen_args_continue_name : NameWithGenArgsTodo -> Name -> ParseStep -> ParseRes
-parse_name_with_gen_args_continue_name todo name ps =
-    case ps.tok.typ of
-        Symbol s ->
-            parse_name_with_gen_args_dot_or_end todo (append_name name s) |> ParseFn |> Next ps.prog
-
-        CommaToken ->
-            todo (Ok (Basic name))
-
-        _ ->
-            Err (FailedNamedTypeParse (NameError ps.tok.loc "Expected a symbol like 'a' or 'std' here")) |> todo
-
-
-parse_name_with_gen_args_dot_or_end : NameWithGenArgsTodo -> Name -> ParseStep -> ParseRes
-parse_name_with_gen_args_dot_or_end todo name_so_far ps =
-    case ps.tok.typ of
-        DotToken ->
-            parse_name_with_gen_args_continue_name todo name_so_far |> ParseFn |> Next ps.prog
-
-        OpenSquare ->
-            parse_name_with_gen_args_ga_start_or_end todo (Basic name_so_far) |> ParseFn |> Next ps.prog
-
-        _ ->
-            reapply_token_or_fail (todo (Ok (Basic name_so_far))) ps
-
-
-parse_name_with_gen_args : NameWithGenArgsTodo -> ParseStep -> ParseRes
-parse_name_with_gen_args todo ps =
-    case ps.tok.typ of
-        Symbol s ->
-            parse_name_with_gen_args_dot_or_end todo (BaseName s) |> ParseFn |> Next ps.prog
-
-        _ ->
-            Err (FailedNamedTypeParse (NameError ps.tok.loc "AAAExpected a symbol like 'a' or 'std' here")) |> todo
 
 
 
 -- no gen arg list
 
+name_with_args_to_typename: FullName -> UnqualifiedTypeName
+name_with_args_to_typename nlu  = 
+    case nlu of
+        NameWithoutArgs n -> Basic n
+        NameWithArgsLookup n l -> Generic n (name_with_args_to_typename l)
 
+        
 parse_typename : TypenameParseTodo -> ParseStep -> ParseRes
 parse_typename todo ps =
     let
-        todo_with_type_and_args : NameWithGenArgsTodo
+        todo_with_type_and_args : NameWithSquareArgsTodo
         todo_with_type_and_args res =
             case res of
                 Err e ->
                     Error e
 
                 Ok nt ->
-                    todo <| Ok nt
+                    todo <| Ok (Generic nt.name nt.args)
         todo_with_type_and_args_ref : TypenameParseTodo
         todo_with_type_and_args_ref res =
             case res of
@@ -210,7 +139,7 @@ parse_typename todo ps =
     in
     case ps.tok.typ of
         ReferenceToken -> parse_typename todo_with_type_and_args_ref |> ParseFn |> Next ps.prog
-        _ -> parse_name_with_gen_args todo_with_type_and_args ps
+        _ -> parse_name_with_square_args todo_with_type_and_args ps
 
 
 parse_named_type_type : String -> (Result NamedTypeParseError UnqualifiedTypeWithName -> ParseRes) -> ParseStep -> ParseRes
@@ -223,7 +152,7 @@ parse_named_type_type valname todo ps =
                     FailedNamedTypeParse (TypeError e) |> Error
 
                 Ok t ->
-                    todo (Ok (UnqualifiedTypeWithName (BaseName valname) t))
+                    todo (Ok (UnqualifiedTypeWithName (SingleIdentifier valname) t))
     in
     -- parse the Type of `name: Type`
     parse_typename todo_with_type ps
@@ -337,7 +266,7 @@ parse_initilization_statement todo qual nt ps =
             Error (Unimplemented ps.prog "what happens if no = after var a: Type = ")
 
 
-parse_global_fn_assignment : Name -> StatementParseTodo -> ParseStep -> ParseRes
+parse_global_fn_assignment : Identifier -> StatementParseTodo -> ParseStep -> ParseRes
 parse_global_fn_assignment name todo ps =
     let
         after_expr_parse res =
@@ -351,17 +280,17 @@ parse_global_fn_assignment name todo ps =
     parse_expr after_expr_parse ps
 
 
-parse_global_fn_assignment_or_fn_call_qualified_name : Name -> StatementParseTodo -> ParseStep -> ParseRes
+parse_global_fn_assignment_or_fn_call_qualified_name : Identifier -> StatementParseTodo -> ParseStep -> ParseRes
 parse_global_fn_assignment_or_fn_call_qualified_name name fdef ps =
     case ps.tok.typ of
         Symbol s ->
-            Next ps.prog (ParseFn (parse_global_fn_assignment_or_fn_call (append_name name s) fdef))
+            Next ps.prog (ParseFn (parse_global_fn_assignment_or_fn_call (append_identifier name s) fdef))
 
         _ ->
             Error (ExpectedNameAfterDot ps.tok.loc)
 
 
-parse_global_fn_assignment_or_fn_call : Name -> StatementParseTodo -> ParseStep -> ParseRes
+parse_global_fn_assignment_or_fn_call : Identifier -> StatementParseTodo -> ParseStep -> ParseRes
 parse_global_fn_assignment_or_fn_call name statement_todo ps =
     let
         todo_with_funccall : FuncCallExprTodo
@@ -483,7 +412,7 @@ parse_block_statements statements todo_with_block ps =
             parse_block_statements (List.append statements [ CommentStatement c ]) todo_with_block |> ParseFn |> Next ps.prog
 
         Symbol s ->
-            parse_global_fn_assignment_or_fn_call (BaseName s) what_todo_with_statement |> ParseFn |> Next ps.prog
+            parse_global_fn_assignment_or_fn_call (SingleIdentifier s) what_todo_with_statement |> ParseFn |> Next ps.prog
 
         CloseCurly ->
             todo_with_block (Ok statements)
