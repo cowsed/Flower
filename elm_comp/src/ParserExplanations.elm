@@ -2,12 +2,11 @@ module ParserExplanations exposing (..)
 
 import Html
 import Html.Attributes exposing (style)
-import Language exposing (TypeName(..), make_qualified_typewithname)
+import Language exposing (ASTExpression(..), FullName, Identifier(..), LiteralType(..), Qualifier(..), make_qualified_typewithname, stringify_fullname)
 import Lexer
 import Pallete
 import ParserCommon
 import Util
-import Language exposing (stringify_name_lookup_type)
 
 
 
@@ -16,23 +15,23 @@ import Language exposing (stringify_name_lookup_type)
 
 syntaxify_namedarg : Language.QualifiedTypeWithName -> List (Html.Html msg)
 syntaxify_namedarg na =
-    [ symbol_highlight (Language.stringify_name na.name)
+    [ symbol_highlight (Language.stringify_identifier na.name)
     , Html.text ": "
     , Html.span [] [ syntaxify_type na.typename ]
     ]
 
 
-syntaxify_type : Language.TypeName -> Html.Html msg
+syntaxify_type : Language.FullName -> Html.Html msg
 syntaxify_type name =
     Html.span [ style "color" Pallete.blue ]
-        [ Html.text (Language.stringify_type_name name)
+        [ Html.text (Language.stringify_fullname name)
         ]
 
 
-syntaxify_unqualled_type : Language.UnqualifiedTypeName -> Html.Html msg
+syntaxify_unqualled_type : Language.FullName -> Html.Html msg
 syntaxify_unqualled_type name =
     Html.span [ style "color" Pallete.blue ]
-        [ Html.text (Language.stringify_utname name)
+        [ Html.text (Language.stringify_fullname name)
         ]
 
 
@@ -56,15 +55,59 @@ syntaxify_number_literal s =
     Html.span [ style "color" Pallete.aqua ] [ Html.text s ]
 
 
+syntaxify_identifier : Language.Identifier -> Html.Html msg
+syntaxify_identifier id =
+    case id of
+        SingleIdentifier s ->
+            symbol_highlight s
+
+        QualifiedIdentifiers ls ->
+            ls |> List.map symbol_highlight |> List.intersperse (Html.text ", ") |> Html.span []
+
+
+syntaxify_literal : LiteralType -> String -> Html.Html msg
+syntaxify_literal l s =
+    case l of
+        StringLiteral ->
+            syntaxify_string_literal ("\"" ++ s ++ "\"")
+
+        BooleanLiteral ->
+            Html.text s
+
+        NumberLiteral ->
+            syntaxify_number_literal s
+
+
+syntaxify_fullname : FullName -> Html.Html msg
+syntaxify_fullname fn =
+    case fn of
+        Language.Literal l s ->
+            syntaxify_literal l s |> (\t -> Html.span [] [ t ])
+
+        Language.NameWithoutArgs id ->
+            syntaxify_identifier id
+
+        Language.NameLookupType nl ->
+            Html.span []
+                [ syntaxify_identifier nl.base
+                , Html.text "["
+                , Html.span [] (nl.args |> List.map syntaxify_fullname |> List.intersperse (Html.text ", "))
+                , Html.text "]"
+                ]
+
+        Language.ReferenceToFullName fn2 ->
+            Html.span [] [ Html.text "&", syntaxify_fullname fn2 ]
+
+
 syntaxify_expression : Language.ASTExpression -> Html.Html msg
 syntaxify_expression expr =
     case expr of
-        Language.NameWithArgsLookup n ->
-            symbol_highlight (Language.stringify_name_lookup_type n)
+        Language.NameLookup n ->
+            syntaxify_fullname n
 
         Language.FunctionCallExpr fcall ->
             Html.span []
-                [ symbol_highlight (Language.stringify_name fcall.fname)
+                [ symbol_highlight (Language.stringify_fullname fcall.fname)
                 , Html.text "("
                 , Html.span [] (fcall.args |> List.map (\arg -> syntaxify_expression arg) |> List.intersperse (Html.text ", "))
                 , Html.text ")"
@@ -147,15 +190,12 @@ syntaxify_statement indentation_level s =
         Language.InitilizationStatement taname expr ->
             let
                 qual =
-                    case taname.typename of
-                        Language.VariableTypename _ ->
+                    case taname.qualifiedness of
+                        Constant ->
+                            ""
+
+                        Variable ->
                             "var "
-
-                        Language.ConstantTypename _ ->
-                            ""
-
-                        Language.NonQualified _ ->
-                            ""
             in
             Html.span [] (List.concat [ [ indent, syntaxify_keyword qual ], syntaxify_namedarg taname, [ Html.text " = ", syntaxify_expression expr, Html.text "\n" ] ])
 
@@ -163,12 +203,12 @@ syntaxify_statement indentation_level s =
             Html.span [ style "color" Pallete.gray ] [ indent, Html.text ("// " ++ src), Html.text "\n" ]
 
         Language.AssignmentStatement name expr ->
-            Html.span [] [ tab, symbol_highlight (Language.stringify_name name), Html.text " = ", syntaxify_expression expr, Html.text "\n" ]
+            Html.span [] [ tab, symbol_highlight (Language.stringify_identifier name), Html.text " = ", syntaxify_expression expr, Html.text "\n" ]
 
         Language.FunctionCallStatement fcal ->
             Html.span []
                 [ indent
-                , symbol_highlight (Language.stringify_name fcal.fname)
+                , symbol_highlight (Language.stringify_fullname fcal.fname)
                 , Html.text "("
                 , Html.span [] (fcal.args |> List.map (\e -> syntaxify_expression e) |> List.intersperse (Html.span [] [ Html.text ", " ]))
                 , Html.text ")"
@@ -331,16 +371,16 @@ explain_struct : ParserCommon.ASTStructDefnition -> Html.Html msg
 explain_struct str =
     Html.span []
         [ Html.text "Structure with name "
-        , Html.text (Language.stringify_utname str.name)
+        , Html.text (Language.stringify_fullname str.name)
         , Html.ul []
             (str.fields
                 |> List.map
                     (\f ->
                         Html.li []
                             [ Html.text "field "
-                            , Html.text (Language.stringify_name f.name)
+                            , Html.text (Language.stringify_identifier f.name)
                             , Html.text " of type "
-                            , Html.text (Language.stringify_utname f.typename)
+                            , Html.text (Language.stringify_fullname f.typename)
                             ]
                     )
             )
@@ -374,7 +414,7 @@ explain_program prog =
                             Html.li []
                                 [ Util.collapsable
                                     (Html.code []
-                                        [ Html.text (Language.stringify_utname <| f.name)
+                                        [ Html.text (Language.stringify_fullname <| f.name)
                                         ]
                                     )
                                     (explain_struct f)
@@ -500,14 +540,13 @@ stringify_error e =
 explain_expression : Language.ASTExpression -> Html.Html msg
 explain_expression expr =
     case expr of
-
-        Language.NameWithArgsLookup nwargs ->
-            Html.span [] [Html.text ("name look up of `"++stringify_name_lookup_type nwargs++"`")]
+        Language.NameLookup nwargs ->
+            Html.span [] [ Html.text ("name look up of `" ++ stringify_fullname nwargs ++ "`") ]
 
         Language.FunctionCallExpr fcall ->
             Html.span []
                 [ Html.text "Calling function: "
-                , Html.text (Language.stringify_name fcall.fname)
+                , Html.text (Language.stringify_fullname fcall.fname)
                 , Html.text " with args "
                 , Html.ul [] (fcall.args |> List.map (\a -> Html.li [] [ explain_expression a ]))
                 ]
@@ -540,14 +579,14 @@ explain_statement s =
             Html.span [] [ Html.text "// ", Html.text src ]
 
         Language.InitilizationStatement name expr ->
-            Html.span [] [ Html.text ("Initialize `" ++ Language.stringify_name name.name ++ "` of type " ++ Language.stringify_type_name name.typename ++ " to "), explain_expression expr ]
+            Html.span [] [ Html.text ("Initialize `" ++ Language.stringify_identifier name.name ++ "` of type " ++ Language.stringify_fullname name.typename ++ " to "), explain_expression expr ]
 
         Language.AssignmentStatement name expr ->
-            Html.span [] [ Html.text ("assigning " ++ Language.stringify_name name ++ " with "), explain_expression expr ]
+            Html.span [] [ Html.text ("assigning " ++ Language.stringify_identifier name ++ " with "), explain_expression expr ]
 
         Language.FunctionCallStatement fcal ->
             Html.span []
-                [ Html.text ("call the function " ++ Language.stringify_name fcal.fname ++ " with args:")
+                [ Html.text ("call the function " ++ Language.stringify_fullname fcal.fname ++ " with args:")
                 , Html.ul []
                     (fcal.args
                         |> List.map (\n -> Html.li [] [ explain_expression n ])

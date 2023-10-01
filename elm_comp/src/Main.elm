@@ -31,9 +31,10 @@ import ParserExplanations
    - ~~reference type parsing~~
    - while and for loops
    - concept checking for types `T: UnsignedIneger`
-   - THERE IS A SYNTACTIC AMBIGUITY BETWEEN
-    - name1[name2](expr) - generic function call of name1 with generic args name2 with expr 
-    - name1[name2](expr) - array of functions lookup on name1 with index variable name2 then 
+   - ~~THERE IS A SYNTACTIC AMBIGUITY BETWEEN~~
+    - ~~name1[name2](expr) - generic function call of name1 with generic args name2 with expr ~
+    - ~~name1[name2](expr) - array of functions lookup on name1 with index variable name2 then~~ 
+   - array_of_arrays[index1][index2]
 -}
 
 
@@ -132,27 +133,6 @@ make_output mod =
 
 
 
--- Html.div []
---     [ Html.node "style" [] [ text global_css ]
---     , Html.div
---         [ style "overflow" "auto"
---         ]
---         [ code_editor source_code (\s -> Compile s)
---         , case result of
---             Err e ->
---                 Html.span []
---                     [ Compiler.explain_error e
---                     ]
---             Ok prog ->
---                 Html.div [ style "float" "left" ]
---                     [ Parser.syntaxify_program prog
---                     ]
---         ]
---     , htmlify_output result
---     , Html.hr [] []
---     , Util.collapsable (text "Tokens") pretty_toks
---     ]
-
 
 view : Maybe Model -> Html.Html Msg
 view mmod =
@@ -166,7 +146,6 @@ view mmod =
                     [ Background.color Pallete.bg_c
                     , Font.color Pallete.fg_c
 
-                    -- , Element.scrollbars
                     , Element.clip
                     , Element.height Element.fill
                     , Element.width Element.fill

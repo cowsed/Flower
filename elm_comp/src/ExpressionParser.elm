@@ -1,33 +1,30 @@
 module ExpressionParser exposing (..)
 
-import Language exposing (ASTExpression(..), ASTFunctionCall, Identifier(..), precedence, stringify_name, stringify_infix_op)
+import Language exposing (ASTExpression(..), ASTFunctionCall, FullName, Identifier(..), precedence, stringify_fullname, stringify_infix_op)
 import Lexer exposing (TokenType(..), infix_op_from_token)
 import ParserCommon exposing (..)
-import Util
-import Language exposing (stringify_name_lookup_type)
-
 
 
 stringify_expression : ASTExpression -> String
 stringify_expression expr =
     case expr of
-        NameWithArgsLookup n ->
-            stringify_name_lookup_type n
-
+        NameLookup n ->
+            stringify_fullname n
 
         FunctionCallExpr fc ->
-            stringify_name fc.fname ++ "(" ++ (fc.args |> List.map stringify_expression |> String.join ", ") ++ ")"
+            stringify_fullname fc.fname ++ "(" ++ (fc.args |> List.map stringify_expression |> String.join ", ") ++ ")"
 
         LiteralExpr _ s ->
             s
 
         Parenthesized e ->
             stringify_expression e
+
         InfixExpr lhs rhs op ->
             stringify_expression lhs ++ stringify_infix_op op ++ stringify_expression rhs
 
 
-parse_expr_check_for_infix : ASTExpression -> ExprParseWhatTodo -> ParseStep -> ParseRes
+parse_expr_check_for_infix : ASTExpression -> ExprParseTodo -> ParseStep -> ParseRes
 parse_expr_check_for_infix lhs outer_todo ps =
     case infix_op_from_token ps.tok of
         Nothing ->
@@ -35,7 +32,7 @@ parse_expr_check_for_infix lhs outer_todo ps =
 
         Just op ->
             let
-                expr_after_todo : ExprParseWhatTodo
+                expr_after_todo : ExprParseTodo
                 expr_after_todo res =
                     case res of
                         Err _ ->
@@ -56,92 +53,62 @@ parse_expr_check_for_infix lhs outer_todo ps =
             parse_expr expr_after_todo |> ParseFn |> Next ps.prog
 
 
-
-parse_expr : ExprParseWhatTodo -> ParseStep -> ParseRes
-parse_expr todo ps =
-    parse_expr_continued_name Nothing todo ps
-
-
-parse_expr_continued_name : Maybe Identifier -> ExprParseWhatTodo -> ParseStep -> ParseRes
-parse_expr_continued_name qualled_name_so_far outer_todo ps =
+parse_expr_name_lookup_or_func_call : ExprParseTodo -> FullName -> ParseStep -> ParseRes
+parse_expr_name_lookup_or_func_call expr_todo fn ps =
     let
-        todo : ExprParseWhatTodo
-        todo res =
+        me_as_expr =
+            NameLookup fn
+
+        todo_after_fcall : FuncCallExprTodo
+        todo_after_fcall res =
             case res of
-                Err e ->
-                    Error (FailedExprParse e)
-
-                Ok e ->
-                    parse_expr_check_for_infix e outer_todo |> ParseFn |> Next ps.prog
-    in
-    case ps.tok.typ of
-        Symbol s ->
-            Next ps.prog (ParseFn (parse_expr_name_or_fcall (Language.append_maybe_identifier qualled_name_so_far s) todo))
-
-        Literal lt s ->
-            LiteralExpr lt s |> Ok |> todo
-
-        OpenParen ->
-            let
-                after : ExprParseWhatTodo
-                after res =
-                    res |> Result.andThen (\e -> Ok (Parenthesized e)) |> todo |> parse_expected_token ("Expected a closing ) to match this\n" ++ Util.show_source_view ps.tok.loc) CloseParen |> ParseFn |> Next ps.prog
-            in
-            parse_expr_continued_name qualled_name_so_far after |> ParseFn |> Next ps.prog
-
-        NewlineToken ->
-            IdkExpr ps.tok.loc "I Expected an expression but got the end of the line" |> Err |> todo
-
-        CloseParen ->
-            ParenWhereIDidntWantIt ps.tok.loc |> Err |> todo
-
-        _ ->
-            IdkExpr ps.tok.loc "I don't know how to parse non name lookup expr" |> Err |> todo
-
-
-parse_expr_name_or_fcall : Identifier -> ExprParseWhatTodo -> ParseStep -> ParseRes
-parse_expr_name_or_fcall name todo ps =
-    let
-        func_todo : FuncCallExprTodo
-        func_todo res =
-            case res of
-                Ok fcall ->
-                    FunctionCallExpr fcall |> Ok |> todo
-
                 Err e ->
                     Error (FailedFuncCallParse e)
+
+                Ok fcall ->
+                    parse_expr_check_for_infix (FunctionCallExpr fcall) expr_todo |> ParseFn |> Next ps.prog
     in
     case ps.tok.typ of
-        -- start func
         OpenParen ->
-            parse_function_call name func_todo |> ParseFn |> Next ps.prog
+            parse_function_call fn todo_after_fcall |> ParseFn |> Next ps.prog
 
-        --continue building name
-        DotToken ->
-            parse_expr_continued_name (Just name) todo |> ParseFn |> Next ps.prog
-        OpenSquare -> Debug.todo "Generics"
-
-        -- was just a name
         _ ->
-            case NameWithArgsLookup (Language.NameWithoutArgs name) |> Ok |> todo of
-                Error e ->
+            parse_expr_check_for_infix me_as_expr expr_todo ps
+
+
+parse_expr : ExprParseTodo -> ParseStep -> ParseRes
+parse_expr todo ps =
+    let
+        todo_after_fullname : NameWithSquareArgsTodo
+        todo_after_fullname res =
+            case res of
+                Err e ->
                     Error e
 
-                Next prog fn ->
-                    reapply_token fn { ps | prog = prog }
+                Ok fn ->
+                    parse_expr_name_lookup_or_func_call todo fn |> ParseFn |> Next ps.prog
+    in
+    case ps.tok.typ of
+        Lexer.Literal t s ->
+            (LiteralExpr t s) |> Ok |> todo
+
+        _ ->
+            reapply_token_or_fail (parse_full_name todo_after_fullname |> ParseFn |> Next ps.prog) ps
 
 
-parse_function_call : Identifier -> FuncCallExprTodo -> ParseStep -> ParseRes
+
+
+parse_function_call : FullName -> FuncCallExprTodo -> ParseStep -> ParseRes
 parse_function_call name todo ps =
     let
-        what_to_do : ExprParseWhatTodo
+        what_to_do : ExprParseTodo
         what_to_do res =
             case res of
                 Err e ->
                     Error (FailedExprParse e)
 
                 Ok expr ->
-                    parse_func_call_continue_or_end todo (ASTFunctionCall name [ expr ]) |> ParseFn |> Next ps.prog 
+                    parse_func_call_continue_or_end todo (ASTFunctionCall name [ expr ]) |> ParseFn |> Next ps.prog
     in
     case ps.tok.typ of
         CloseParen ->
@@ -185,5 +152,3 @@ parse_func_call_continue_or_end todo fcall ps =
             Error (Unimplemented ps.prog "What to do if not comma or ) in arg list (in func_call_continue_or_end)")
 
 
-
--- called after name(

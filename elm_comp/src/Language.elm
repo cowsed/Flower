@@ -178,82 +178,59 @@ type Qualifier
     | Constant
 
 
--- make_qualified_typename : Qualifier -> UnqualifiedTypeName -> TypeName
--- make_qualified_typename q uq =
---     case q of
---         Variable ->
---             VariableTypename uq
-
---         Constant ->
---             ConstantTypename uq
-
-
--- type TypeName
---     = VariableTypename UnqualifiedTypeName
---     | ConstantTypename UnqualifiedTypeName
---     | NonQualified UnqualifiedTypeName
-
-
--- remove_type_qualifier : TypeName -> UnqualifiedTypeName
--- remove_type_qualifier tn =
---     case tn of
---         VariableTypename n ->
---             n
-
---         ConstantTypename n ->
---             n
-
---         NonQualified n ->
---             n
-
-
 type FullName
-    = NameWithoutArgs Identifier 
+    = NameWithoutArgs Identifier
     | NameLookupType { base : Identifier, args : List FullName }
+    | ReferenceToFullName FullName
+    | Literal LiteralType String
 
-stringify_name_lookup_type: FullName -> String
-stringify_name_lookup_type nwt =
+
+stringify_fullname : FullName -> String
+stringify_fullname nwt =
     case nwt of
         NameWithoutArgs n ->
-            stringify_name n
+            stringify_identifier n
 
         NameLookupType nlt ->
-            stringify_name nlt.base ++ "[" ++ (
-                nlt.args |>List.map stringify_name_lookup_type |> String.join ", "
-            ) ++ "]"
+            stringify_identifier nlt.base
+                ++ "["
+                ++ (nlt.args |> List.map stringify_fullname |> String.join ", ")
+                ++ "]"
+
+        ReferenceToFullName fn ->
+            "&" ++ stringify_fullname fn
+
+        Literal _ s ->
+            s
 
 
-type UnqualifiedTypeName
-    = Basic Identifier
-    | Generic Identifier (List UnqualifiedTypeName)
-    | ReferenceUnqual UnqualifiedTypeName
-
-
-make_reference_type : UnqualifiedTypeName -> UnqualifiedTypeName
-make_reference_type ut =
-    ReferenceUnqual ut
-
-
-append_generic_name : UnqualifiedTypeName -> UnqualifiedTypeName -> UnqualifiedTypeName
-append_generic_name me tn =
+append_fullname_args : FullName -> FullName -> FullName
+append_fullname_args me tn =
     case me of
-        Basic n ->
-            Generic n [ tn ]
+        NameWithoutArgs n ->
+            NameLookupType { base = n, args = [ tn ] }
 
-        Generic n l ->
-            Generic n (List.append l [ tn ])
+        NameLookupType nl ->
+            NameLookupType { nl | args = List.append nl.args [ tn ] }
 
-        ReferenceUnqual u ->
-            append_generic_name u tn
+        ReferenceToFullName _ ->
+            Debug.todo "IDK WHAT TO DO HERE"
+
+        Literal _ _ ->
+            Debug.todo "IDK WHAT TO DO HERE"
+
+
+
+--
 
 
 type alias UnqualifiedTypeWithName =
-    { name : Identifier, typename : UnqualifiedTypeName }
+    { name : Identifier, typename : FullName }
 
 
--- make_qualified_typewithname : UnqualifiedTypeWithName -> Qualifier -> QualifiedTypeWithName
--- make_qualified_typewithname t q =
-    -- QualifiedTypeWithName t.name (make_qualified_typename q t.typename)
+make_qualified_typewithname : UnqualifiedTypeWithName -> Qualifier -> QualifiedTypeWithName
+make_qualified_typewithname t q =
+    QualifiedTypeWithName t.name t.typename q
 
 
 type alias QualifiedTypeWithName =
@@ -261,7 +238,7 @@ type alias QualifiedTypeWithName =
 
 
 type alias ASTFunctionHeader =
-    { generic_args : List FullName, args : List FullName, return_type : Maybe FullName }
+    { generic_args : List FullName, args : List QualifiedTypeWithName, return_type : Maybe FullName }
 
 
 type alias ASTFunctionDefinition =
@@ -280,52 +257,26 @@ type ASTStatement
     | IfStatement ASTExpression (List ASTStatement)
 
 
+
+-- | WhileStatement ASTExpression (List ASTStatement)
+
+
 type ASTExpression
     = FunctionCallExpr ASTFunctionCall
     | LiteralExpr LiteralType String
-    | NameWithArgsLookup FullName
+    | NameLookup FullName
     | Parenthesized ASTExpression
     | InfixExpr ASTExpression ASTExpression InfixOpType
 
 
 type alias ASTFunctionCall =
-    { fname : Identifier
+    { fname : FullName
     , args : List ASTExpression
     }
 
 
-
--- simple to strings with no additional info
-
-
--- stringify_type_name : TypeName -> String
--- stringify_type_name tn =
---     case tn of
---         VariableTypename n ->
---             stringify_utname n
-
---         ConstantTypename n ->
---             stringify_utname n
-
---         NonQualified n ->
---             stringify_utname n
-
-
--- stringify_utname : UnqualifiedTypeName -> String
--- stringify_utname utn =
---     case utn of
---         Basic n ->
---             stringify_name n
-
---         Generic n l ->
---             stringify_name n ++ "[" ++ (l |> List.map (\tn -> stringify_utname tn) |> String.join ", ") ++ "]"
-
---         ReferenceUnqual u ->
---             "&" ++ stringify_utname u
-
-
-stringify_name : Identifier -> String
-stringify_name n =
+stringify_identifier : Identifier -> String
+stringify_identifier n =
     case n of
         SingleIdentifier s ->
             s
