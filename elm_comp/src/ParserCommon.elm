@@ -184,11 +184,11 @@ parse_name_with_gen_args_ga_start_or_end todo name_and_args ps =
             parse_full_name todo_with_type ps
 
 
-parse_name_with_gen_args_continue_name : NameWithSquareArgsTodo -> Language.Identifier -> ParseStep -> ParseRes
-parse_name_with_gen_args_continue_name todo name ps =
+parse_fullname_gen_args_continue : NameWithSquareArgsTodo -> Language.Identifier -> ParseStep -> ParseRes
+parse_fullname_gen_args_continue todo name ps =
     case ps.tok.typ of
         Symbol s ->
-            parse_name_with_gen_args_dot_or_end todo (Language.append_identifier name s) |> ParseFn |> Next ps.prog
+            parse_fullname_gen_args_dot_or_end todo (Language.append_identifier name s) |> ParseFn |> Next ps.prog
 
         CommaToken ->
             todo (Ok (NameWithoutArgs name))
@@ -197,11 +197,11 @@ parse_name_with_gen_args_continue_name todo name ps =
             Err (FailedNamedTypeParse (NameError ps.tok.loc "Expected a symbol like 'a' or 'std' here")) |> todo
 
 
-parse_name_with_gen_args_dot_or_end : NameWithSquareArgsTodo -> Language.Identifier -> ParseStep -> ParseRes
-parse_name_with_gen_args_dot_or_end todo name_so_far ps =
+parse_fullname_gen_args_dot_or_end : NameWithSquareArgsTodo -> Language.Identifier -> ParseStep -> ParseRes
+parse_fullname_gen_args_dot_or_end todo name_so_far ps =
     case ps.tok.typ of
         DotToken ->
-            parse_name_with_gen_args_continue_name todo name_so_far |> ParseFn |> Next ps.prog
+            parse_fullname_gen_args_continue todo name_so_far |> ParseFn |> Next ps.prog
 
         OpenSquare ->
             parse_name_with_gen_args_ga_start_or_end todo (NameWithoutArgs name_so_far) |> ParseFn |> Next ps.prog
@@ -214,7 +214,7 @@ parse_full_name : NameWithSquareArgsTodo -> ParseStep -> ParseRes
 parse_full_name todo ps =
     case ps.tok.typ of
         Symbol s ->
-            parse_name_with_gen_args_dot_or_end todo (Language.SingleIdentifier s) |> ParseFn |> Next ps.prog
+            parse_fullname_gen_args_dot_or_end todo (Language.SingleIdentifier s) |> ParseFn |> Next ps.prog
 
         Lexer.Literal l s ->
             Language.Literal l s |> Ok |> todo

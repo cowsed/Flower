@@ -417,7 +417,7 @@ parse_block_statements statements todo_with_block ps =
             Error (Unimplemented ps.prog ("parsing global function statements like this one:\n" ++ Util.show_source_view ps.tok.loc))
 
 
-parse_global_function_body : String -> ASTFunctionHeader -> ParseStep -> ParseRes
+parse_global_function_body : FullName -> ASTFunctionHeader -> ParseStep -> ParseRes
 parse_global_function_body fname header ps =
     let
         prog =
@@ -440,7 +440,7 @@ parse_global_function_body fname header ps =
             Error (ExpectedOpenCurlyForFunction ps.tok.loc)
 
 
-parse_global_fn_return : String -> ASTFunctionHeader -> ParseStep -> ParseRes
+parse_global_fn_return : FullName -> ASTFunctionHeader -> ParseStep -> ParseRes
 parse_global_fn_return fname header_so_far ps =
     let
         what_to_do_with_ret_type : NameWithSquareArgsTodo
@@ -465,21 +465,21 @@ parse_global_fn_return fname header_so_far ps =
             Error (ExpectedFunctionBody ps.tok.loc ps.tok.typ)
 
 
-parse_fn_def_arg_list_comma_or_close : List QualifiedTypeWithName -> List FullName -> String -> ParseStep -> ParseRes
-parse_fn_def_arg_list_comma_or_close args gen_list fname ps =
+parse_fn_def_arg_list_comma_or_close : List QualifiedTypeWithName -> FullName  -> ParseStep -> ParseRes
+parse_fn_def_arg_list_comma_or_close args fname ps =
     case ps.tok.typ of
         CommaToken ->
-            parse_fn_definition_arg_list_or_close args gen_list fname |> ParseFn |> Next ps.prog
+            parse_fn_definition_arg_list_or_close args fname |> ParseFn |> Next ps.prog
 
         CloseParen ->
-            parse_global_fn_return fname { generic_args = gen_list, args = args, return_type = Nothing } |> ParseFn |> Next ps.prog
+            parse_global_fn_return fname { args = args, return_type = Nothing } |> ParseFn |> Next ps.prog
 
         _ ->
             Error (ExpectedEndOfArgListOrComma ps.tok.loc)
 
 
-parse_fn_definition_arg_list_or_close : List QualifiedTypeWithName -> List FullName -> String -> ParseStep -> ParseRes
-parse_fn_definition_arg_list_or_close args_sofar gen_list fname ps =
+parse_fn_definition_arg_list_or_close : List QualifiedTypeWithName -> FullName -> ParseStep -> ParseRes
+parse_fn_definition_arg_list_or_close args_sofar fname ps =
     let
         todo : NamedTypeParseTodo
         todo res =
@@ -488,99 +488,45 @@ parse_fn_definition_arg_list_or_close args_sofar gen_list fname ps =
                     Error (FailedNamedTypeParse e)
 
                 Ok nt ->
-                    parse_fn_def_arg_list_comma_or_close (List.append args_sofar [ make_qualified_typewithname nt Constant ]) gen_list fname |> ParseFn |> Next ps.prog
+                    parse_fn_def_arg_list_comma_or_close (List.append args_sofar [ make_qualified_typewithname nt Constant ]) fname |> ParseFn |> Next ps.prog
     in
     case ps.tok.typ of
         Symbol _ ->
             reapply_token (parse_named_type todo |> ParseFn) ps
 
         CloseParen ->
-            parse_global_fn_return fname { generic_args = gen_list, args = args_sofar, return_type = Nothing } |> ParseFn |> Next ps.prog
+            parse_global_fn_return fname { args = args_sofar, return_type = Nothing } |> ParseFn |> Next ps.prog
 
         _ ->
-            Error (Unimplemented ps.prog ("Failing to close func param list: name = " ++ fname))
+            Error (Unimplemented ps.prog ("Failing to close func param list: name = " ++ (stringify_fullname fname)))
 
 
-parse_fn_definition_open_paren : String -> List FullName -> ParseStep -> ParseRes
-parse_fn_definition_open_paren fname gen_list ps =
+parse_fn_definition_open_paren : FullName -> ParseStep -> ParseRes
+parse_fn_definition_open_paren fname  ps =
     case ps.tok.typ of
         OpenParen ->
-            parse_fn_definition_arg_list_or_close [] gen_list fname |> ParseFn |> Next ps.prog
+            parse_fn_definition_arg_list_or_close []  fname |> ParseFn |> Next ps.prog
 
         _ ->
-            Error (ExpectedOpenParenAfterFn fname ps.tok.loc)
+            Error (ExpectedOpenParenAfterFn (stringify_fullname fname) ps.tok.loc)
 
-
-parse_fn_def_generic_arg_list_comma_or_close : String -> List FullName -> ParseStep -> ParseRes
-parse_fn_def_generic_arg_list_comma_or_close fname gen_list ps =
-    let
-        todo_with_typ : NameWithSquareArgsTodo
-        todo_with_typ res =
-            case res of
-                Err e ->
-                    Error e
-
-                Ok t ->
-                    parse_fn_def_generic_arg_list_comma_or_close fname (List.append gen_list [ t ]) |> ParseFn |> Next ps.prog
-    in
-    case ps.tok.typ of
-        CommaToken ->
-            parse_typename todo_with_typ |> ParseFn |> Next ps.prog
-
-        CloseSquare ->
-            parse_fn_definition_open_paren fname gen_list |> ParseFn |> Next ps.prog
-
-        _ ->
-            Error (UnexpectedTokenInGenArgList ps.tok.loc)
-
-
-parse_fn_def_generic_arg_list_or_close : String -> List FullName -> ParseStep -> ParseRes
-parse_fn_def_generic_arg_list_or_close fname gen_list ps =
-    let
-        todo_with_typ : NameWithSquareArgsTodo
-        todo_with_typ res =
-            case res of
-                Err e ->
-                    Error e
-
-                Ok t ->
-                    parse_fn_def_generic_arg_list_comma_or_close fname (List.append gen_list [ t ]) |> ParseFn |> Next ps.prog
-    in
-    case ps.tok.typ of
-        CloseSquare ->
-            parse_fn_definition_open_paren fname gen_list |> ParseFn |> Next ps.prog
-
-        _ ->
-            parse_typename todo_with_typ ps
-
-
-parse_global_fn_args_or_generics : String -> ParseStep -> ParseRes
-parse_global_fn_args_or_generics fname ps =
-    let
-        prog =
-            ps.prog
-    in
-    case ps.tok.typ of
-        OpenParen ->
-            parse_fn_definition_arg_list_or_close [] [] fname
-                |> ParseFn
-                |> Next { prog | needs_more = Just ("I was in the middle of parsing the function `" ++ fname ++ "` definition when the file ended. Did you forget a closing bracket?") }
-
-        OpenSquare ->
-            parse_fn_def_generic_arg_list_or_close fname [] |> ParseFn |> Next ps.prog
-
-        _ ->
-            Error (Unimplemented ps.prog "what to do what to do ")
 
 
 parse_global_fn : ParseStep -> ParseRes
 parse_global_fn ps =
-    case ps.tok.typ of
-        Symbol fname ->
-            parse_global_fn_args_or_generics fname |> ParseFn |> Next ps.prog
+    let 
+        todo_with_name: NameWithSquareArgsTodo
+        todo_with_name res = 
+            case res of
+                Err e -> Error e
+                Ok n -> parse_fn_definition_open_paren n |> ParseFn |> Next ps.prog
+    in
+        case ps.tok.typ of
+            Symbol _ ->
+                parse_full_name todo_with_name ps
 
-        _ ->
-            Error (ExpectedNameAfterFn ps.tok.loc)
+            _ ->
+                Error (ExpectedNameAfterFn ps.tok.loc)
 
 
 parse_get_import_name : ParseStep -> ParseRes

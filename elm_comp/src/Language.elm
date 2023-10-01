@@ -238,11 +238,11 @@ type alias QualifiedTypeWithName =
 
 
 type alias ASTFunctionHeader =
-    { generic_args : List FullName, args : List QualifiedTypeWithName, return_type : Maybe FullName }
+    { args : List QualifiedTypeWithName, return_type : Maybe FullName }
 
 
 type alias ASTFunctionDefinition =
-    { name : String
+    { name : FullName
     , header : ASTFunctionHeader
     , statements : List ASTStatement
     }
@@ -255,10 +255,7 @@ type ASTStatement
     | AssignmentStatement Identifier ASTExpression
     | FunctionCallStatement ASTFunctionCall
     | IfStatement ASTExpression (List ASTStatement)
-
-
-
--- | WhileStatement ASTExpression (List ASTStatement)
+    | WhileStatement ASTExpression (List ASTStatement)
 
 
 type ASTExpression

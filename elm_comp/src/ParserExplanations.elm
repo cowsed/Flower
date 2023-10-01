@@ -134,29 +134,12 @@ syntaxify_expression expr =
 syntaxify_fheader : Language.ASTFunctionHeader -> Html.Html msg
 syntaxify_fheader header =
     let
-        pretty_gen_arg_list : Html.Html msg
-        pretty_gen_arg_list =
-            case List.length header.generic_args of
-                0 ->
-                    Html.span [] []
-
-                _ ->
-                    Html.span []
-                        [ Html.text "["
-                        , Html.span []
-                            (header.generic_args
-                                |> List.map (\t -> syntaxify_unqualled_type t)
-                                |> List.intersperse (Html.text ", ")
-                            )
-                        , Html.text "]"
-                        ]
 
         pretty_arg_lst : List (Html.Html msg)
-        pretty_arg_lst =
-            List.concat (List.intersperse [ Html.text ", " ] (List.map syntaxify_namedarg header.args))
+        pretty_arg_lst = List.concat (List.intersperse [ Html.text ", " ] (List.map syntaxify_namedarg header.args))
 
         lis =
-            List.concat [ [ pretty_gen_arg_list, Html.text "(" ], pretty_arg_lst, [ Html.text ")" ] ]
+            List.concat [ [ Html.text "(" ], pretty_arg_lst, [ Html.text ")" ] ]
 
         ret : Html.Html msg
         ret =
@@ -217,6 +200,8 @@ syntaxify_statement indentation_level s =
 
         Language.IfStatement expr block ->
             collapsing_block indentation_level (Html.span [] [ syntaxify_keyword "if ", syntaxify_expression expr ]) block
+        Language.WhileStatement expr block ->
+            collapsing_block indentation_level (Html.span [] [ syntaxify_keyword "while ", syntaxify_expression expr ]) block
 
 
 syntaxify_function : Int -> Language.ASTFunctionDefinition -> List (Html.Html msg)
@@ -225,7 +210,7 @@ syntaxify_function indentation fdef =
         header =
             Html.span []
                 [ syntaxify_keyword "fn "
-                , symbol_highlight fdef.name
+                , syntaxify_fullname fdef.name
                 , syntaxify_fheader fdef.header
                 ]
     in
@@ -399,7 +384,7 @@ explain_program prog =
                     (List.map
                         (\f ->
                             Html.li []
-                                [ Util.collapsable (Html.code [] [ Html.text f.name, syntaxify_fheader f.header ]) (explain_statments f.statements)
+                                [ Util.collapsable (Html.code [] [ Html.text (stringify_fullname f.name), syntaxify_fheader f.header ]) (explain_statments f.statements)
                                 ]
                         )
                         prog.global_functions
@@ -595,6 +580,9 @@ explain_statement s =
 
         Language.IfStatement expr block ->
             Html.span [] [ Html.text "If statement, checks (", explain_expression expr, Html.text ") then does", explain_statments block ]
+
+        Language.WhileStatement expr block ->
+            Html.span [] [ Html.text "While statement, checks (", explain_expression expr, Html.text ") then does", explain_statments block ]
 
 
 explain_statments : List Language.ASTStatement -> Html.Html msg
