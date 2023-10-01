@@ -28,11 +28,6 @@ syntaxify_type name =
         ]
 
 
-syntaxify_unqualled_type : Language.FullName -> Html.Html msg
-syntaxify_unqualled_type name =
-    Html.span [ style "color" Pallete.blue ]
-        [ Html.text (Language.stringify_fullname name)
-        ]
 
 
 syntaxify_keyword : String -> Html.Html msg
@@ -246,7 +241,7 @@ syntaxify_struct : Int -> ParserCommon.ASTStructDefnition -> Html.Html msg
 syntaxify_struct indent struct =
     let
         header =
-            syntaxify_unqualled_type struct.name
+            syntaxify_fullname struct.name
 
         names =
             struct.fields
@@ -254,15 +249,35 @@ syntaxify_struct indent struct =
                 |> List.map syntaxify_namedarg
                 |> List.map (\f -> Html.span [] [ tabs (indent + 1), Html.span [] f, Html.text "\n" ])
                 |> Html.div []
+        indents = tabs indent
     in
-    Html.div []
-        [ tabs indent
-        , syntaxify_keyword "struct "
-        , header
-        , Html.text " {\n"
-        , names
-        , Html.text "}\n\n"
+    Html.div [] [
+    Html.details
+    [ style "background" Pallete.bg1
+    , style "width" "fit-content"
+    , style "padding-left" "0px"
+    , style "padding-right" "5px"
+    , style "border-radius" "10px"
+    , Html.Attributes.attribute "open" "true"
+    ]
+    (List.concat
+        [ [ collapsing_block_style
+          , Html.summary
+                [ style "border" "none"
+                , style "cursor" "pointer"
+                ]
+                [ indents
+                , syntaxify_keyword "struct "
+                , header
+                , Html.text " {\n"
+                ]
+          ]
+        , ([names])
+        , [ indents, Html.text "}\n" ]
         ]
+    )
+    , Html.text "\n"
+    ]
 
 
 syntaxify_block : Int -> List Language.ASTStatement -> Html.Html msg
