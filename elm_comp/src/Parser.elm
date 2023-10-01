@@ -1,7 +1,7 @@
 module Parser exposing (..)
 
 import ExpressionParser exposing (..)
-import Html exposing (text)
+import Html exposing (Html, text)
 import Html.Attributes exposing (style)
 import Language exposing (..)
 import Lexer exposing (Token, TokenType(..), syntaxify_token)
@@ -19,6 +19,7 @@ parse toks =
             { module_name = Nothing
             , imports = []
             , global_functions = []
+            , global_structs = []
             , needs_more = Just "Need at least a `module name` line"
             , src_tokens = toks
             }
@@ -30,6 +31,59 @@ type alias TypeParseTodo =
     Result TypeParseError UnqualifiedTypeName -> ParseRes
 
 
+parse_struct_fields : UnqualifiedTypeName -> List Language.UnqualifiedTypeWithName -> ParseStep -> ParseRes
+parse_struct_fields name list ps =
+    let
+        prog =
+            ps.prog
+
+        me_as_struct =
+            ASTStructDefnition name list
+
+        todo res =
+            case res of
+                Err e ->
+                    FailedNamedTypeParse e |> Error
+
+                Ok nt ->
+                    parse_struct_fields name (List.append list [ nt ]) |> ParseFn |> Next ps.prog
+    in
+    case ps.tok.typ of
+        CloseCurly ->
+            parse_outer_scope |> ParseFn |> Next { prog | global_structs = List.append prog.global_structs [ me_as_struct ] }
+
+        NewlineToken ->
+            parse_struct_fields name list |> ParseFn |> Next ps.prog
+
+        _ ->
+            parse_named_type todo ps
+
+
+parse_struct : ParseStep -> ParseRes
+parse_struct ps =
+    let
+        todo : NameWithGenArgsTodo
+        todo res =
+            case res of
+                Err e ->
+                    Error e
+
+                Ok name ->
+                    parse_struct_fields name []
+                        |> ParseFn
+                        |> Next ps.prog
+                        |> parse_expected_token "{ to start a structure defintion" OpenCurly
+                        |> ParseFn
+                        |> Next ps.prog
+    in
+    case ps.tok.typ of
+        Symbol _ ->
+            parse_name_with_gen_args todo ps
+
+        _ ->
+            Error (ExpectedNameForStruct ps.tok.loc)
+
+
 parse_outer_scope : ParseStep -> ParseRes
 parse_outer_scope ps =
     case ps.tok.typ of
@@ -37,6 +91,9 @@ parse_outer_scope ps =
             case kwt of
                 Language.FnKeyword ->
                     Next ps.prog (ParseFn parse_global_fn)
+
+                Language.StructKeyword ->
+                    parse_struct |> ParseFn |> Next ps.prog
 
                 _ ->
                     Error (Unimplemented ps.prog "Parsing outer non fn keywords")
@@ -51,8 +108,8 @@ parse_outer_scope ps =
             Error (Unimplemented ps.prog "Parsing outer non function things")
 
 
-parse_name_with_gen_args_comma_or_end : NameWithGenArgsTodo -> Name -> List UnqualifiedTypeName -> ParseStep -> ParseRes
-parse_name_with_gen_args_comma_or_end todo name gen_args ps =
+parse_name_with_gen_args_comma_or_end : NameWithGenArgsTodo -> UnqualifiedTypeName -> ParseStep -> ParseRes
+parse_name_with_gen_args_comma_or_end todo name_and_args ps =
     let
         todo_with_type : TypenameParseTodo
         todo_with_type res =
@@ -61,21 +118,21 @@ parse_name_with_gen_args_comma_or_end todo name gen_args ps =
                     Error (FailedTypeParse e)
 
                 Ok t ->
-                    parse_name_with_gen_args_comma_or_end todo name (List.append gen_args [ t ]) |> ParseFn |> Next ps.prog
+                    parse_name_with_gen_args_comma_or_end todo (append_generic_name name_and_args t) |> ParseFn |> Next ps.prog
     in
     case ps.tok.typ of
         CommaToken ->
             parse_typename todo_with_type |> ParseFn |> Next ps.prog
 
         CloseSquare ->
-            Ok ( name, gen_args ) |> todo
+            Ok name_and_args |> todo
 
         _ ->
             todo <| Err (UnexpectedTokenInGenArgList ps.tok.loc)
 
 
-parse_name_with_gen_args_ga_start_or_end : NameWithGenArgsTodo -> Name -> List UnqualifiedTypeName -> ParseStep -> ParseRes
-parse_name_with_gen_args_ga_start_or_end todo name gen_args ps =
+parse_name_with_gen_args_ga_start_or_end : NameWithGenArgsTodo -> UnqualifiedTypeName -> ParseStep -> ParseRes
+parse_name_with_gen_args_ga_start_or_end todo name_and_args ps =
     let
         todo_with_type : Result TypeParseError UnqualifiedTypeName -> ParseRes
         todo_with_type res =
@@ -84,11 +141,11 @@ parse_name_with_gen_args_ga_start_or_end todo name gen_args ps =
                     Error (FailedTypeParse e)
 
                 Ok t ->
-                    parse_name_with_gen_args_comma_or_end todo name (List.append gen_args [ t ]) |> ParseFn |> Next ps.prog
+                    parse_name_with_gen_args_comma_or_end todo (append_generic_name name_and_args t) |> ParseFn |> Next ps.prog
     in
     case ps.tok.typ of
         CloseSquare ->
-            todo (Ok ( name, gen_args ))
+            todo (Ok name_and_args)
 
         _ ->
             parse_typename todo_with_type ps
@@ -100,7 +157,8 @@ parse_name_with_gen_args_continue_name todo name ps =
         Symbol s ->
             parse_name_with_gen_args_dot_or_end todo (append_name name s) |> ParseFn |> Next ps.prog
 
-        CommaToken -> todo (Ok (name, []))
+        CommaToken ->
+            todo (Ok (Basic name))
 
         _ ->
             Err (FailedNamedTypeParse (NameError ps.tok.loc "Expected a symbol like 'a' or 'std' here")) |> todo
@@ -113,22 +171,21 @@ parse_name_with_gen_args_dot_or_end todo name_so_far ps =
             parse_name_with_gen_args_continue_name todo name_so_far |> ParseFn |> Next ps.prog
 
         OpenSquare ->
-            parse_name_with_gen_args_ga_start_or_end todo name_so_far [] |> ParseFn |> Next ps.prog
+            parse_name_with_gen_args_ga_start_or_end todo (Basic name_so_far) |> ParseFn |> Next ps.prog
 
         _ ->
-            reapply_token_or_fail (todo (Ok ( name_so_far, [] )) )ps
+            reapply_token_or_fail (todo (Ok (Basic name_so_far))) ps
 
 
-
-
-parse_full_name : NameWithGenArgsTodo -> ParseStep -> ParseRes
-parse_full_name todo ps =
+parse_name_with_gen_args : NameWithGenArgsTodo -> ParseStep -> ParseRes
+parse_name_with_gen_args todo ps =
     case ps.tok.typ of
         Symbol s ->
             parse_name_with_gen_args_dot_or_end todo (BaseName s) |> ParseFn |> Next ps.prog
 
         _ ->
             Err (FailedNamedTypeParse (NameError ps.tok.loc "AAAExpected a symbol like 'a' or 'std' here")) |> todo
+
 
 
 -- no gen arg list
@@ -144,12 +201,9 @@ parse_typename todo ps =
                     Error e
 
                 Ok nt ->
-                    case List.length (Tuple.second nt) of
-                        0 ->
-                            todo (Ok (Basic <| Tuple.first nt))
-                        _ -> todo (Ok (Generic (Tuple.first nt) (Tuple.second nt)))
+                    todo <| Ok nt
     in
-    parse_full_name todo_with_type_and_args ps
+    parse_name_with_gen_args todo_with_type_and_args ps
 
 
 parse_named_type_type : String -> (Result NamedTypeParseError UnqualifiedTypeWithName -> ParseRes) -> ParseStep -> ParseRes
@@ -174,6 +228,15 @@ parse_named_type_type valname todo ps =
 --         TypeWithName (BaseName valname) (Basic (BaseName typename) |> VariableTypename) |> Ok |> todo
 --     _ ->
 --         Error (Unimplemented ps.prog "When parsing name: Type if Type is not a symbol")
+
+
+parse_consume_this : TokenType -> ParseFn -> ParseStep -> ParseRes
+parse_consume_this what todo ps =
+    if ps.tok.typ == what then
+        parse_consume_this what todo |> ParseFn |> Next ps.prog
+
+    else
+        extract_fn todo ps
 
 
 parse_named_type : (Result NamedTypeParseError UnqualifiedTypeWithName -> ParseRes) -> ParseStep -> ParseRes
@@ -779,6 +842,9 @@ stringify_error e =
         UnexpectedTokenInGenArgList loc ->
             "Unexpected Token in generic arg list\n" ++ Util.show_source_view loc
 
+        ExpectedNameForStruct loc ->
+            "I expected a name for a structure here but all i got was\n" ++ Util.show_source_view loc
+
 
 explain_error : Error -> Html.Html msg
 explain_error e =
@@ -796,6 +862,26 @@ explain_error e =
                 [ Html.h3 [] [ Html.text "Parser Error" ]
                 , Html.pre [ Html.Attributes.style "color" Pallete.red ] [ Html.text (stringify_error e) ]
                 ]
+
+
+explain_struct : ASTStructDefnition -> Html.Html msg
+explain_struct str =
+    Html.span []
+        [ text "Structure with name "
+        , text (stringify_type_name (NonQualified str.name))
+        , Html.ul []
+            (str.fields
+                |> List.map
+                    (\f ->
+                        Html.li []
+                            [ text "field "
+                            , text (stringify_name f.name)
+                            , text " of type "
+                            , text (stringify_type_name (NonQualified f.typename))
+                            ]
+                    )
+            )
+        ]
 
 
 syntax_highlight_type : TypeName -> Html.Html msg
@@ -942,11 +1028,30 @@ explain_program prog =
                         prog.global_functions
                     )
                 )
+
+        structs =
+            Util.collapsable (text "Global structures")
+                (Html.ul []
+                    (List.map
+                        (\f ->
+                            Html.li []
+                                [ Util.collapsable
+                                    (Html.code []
+                                        [ text (stringify_type_name <| NonQualified f.name)
+                                        ]
+                                    )
+                                    (explain_struct f)
+                                ]
+                        )
+                        prog.global_structs
+                    )
+                )
     in
     Html.div [ style "font-size" "14px" ]
         [ Html.h4 [] [ Html.text ("Module: " ++ Maybe.withDefault "[No name]" prog.module_name) ]
         , imports
         , funcs
+        , structs
         ]
 
 

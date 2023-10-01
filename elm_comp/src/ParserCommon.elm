@@ -1,18 +1,26 @@
 module ParserCommon exposing (..)
 
-import Language exposing (ASTExpression(..), ASTFunctionDefinition, ASTStatement(..), UnqualifiedTypeWithName)
+import Language exposing (ASTExpression(..), ASTFunctionDefinition, ASTStatement(..), UnqualifiedTypeName, UnqualifiedTypeWithName)
 import Lexer exposing (Token, TokenType(..))
 import Util
-import Language exposing (UnqualifiedTypeName)
 
 
 type alias Program =
     { module_name : Maybe String
     , imports : List String
     , global_functions : List ASTFunctionDefinition
+    , global_structs : List ASTStructDefnition
     , needs_more : Maybe String
     , src_tokens : List Token
     }
+
+
+type alias ASTStructDefnition =
+    { name : UnqualifiedTypeName
+    , fields : List UnqualifiedTypeWithName
+    }
+
+
 
 
 type ParseFn
@@ -53,23 +61,27 @@ type Error
     | ExpectedOpenCurlyForFunction Util.SourceView
     | ExpectedNameAfterDot Util.SourceView
     | UnexpectedTokenInGenArgList Util.SourceView
+    | ExpectedNameForStruct Util.SourceView
+
 
 type StatementParseError
     = None
-
 
 
 type TypeParseError
     = Idk Util.SourceView
     | UnexpectedTokenInTypesGenArgList Util.SourceView
 
+
 type NamedTypeParseError
     = NameError Util.SourceView String
     | TypeError TypeParseError
 
+
 type FuncCallParseError
     = IdkFuncCall Util.SourceView String
     | ExpectedAnotherArgument Util.SourceView
+
 
 type ExprParseError
     = IdkExpr Util.SourceView String
@@ -78,11 +90,15 @@ type ExprParseError
 
 type alias ExprParseWhatTodo =
     Result ExprParseError ASTExpression -> ParseRes
-type alias TypenameParseTodo = 
+
+
+type alias TypenameParseTodo =
     Result TypeParseError UnqualifiedTypeName -> ParseRes
 
-type alias NameWithGenArgsTodo = Result Error (Language.Name, List Language.UnqualifiedTypeName) -> ParseRes 
-    
+
+type alias NameWithGenArgsTodo =
+    Result Error UnqualifiedTypeName -> ParseRes
+
 
 type alias NamedTypeParseTodo =
     Result NamedTypeParseError UnqualifiedTypeWithName -> ParseRes
@@ -99,24 +115,28 @@ type alias StatementBlockParseTodo =
 type alias FuncCallExprTodo =
     Result FuncCallParseError Language.ASTFunctionCall -> ParseRes
 
+
 reapply_token_or_fail : ParseRes -> ParseStep -> ParseRes
 reapply_token_or_fail res ps =
-    case res of 
-        Next prog fn -> extract_fn fn {ps | prog = prog}
+    case res of
+        Next prog fn ->
+            extract_fn fn { ps | prog = prog }
 
         Error e ->
-                        Error e
+            Error e
 
 
 reapply_token : ParseFn -> ParseStep -> ParseRes
 reapply_token fn ps =
     extract_fn fn ps
 
+
 extract_fn : ParseFn -> (ParseStep -> ParseRes)
 extract_fn fn =
     case fn of
         ParseFn f ->
             f
+
 
 parse_expected_token : String -> TokenType -> ParseRes -> ParseStep -> ParseRes
 parse_expected_token reason expected after ps =

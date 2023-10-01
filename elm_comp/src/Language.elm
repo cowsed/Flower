@@ -2,8 +2,8 @@ module Language exposing (..)
 
 
 type Name
-    = BaseName String
-    | Qualified (List String)
+    = BaseName String -- name
+    | Qualified (List String) -- name.b.c
 
 
 append_name : Name -> String -> Name
@@ -246,6 +246,11 @@ type UnqualifiedTypeName
     = Basic Name
     | Generic Name (List UnqualifiedTypeName)
 
+append_generic_name: UnqualifiedTypeName -> UnqualifiedTypeName -> UnqualifiedTypeName
+append_generic_name me tn = 
+    case me of 
+        Basic n -> Generic n [tn]
+        Generic n l -> Generic n (List.append l [tn]) 
 
 type alias UnqualifiedTypeWithName =
     { name : Name, typename : UnqualifiedTypeName }
