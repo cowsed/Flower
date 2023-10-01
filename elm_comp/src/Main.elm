@@ -3,22 +3,17 @@ module Main exposing (..)
 -- import Element exposing (Element, el)
 
 import Browser
-import Browser.Dom
 import Compiler exposing (CompilerError(..), compile)
-import Element exposing (Element, alignBottom, alignRight, el, fill, html)
+import Element exposing (Element, alignBottom, alignRight, el, fill)
 import Element.Background as Background
 import Element.Font as Font
-import Element.Input as Input
 import Html exposing (..)
 import Html.Attributes exposing (style)
-import Lexer
 import Pallete
-import Parser
 import ParserCommon
 import Task
 import Time
-import Ui exposing (code_editor, code_rep)
-import Util
+import Ui exposing (code_rep)
 import Compiler exposing (explain_error)
 import ParserExplanations
 
@@ -44,6 +39,11 @@ initial_input =
 // importing the standard library
 import "std"
 
+struct a{
+    val: u8
+
+
+}
 
 // adding 2 numbers
 fn add(a: u8, b: u8) -> u8{

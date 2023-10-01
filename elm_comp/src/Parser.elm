@@ -1,11 +1,8 @@
 module Parser exposing (..)
 
 import ExpressionParser exposing (..)
-import Html exposing (text)
-import Html.Attributes exposing (style)
 import Language exposing (..)
-import Lexer exposing (Token, TokenType(..), syntaxify_token)
-import Pallete
+import Lexer exposing (Token, TokenType(..))
 import ParserCommon exposing (..)
 import Result
 import Util

@@ -7,6 +7,8 @@ import Lexer
 import Pallete
 import ParserCommon
 import Util
+import Language exposing (make_qualified_typewithname)
+import Language exposing (TypeName(..))
 
 
 
@@ -209,9 +211,33 @@ syntaxify_program prog =
                 [ [ syntaxify_keyword "module ", symbol_highlight (Maybe.withDefault "module_name" prog.module_name), Html.text "\n\n" ]
                 , prog.imports |> List.map (\name -> [ syntaxify_keyword "import ", syntaxify_string_literal name, Html.text "\n" ]) |> List.concat
                 , List.repeat 2 (Html.text "\n")
+                , prog.global_structs |> List.map (\s -> syntaxify_struct 0 s)
                 , prog.global_functions |> List.map (\f -> syntaxify_function 0 f) |> List.concat
                 ]
             )
+        ]
+
+
+syntaxify_struct : Int -> ParserCommon.ASTStructDefnition -> Html.Html msg
+syntaxify_struct indent struct =
+    let
+        header =
+            syntaxify_unqualled_type struct.name
+
+        names =
+            struct.fields
+                |> List.map (\f -> make_qualified_typewithname f Language.Constant)
+                |> List.map syntaxify_namedarg
+                |> List.map (\f -> Html.span [] [ tabs (indent+1), Html.span [] f ])
+                |> Html.div [] 
+    in
+    Html.div []
+        [ tabs indent
+        , syntaxify_keyword "struct "
+        , header
+        , Html.text " {\n"
+        , names
+        , Html.text "}\n\n"
         ]
 
 
@@ -221,7 +247,13 @@ syntaxify_block indentation_level states =
         outer_indent =
             tabs indentation_level
     in
-    Html.span [] (List.concat [ [ Html.text " {\n" ], states |> List.map (syntaxify_statement (indentation_level + 1)), [ outer_indent, Html.text "}\n" ] ])
+    Html.div []
+        (List.concat
+            [ [ Html.text " {\n" ]
+            , states |> List.map (syntaxify_statement (indentation_level + 1))
+            , [ outer_indent, Html.text "}\n" ]
+            ]
+        )
 
 
 collapsing_block : Int -> Html.Html msg -> List Language.ASTStatement -> Html.Html msg

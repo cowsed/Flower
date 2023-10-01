@@ -1,15 +1,13 @@
 module Ui exposing (..)
 
-import Element exposing (Element, el, text)
+import Element exposing (Element)
 import Element.Font as Font
 import Html
 import Html.Attributes exposing (spellcheck, style)
 import Html.Events exposing (onInput)
 import Pallete
-import Parser
 import ParserCommon
 import Time exposing (..)
-import Element.Border as Border
 import ParserExplanations
 
 
