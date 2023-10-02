@@ -1,8 +1,8 @@
-module Lexer exposing (..)
+module Parser.Lexer exposing (..)
 
 import Html exposing (pre, text)
 import Html.Attributes exposing (style)
-import Language exposing (InfixOpType(..), KeywordType(..), LiteralType(..))
+import Language
 import Pallete
 import Util
 
@@ -14,9 +14,9 @@ type alias Token =
 
 
 type TokenType
-    = Keyword KeywordType
+    = Keyword Language.KeywordType
     | Symbol String
-    | Literal LiteralType String
+    | Literal Language.LiteralType String
     | NewlineToken
     | TypeSpecifier -- :
     | CommaToken -- ,
@@ -41,6 +41,7 @@ type TokenType
     | CloseParen
     | OpenSquare
     | CloseSquare
+    | WhereToken -- |
     | CommentToken String
 
 
@@ -93,7 +94,9 @@ infix_op_from_token tok =
 
         EqualityToken ->
             Just Language.Equality
-        NotEqualToken -> Just Language.NotEqualTo
+
+        NotEqualToken ->
+            Just Language.NotEqualTo
 
         _ ->
             Nothing
@@ -384,7 +387,8 @@ lex_unknown lsi =
         lex_this_or_equal_to NotEqualToken NotToken lsi.pos |> LexFn |> Tokens []
 
     else if c == '&' then
-        Tokens [Token lsi.view_this ReferenceToken] begin_lex
+        Tokens [ Token lsi.view_this ReferenceToken ] begin_lex
+
     else if c == '<' then
         lex_this_or_equal_to LessThanEqualToken LessThanToken lsi.pos |> LexFn |> Tokens []
 
@@ -402,6 +406,8 @@ lex_unknown lsi =
 
     else if c == '/' then
         Tokens [] (LexFn lex_divide_or_comment)
+    else if c =='|' then   
+        Tokens [Token lsi.view_this WhereToken] begin_lex
 
     else
         Error (UnknownCharacter (lsi.input_view lsi.pos (lsi.pos + 1)) c)
@@ -410,10 +416,10 @@ lex_unknown lsi =
 is_special_or_symbol : String -> TokenType
 is_special_or_symbol s =
     if s == "true" then
-        Literal BooleanLiteral s
+        Literal Language.BooleanLiteral s
 
     else if s == "false" then
-        Literal BooleanLiteral s
+        Literal Language.BooleanLiteral s
 
     else
         case is_keyword s of
@@ -424,57 +430,69 @@ is_special_or_symbol s =
                 Symbol s
 
 
-is_keyword : String -> Maybe KeywordType
+is_keyword : String -> Maybe Language.KeywordType
 is_keyword s =
     case s of
         "fn" ->
-            Just FnKeyword
+            Just Language.FnKeyword
 
         "return" ->
-            Just ReturnKeyword
+            Just Language.ReturnKeyword
 
         "module" ->
-            Just ModuleKeyword
+            Just Language.ModuleKeyword
 
         "import" ->
-            Just ImportKeyword
+            Just Language.ImportKeyword
 
         "var" ->
-            Just VarKeyword
+            Just Language.VarKeyword
 
         "struct" ->
-            Just StructKeyword
+            Just Language.StructKeyword
 
         "if" ->
-            Just IfKeyword
+            Just Language.IfKeyword
+
+        "while" ->
+            Just Language.WhileKeyword
+
+        "enum" ->
+            Just Language.EnumKeyword
 
         _ ->
             Nothing
 
 
-kwt_to_string : KeywordType -> String
+kwt_to_string : Language.KeywordType -> String
 kwt_to_string kwt =
     case kwt of
-        FnKeyword ->
+        Language.FnKeyword ->
             "fn"
 
-        ReturnKeyword ->
+        Language.ReturnKeyword ->
             "return"
 
-        ModuleKeyword ->
+        Language.ModuleKeyword ->
             "module"
 
-        ImportKeyword ->
+        Language.ImportKeyword ->
             "import"
 
-        VarKeyword ->
+        Language.VarKeyword ->
             "var"
 
-        StructKeyword ->
+        Language.StructKeyword ->
             "struct"
 
-        IfKeyword ->
+        Language.IfKeyword ->
             "if"
+
+        Language.WhileKeyword ->
+            "while"
+
+        Language.EnumKeyword ->
+            "enum"
 
 
 syntaxify_token : TokenType -> String
@@ -563,6 +581,9 @@ syntaxify_token tok =
 
         ReferenceToken ->
             "&"
+
+        WhereToken ->
+            "|"
 
 
 token_to_str : Token -> String
@@ -664,5 +685,7 @@ token_to_str tok =
             "[ ! ]"
 
         ReferenceToken ->
-            
             "[ & ] "
+
+        WhereToken ->
+            "[ | ]"

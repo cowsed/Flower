@@ -1,21 +1,18 @@
 module Main exposing (..)
 
--- import Element exposing (Element, el)
-
 import Browser
-import Compiler exposing (CompilerError(..), compile)
+import Compiler exposing (CompilerError(..), compile, explain_error)
 import Element exposing (Element, alignBottom, alignRight, el, fill)
 import Element.Background as Background
 import Element.Font as Font
 import Html exposing (..)
 import Html.Attributes exposing (style)
 import Pallete
-import ParserCommon
+import Parser.AST as AST
+import Parser.ParserExplanations
 import Task
 import Time
 import Ui exposing (code_rep)
-import Compiler exposing (explain_error)
-import ParserExplanations
 
 
 
@@ -26,11 +23,17 @@ import ParserExplanations
    - ~~fullnames std.print(std.time)~~
    - ~~a: Type = 123123213123 is a const thing~~
    - ~~module.thing.name for types everywhere not just expressons~~
-   - struct parsing
-   - enum parsing
+   - ~~struct parsing~~
+   - ~~enum parsing~~
    - ~~reference type parsing~~
-   - while and for loops
+   - ~~while loops~~
+   - ~~constrained types~~
+   - for loops
    - concept checking for types `T: UnsignedIneger`
+   - ~~THERE IS A SYNTACTIC AMBIGUITY BETWEEN~~
+    - ~~name1[name2](expr) - generic function call of name1 with generic args name2 with expr ~
+    - ~~name1[name2](expr) - array of functions lookup on name1 with index variable name2 then~~
+   - array indexing
 -}
 
 
@@ -46,15 +49,24 @@ struct a{
 
 
 }
+enum Result[E, T]{
+    Err(E, T)
+    Res(T)
+
+}
+
+fn sqrt(v: f64 | v >= 0) -> f64{
+    return v/2
+}
 
 // adding 2 numbers
-fn add(a: u8, b: u8) -> u8{
-    var c: u8 = a
-    if a {
-        return a
-    }
-    return c
+fn add(args: std.pair[u8] | wont_overflow[u8](args.a, args.b)) -> u8{
+    return a+b
 }
+fn add(args: std.pair[u8]) -> u16{
+    return a+b
+}
+
 
 fn main() -> u8{
     a: u8 = 1
@@ -65,7 +77,7 @@ fn main() -> u8{
 """
 
 
-htmlify_output : Result CompilerError ParserCommon.Program -> Html.Html msg
+htmlify_output : Result CompilerError AST.Program -> Html.Html msg
 htmlify_output res =
     Html.div []
         [ case res of
@@ -73,7 +85,7 @@ htmlify_output res =
                 Html.div [] []
 
             Ok prog ->
-                Html.div [style "padding-left" "20px"] [ParserExplanations.explain_program prog]
+                Html.div [ style "padding-left" "20px" ] [ Parser.ParserExplanations.explain_program prog ]
         ]
 
 
@@ -128,29 +140,6 @@ make_output mod =
         ]
 
 
-
--- Html.div []
---     [ Html.node "style" [] [ text global_css ]
---     , Html.div
---         [ style "overflow" "auto"
---         ]
---         [ code_editor source_code (\s -> Compile s)
---         , case result of
---             Err e ->
---                 Html.span []
---                     [ Compiler.explain_error e
---                     ]
---             Ok prog ->
---                 Html.div [ style "float" "left" ]
---                     [ Parser.syntaxify_program prog
---                     ]
---         ]
---     , htmlify_output result
---     , Html.hr [] []
---     , Util.collapsable (text "Tokens") pretty_toks
---     ]
-
-
 view : Maybe Model -> Html.Html Msg
 view mmod =
     case mmod of
@@ -162,8 +151,6 @@ view mmod =
                 |> Element.layout
                     [ Background.color Pallete.bg_c
                     , Font.color Pallete.fg_c
-
-                    -- , Element.scrollbars
                     , Element.clip
                     , Element.height Element.fill
                     , Element.width Element.fill
@@ -224,7 +211,7 @@ type alias Model =
     { source_code : String
     , last_run_start : Time.Posix
     , last_run_end : Time.Posix
-    , output : Result Compiler.CompilerError ParserCommon.Program
+    , output : Result Compiler.CompilerError AST.Program
     }
 
 
