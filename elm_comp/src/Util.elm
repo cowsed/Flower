@@ -4,7 +4,6 @@ import Html
 import Html.Attributes
 import Language
 
-
 collapsable : Html.Html msg -> Html.Html msg -> Html.Html msg
 collapsable title internals =
     Html.details

@@ -1,11 +1,11 @@
-module ExpressionParser exposing (..)
+module Parser.ExpressionParser exposing (..)
 
-import Language exposing (ASTExpression(..), ASTFunctionCall, FullName, Identifier(..), precedence, stringify_fullname, stringify_infix_op)
-import Lexer exposing (TokenType(..), infix_op_from_token)
-import ParserCommon exposing (..)
+import Parser.AST as AST exposing (Expression(..), FunctionCall, FullName, Identifier(..), stringify_fullname)
+import Parser.Lexer as Lexer exposing (TokenType(..), infix_op_from_token)
+import Parser.ParserCommon as ParserCommon exposing (..)
+import Language exposing (stringify_infix_op, precedence)
 
-
-stringify_expression : ASTExpression -> String
+stringify_expression : Expression -> String
 stringify_expression expr =
     case expr of
         NameLookup n ->
@@ -24,7 +24,7 @@ stringify_expression expr =
             stringify_expression lhs ++ stringify_infix_op op ++ stringify_expression rhs
 
 
-parse_expr_check_for_infix : ASTExpression -> ExprParseTodo -> ParseStep -> ParseRes
+parse_expr_check_for_infix : Expression -> ExprParseTodo -> ParseStep -> ParseRes
 parse_expr_check_for_infix lhs outer_todo ps =
     case infix_op_from_token ps.tok of
         Nothing ->
@@ -108,20 +108,20 @@ parse_function_call name todo ps =
                     Error (FailedExprParse e)
 
                 Ok expr ->
-                    parse_func_call_continue_or_end todo (ASTFunctionCall name [ expr ]) |> ParseFn |> Next ps.prog
+                    parse_func_call_continue_or_end todo (AST.FunctionCall name [ expr ]) |> ParseFn |> Next ps.prog
     in
     case ps.tok.typ of
         CloseParen ->
-            todo (Ok (ASTFunctionCall name []))
+            todo (Ok (AST.FunctionCall name []))
 
         _ ->
             reapply_token (ParseFn (parse_expr what_to_do)) ps
 
 
-parse_func_call_continue_or_end : (Result FuncCallParseError ASTFunctionCall -> ParseRes) -> ASTFunctionCall -> ParseStep -> ParseRes
+parse_func_call_continue_or_end : (Result FuncCallParseError FunctionCall -> ParseRes) -> FunctionCall -> ParseStep -> ParseRes
 parse_func_call_continue_or_end todo fcall ps =
     let
-        what_to_do_with_expr : Result ExprParseError ASTExpression -> ParseRes
+        what_to_do_with_expr : Result ExprParseError Expression -> ParseRes
         what_to_do_with_expr res =
             case res of
                 Err e ->

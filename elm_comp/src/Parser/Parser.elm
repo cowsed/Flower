@@ -1,17 +1,18 @@
-module Parser exposing (..)
+module Parser.Parser exposing (..)
 
-import ExpressionParser exposing (..)
-import Language exposing (..)
-import Lexer exposing (Token, TokenType(..))
-import ParserCommon exposing (..)
+import Parser.AST as AST exposing (..)
+import Parser.ExpressionParser as ExpressionParser exposing (..)
+import Parser.Lexer as Lexer exposing (Token, TokenType(..))
+import Parser.ParserCommon as ParserCommon exposing (..)
+import Language
 import Result
 import Util
 
 
-parse : List Lexer.Token -> Result Error ParserCommon.Program
+parse : List Lexer.Token -> Result Error AST.Program
 parse toks =
     let
-        base_program : ParserCommon.Program
+        base_program : AST.Program
         base_program =
             { module_name = Nothing
             , imports = []
@@ -24,14 +25,14 @@ parse toks =
     parse_find_module_kw |> ParseFn |> rec_parse toks base_program
 
 
-parse_struct_fields : Language.FullName -> List Language.UnqualifiedTypeWithName -> ParseStep -> ParseRes
+parse_struct_fields : AST.FullName -> List AST.UnqualifiedTypeWithName -> ParseStep -> ParseRes
 parse_struct_fields name list ps =
     let
         prog =
             ps.prog
 
         me_as_struct =
-            ASTStructDefnition name list
+            AST.StructDefnition name list
 
         todo : NamedTypeParseTodo
         todo res =
@@ -145,7 +146,7 @@ parse_named_type_type valname todo ps =
                     Error e
 
                 Ok t ->
-                    UnqualifiedTypeWithName (Language.SingleIdentifier valname) t |> Ok |> todo
+                    UnqualifiedTypeWithName (AST.SingleIdentifier valname) t |> Ok |> todo
     in
     -- parse the Type of `name: Type`
     parse_typename todo_with_type ps
@@ -192,10 +193,10 @@ parse_until typ after ps =
         Next ps.prog (ParseFn (parse_until typ after))
 
 
-parse_global_fn_fn_call_args : (Result FuncCallParseError ASTFunctionCall -> ParseRes) -> ASTFunctionCall -> StatementParseTodo -> ParseStep -> ParseRes
+parse_global_fn_fn_call_args : (Result FuncCallParseError FunctionCall -> ParseRes) -> FunctionCall -> StatementParseTodo -> ParseStep -> ParseRes
 parse_global_fn_fn_call_args todo fcall statement_todo ps =
     let
-        what_to_do_with_expr : Result ExprParseError ASTExpression -> ParseRes
+        what_to_do_with_expr : Result ExprParseError Expression -> ParseRes
         what_to_do_with_expr res =
             case res of
                 Err e ->
@@ -217,7 +218,7 @@ parse_global_fn_fn_call_args todo fcall statement_todo ps =
 parse_global_fn_return_statement : StatementParseTodo -> ParseStep -> ParseRes
 parse_global_fn_return_statement todo ps =
     let
-        what_to_do_with_expr : Result ExprParseError ASTExpression -> ParseRes
+        what_to_do_with_expr : Result ExprParseError Expression -> ParseRes
         what_to_do_with_expr res =
             case res of
                 Err e ->
@@ -238,7 +239,7 @@ parse_initilization_statement todo qual nt ps =
         newtype =
             make_qualified_typewithname nt qual
 
-        todo_with_expr : Result ExprParseError ASTExpression -> ParseRes
+        todo_with_expr : Result ExprParseError Expression -> ParseRes
         todo_with_expr res =
             case res of
                 Err e ->
@@ -309,7 +310,7 @@ parse_statement_assignment_or_fn_call name statement_todo ps =
             parse_global_fn_assignment_or_fn_call_qualified_name name statement_todo |> ParseFn |> Next ps.prog
 
         OpenParen ->
-            parse_global_fn_fn_call_args todo_with_funccall (ASTFunctionCall (NameWithoutArgs name) []) statement_todo
+            parse_global_fn_fn_call_args todo_with_funccall (AST.FunctionCall (NameWithoutArgs name) []) statement_todo
                 |> ParseFn
                 |> Next ps.prog
 
@@ -336,7 +337,7 @@ escape_result res =
 parse_if_statement : StatementParseTodo -> ParseStep -> ParseRes
 parse_if_statement what_todo_with_statement ps =
     let
-        what_todo_after_block : ASTExpression -> Result StatementParseError (List ASTStatement) -> ParseRes
+        what_todo_after_block : Expression -> Result StatementParseError (List Statement) -> ParseRes
         what_todo_after_block expr res =
             case res of
                 Err e ->
@@ -365,10 +366,10 @@ parse_if_statement what_todo_with_statement ps =
     parse_expr what_todo_with_expr ps
 
 
-parse_block_statements : List ASTStatement -> StatementBlockParseTodo -> ParseStep -> ParseRes
+parse_block_statements : List Statement -> StatementBlockParseTodo -> ParseStep -> ParseRes
 parse_block_statements statements todo_with_block ps =
     let
-        what_todo_with_statement : Result StatementParseError ASTStatement -> ParseRes
+        what_todo_with_statement : Result StatementParseError Statement -> ParseRes
         what_todo_with_statement res =
             case res of
                 Err e ->
@@ -389,13 +390,13 @@ parse_block_statements statements todo_with_block ps =
     case ps.tok.typ of
         Keyword kwt ->
             case kwt of
-                ReturnKeyword ->
+                Language.ReturnKeyword ->
                     parse_global_fn_return_statement what_todo_with_statement |> ParseFn |> Next ps.prog
 
-                VarKeyword ->
+                Language.VarKeyword ->
                     parse_named_type todo_if_var |> ParseFn |> Next ps.prog
 
-                IfKeyword ->
+                Language.IfKeyword ->
                     parse_if_statement what_todo_with_statement |> ParseFn |> Next ps.prog
 
                 _ ->
@@ -417,7 +418,7 @@ parse_block_statements statements todo_with_block ps =
             Error (Unimplemented ps.prog ("parsing global function statements like this one:\n" ++ Util.show_source_view ps.tok.loc))
 
 
-parse_global_function_body : FullName -> ASTFunctionHeader -> ParseStep -> ParseRes
+parse_global_function_body : FullName -> FunctionHeader -> ParseStep -> ParseRes
 parse_global_function_body fname header ps =
     let
         prog =
@@ -430,7 +431,7 @@ parse_global_function_body fname header ps =
                     Error (FailedBlockParse e)
 
                 Ok block ->
-                    Next { prog | global_functions = List.append prog.global_functions [ ASTFunctionDefinition fname header block ], needs_more = Nothing } (ParseFn parse_outer_scope)
+                    Next { prog | global_functions = List.append prog.global_functions [ AST.FunctionDefinition fname header block ], needs_more = Nothing } (ParseFn parse_outer_scope)
     in
     case ps.tok.typ of
         OpenCurly ->
@@ -440,7 +441,7 @@ parse_global_function_body fname header ps =
             Error (ExpectedOpenCurlyForFunction ps.tok.loc)
 
 
-parse_global_fn_return : FullName -> ASTFunctionHeader -> ParseStep -> ParseRes
+parse_global_fn_return : FullName -> FunctionHeader -> ParseStep -> ParseRes
 parse_global_fn_return fname header_so_far ps =
     let
         what_to_do_with_ret_type : NameWithSquareArgsTodo
@@ -465,7 +466,7 @@ parse_global_fn_return fname header_so_far ps =
             Error (ExpectedFunctionBody ps.tok.loc ps.tok.typ)
 
 
-parse_fn_def_arg_list_comma_or_close : List QualifiedTypeWithName -> FullName  -> ParseStep -> ParseRes
+parse_fn_def_arg_list_comma_or_close : List QualifiedTypeWithName -> FullName -> ParseStep -> ParseRes
 parse_fn_def_arg_list_comma_or_close args fname ps =
     case ps.tok.typ of
         CommaToken ->
@@ -498,35 +499,37 @@ parse_fn_definition_arg_list_or_close args_sofar fname ps =
             parse_global_fn_return fname { args = args_sofar, return_type = Nothing } |> ParseFn |> Next ps.prog
 
         _ ->
-            Error (Unimplemented ps.prog ("Failing to close func param list: name = " ++ (stringify_fullname fname)))
+            Error (Unimplemented ps.prog ("Failing to close func param list: name = " ++ stringify_fullname fname))
 
 
 parse_fn_definition_open_paren : FullName -> ParseStep -> ParseRes
-parse_fn_definition_open_paren fname  ps =
+parse_fn_definition_open_paren fname ps =
     case ps.tok.typ of
         OpenParen ->
-            parse_fn_definition_arg_list_or_close []  fname |> ParseFn |> Next ps.prog
+            parse_fn_definition_arg_list_or_close [] fname |> ParseFn |> Next ps.prog
 
         _ ->
             Error (ExpectedOpenParenAfterFn (stringify_fullname fname) ps.tok.loc)
 
 
-
 parse_global_fn : ParseStep -> ParseRes
 parse_global_fn ps =
-    let 
-        todo_with_name: NameWithSquareArgsTodo
-        todo_with_name res = 
+    let
+        todo_with_name : NameWithSquareArgsTodo
+        todo_with_name res =
             case res of
-                Err e -> Error e
-                Ok n -> parse_fn_definition_open_paren n |> ParseFn |> Next ps.prog
-    in
-        case ps.tok.typ of
-            Symbol _ ->
-                parse_full_name todo_with_name ps
+                Err e ->
+                    Error e
 
-            _ ->
-                Error (ExpectedNameAfterFn ps.tok.loc)
+                Ok n ->
+                    parse_fn_definition_open_paren n |> ParseFn |> Next ps.prog
+    in
+    case ps.tok.typ of
+        Symbol _ ->
+            parse_full_name todo_with_name ps
+
+        _ ->
+            Error (ExpectedNameAfterFn ps.tok.loc)
 
 
 parse_get_import_name : ParseStep -> ParseRes
@@ -602,7 +605,7 @@ parse_find_module_kw ps =
             Next ps.prog (ParseFn parse_find_module_kw)
 
 
-rec_parse : List Token -> ParserCommon.Program -> ParseFn -> Result Error ParserCommon.Program
+rec_parse : List Token -> AST.Program -> ParseFn -> Result Error AST.Program
 rec_parse toks prog_sofar fn =
     let
         head =

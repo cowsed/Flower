@@ -6,19 +6,19 @@ import Html
 import Html.Attributes exposing (spellcheck, style)
 import Html.Events exposing (onInput)
 import Pallete
-import ParserCommon
+import Parser.AST as AST
 import Time exposing (..)
-import ParserExplanations
+import Parser.ParserExplanations
 
 
-code_rep : ParserCommon.Program -> Element msg
+code_rep : AST.Program -> Element msg
 code_rep prog =
     Element.column
         [ Element.width Element.fill
         , Element.height Element.fill
         , Font.family [ Font.monospace ]
         ]
-        [ Element.html (ParserExplanations.syntaxify_program prog)
+        [ Element.html (Parser.ParserExplanations.syntaxify_program prog)
         ]
 
 

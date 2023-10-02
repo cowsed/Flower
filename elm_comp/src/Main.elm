@@ -10,12 +10,12 @@ import Element.Font as Font
 import Html exposing (..)
 import Html.Attributes exposing (style)
 import Pallete
-import ParserCommon
 import Task
 import Time
 import Ui exposing (code_rep)
 import Compiler exposing (explain_error)
-import ParserExplanations
+import Parser.ParserExplanations
+import Parser.AST as AST 
 
 
 
@@ -34,7 +34,7 @@ import ParserExplanations
    - ~~THERE IS A SYNTACTIC AMBIGUITY BETWEEN~~
     - ~~name1[name2](expr) - generic function call of name1 with generic args name2 with expr ~
     - ~~name1[name2](expr) - array of functions lookup on name1 with index variable name2 then~~ 
-   - array_of_arrays[index1][index2]
+   - array indexing
 -}
 
 
@@ -69,7 +69,7 @@ fn main() -> u8{
 """
 
 
-htmlify_output : Result CompilerError ParserCommon.Program -> Html.Html msg
+htmlify_output : Result CompilerError AST.Program -> Html.Html msg
 htmlify_output res =
     Html.div []
         [ case res of
@@ -77,7 +77,7 @@ htmlify_output res =
                 Html.div [] []
 
             Ok prog ->
-                Html.div [style "padding-left" "20px"] [ParserExplanations.explain_program prog]
+                Html.div [style "padding-left" "20px"] [Parser.ParserExplanations.explain_program prog]
         ]
 
 
@@ -206,7 +206,7 @@ type alias Model =
     { source_code : String
     , last_run_start : Time.Posix
     , last_run_end : Time.Posix
-    , output : Result Compiler.CompilerError ParserCommon.Program
+    , output : Result Compiler.CompilerError AST.Program
     }
 
 
