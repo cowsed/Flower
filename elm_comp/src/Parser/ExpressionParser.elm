@@ -61,7 +61,7 @@ parse_expr_name_lookup_or_func_call expr_todo fn ps =
 parse_expr : ExprParseTodo -> ParseStep -> ParseRes
 parse_expr todo ps =
     let
-        todo_after_fullname : NameWithSquareArgsTodo
+        todo_after_fullname : FullNameParseTodo
         todo_after_fullname res =
             case res of
                 Err e ->

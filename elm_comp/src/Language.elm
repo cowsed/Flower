@@ -10,10 +10,8 @@ type KeywordType
     | IfKeyword
     | WhileKeyword
     | EnumKeyword
+    | TypeKeyword
 
-
-
--- sumtype, product type, list
 
 type LiteralType
     = BooleanLiteral

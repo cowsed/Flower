@@ -459,6 +459,8 @@ is_keyword s =
 
         "enum" ->
             Just Language.EnumKeyword
+        "type" ->
+            Just Language.TypeKeyword
 
         _ ->
             Nothing
@@ -493,6 +495,8 @@ kwt_to_string kwt =
 
         Language.EnumKeyword ->
             "enum"
+        Language.TypeKeyword ->
+            "Type"
 
 
 syntaxify_token : TokenType -> String
@@ -655,7 +659,7 @@ token_to_str tok =
             "[Comment: " ++ s ++ "]"
 
         AssignmentToken ->
-            "[=]"
+            "[Assignment =]"
 
         EqualityToken ->
             "[==]"

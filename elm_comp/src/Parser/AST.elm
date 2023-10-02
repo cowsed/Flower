@@ -7,13 +7,19 @@ import Parser.Lexer as Lexer
 type alias Program =
     { module_name : Maybe String
     , imports : List String
-    , global_structs : List StructDefnition
-    , global_enums : List EnumDefinition
+    , global_typedefs : List TypeType
     , global_functions : List FunctionDefinition
     , needs_more : Maybe String
     , src_tokens : List Lexer.Token
     }
 
+type TypeType
+    = StructType StructDefnition
+    | EnumType EnumDefinition
+    | AliasType AliasDefinition
+
+type alias AliasDefinition
+    = {name: FullName, alias_to : FullName}
 
 type Identifier
     = SingleIdentifier String -- name

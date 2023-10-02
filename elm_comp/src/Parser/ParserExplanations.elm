@@ -4,7 +4,7 @@ import Html
 import Html.Attributes exposing (style)
 import Language
 import Pallete as Pallete
-import Parser.AST as AST exposing (Expression(..), FullName, Identifier(..), Qualifier(..), make_qualified_typewithname, stringify_fullname)
+import Parser.AST as AST exposing (AliasDefinition, Expression(..), FullName, Identifier(..), Qualifier(..), TypeType(..), make_qualified_typewithname, stringify_fullname)
 import Parser.Lexer as Lexer
 import Parser.ParserCommon as ParserCommon
 import Util
@@ -231,11 +231,38 @@ syntaxify_program prog =
                 [ [ syntaxify_keyword "module ", symbol_highlight (Maybe.withDefault "module_name" prog.module_name), Html.text "\n\n" ]
                 , prog.imports |> List.map (\name -> [ syntaxify_keyword "import ", syntaxify_string_literal name, Html.text "\n" ]) |> List.concat
                 , List.repeat 2 (Html.text "\n")
-                , prog.global_structs |> List.map (\s -> syntaxify_struct 0 s)
-                , prog.global_enums |> List.map (\e -> syntaxify_enum 0 e)
+                , prog.global_typedefs |> List.map (syntaxify_typedef 0)
                 , prog.global_functions |> List.map (\f -> syntaxify_function 0 f) |> List.concat
                 ]
             )
+        ]
+
+
+syntaxify_typedef : Int -> AST.TypeType -> Html.Html msg
+syntaxify_typedef indent typ =
+    case typ of
+        StructType s ->
+            syntaxify_struct indent s
+
+        EnumType s ->
+            syntaxify_enum indent s
+
+        AliasType s ->
+            syntaxify_alias_type indent s
+
+
+syntaxify_alias_type : Int -> AliasDefinition -> Html.Html msg
+syntaxify_alias_type indent ad =
+    Html.div []
+        [ Html.span []
+            [ tabs indent
+            , syntaxify_keyword "type "
+            , syntaxify_fullname ad.name
+            , Html.text " = "
+            , syntaxify_fullname ad.alias_to
+            , Html.text "\n"
+            ]
+        , Html.text "\n"
         ]
 
 
@@ -488,39 +515,15 @@ explain_program prog =
                     )
                 )
 
-        structs =
-            Util.collapsable (Html.text "Global structures")
+        typedefs =
+            Util.collapsable (Html.text "Global typedefs")
                 (Html.ul []
                     (List.map
                         (\f ->
                             Html.li []
-                                [ Util.collapsable
-                                    (Html.code []
-                                        [ Html.text (AST.stringify_fullname <| f.name)
-                                        ]
-                                    )
-                                    (explain_struct f)
-                                ]
+                                [ explain_typedef f ]
                         )
-                        prog.global_structs
-                    )
-                )
-
-        enums =
-            Util.collapsable (Html.text "Global Enums")
-                (Html.ul []
-                    (List.map
-                        (\e ->
-                            Html.li []
-                                [ Util.collapsable
-                                    (Html.code []
-                                        [ Html.text (AST.stringify_fullname <| e.name)
-                                        ]
-                                    )
-                                    (explain_enum e)
-                                ]
-                        )
-                        prog.global_enums
+                        prog.global_typedefs
                     )
                 )
     in
@@ -528,8 +531,40 @@ explain_program prog =
         [ Html.h4 [] [ Html.text ("Module: " ++ Maybe.withDefault "[No name]" prog.module_name) ]
         , imports
         , funcs
-        , structs
-        , enums
+        , typedefs
+        ]
+
+
+explain_typedef : TypeType -> Html.Html msg
+explain_typedef tt =
+    case tt of
+        StructType s ->
+            Util.collapsable
+                (Html.code []
+                    [ Html.text (AST.stringify_fullname <| s.name)
+                    ]
+                )
+                (explain_struct s)
+
+        EnumType s ->
+            Util.collapsable
+                (Html.code []
+                    [ Html.text (AST.stringify_fullname <| s.name)
+                    ]
+                )
+                (explain_enum s)
+
+        AliasType s ->
+            explain_alias s
+
+
+explain_alias : AliasDefinition -> Html.Html msg
+explain_alias ad =
+    Html.pre []
+        [ Html.text "Type alias of "
+        , Html.text (AST.stringify_fullname ad.name)
+        , Html.text " to "
+        , Html.text (AST.stringify_fullname ad.alias_to)
         ]
 
 
@@ -643,6 +678,9 @@ stringify_error e =
         ParserCommon.ExpectedCloseParenInEnumField loc ->
             "I got to the end of the line without a ). Enum fields should look like `Field(Type1, Type2)`\n" ++ Util.show_source_view loc
 
+        ParserCommon.ExpectedEqualInTypeDeclaration loc ->
+            "I expected an = like `type Name =` \n" ++ Util.show_source_view loc
+
 
 explain_expression : AST.Expression -> Html.Html msg
 explain_expression expr =
@@ -680,10 +718,15 @@ explain_statement : AST.Statement -> Html.Html msg
 explain_statement s =
     case s of
         AST.ReturnStatement expr ->
-            Html.span [] [ Html.text "return: ", case expr of 
-                Just e -> explain_expression e
-                Nothing -> Html.text "Nothing"    
-            ]
+            Html.span []
+                [ Html.text "return: "
+                , case expr of
+                    Just e ->
+                        explain_expression e
+
+                    Nothing ->
+                        Html.text "Nothing"
+                ]
 
         AST.CommentStatement src ->
             Html.span [] [ Html.text "// ", Html.text src ]

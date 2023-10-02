@@ -46,6 +46,7 @@ type Error
     | ExpectedNameForStruct Util.SourceView
     | UnknownTokenInEnumBody Util.SourceView
     | ExpectedCloseParenInEnumField Util.SourceView
+    | ExpectedEqualInTypeDeclaration Util.SourceView
 
 
 type StatementParseError
@@ -76,7 +77,7 @@ type alias ExprParseTodo =
     Result ExprParseError Expression -> ParseRes
 
 
-type alias NameWithSquareArgsTodo =
+type alias FullNameParseTodo =
     Result Error FullName -> ParseRes
 
 
@@ -127,10 +128,10 @@ parse_expected_token reason expected after ps =
         Error (ExpectedToken reason ps.tok.loc)
 
 
-parse_name_with_gen_args_comma_or_end : NameWithSquareArgsTodo -> FullName -> ParseStep -> ParseRes
+parse_name_with_gen_args_comma_or_end : FullNameParseTodo -> FullName -> ParseStep -> ParseRes
 parse_name_with_gen_args_comma_or_end todo name_and_args ps =
     let
-        todo_with_type : NameWithSquareArgsTodo
+        todo_with_type : FullNameParseTodo
         todo_with_type res =
             case res of
                 Err e ->
@@ -150,10 +151,10 @@ parse_name_with_gen_args_comma_or_end todo name_and_args ps =
             todo <| Err (UnexpectedTokenInGenArgList ps.tok.loc)
 
 
-parse_name_with_gen_args_ga_start_or_end : NameWithSquareArgsTodo -> FullName -> ParseStep -> ParseRes
+parse_name_with_gen_args_ga_start_or_end : FullNameParseTodo -> FullName -> ParseStep -> ParseRes
 parse_name_with_gen_args_ga_start_or_end todo name_and_args ps =
     let
-        todo_with_type : NameWithSquareArgsTodo
+        todo_with_type : FullNameParseTodo
         todo_with_type res =
             case res of
                 Err e ->
@@ -170,7 +171,7 @@ parse_name_with_gen_args_ga_start_or_end todo name_and_args ps =
             parse_full_name todo_with_type ps
 
 
-parse_fullname_gen_args_continue : NameWithSquareArgsTodo -> AST.Identifier -> ParseStep -> ParseRes
+parse_fullname_gen_args_continue : FullNameParseTodo -> AST.Identifier -> ParseStep -> ParseRes
 parse_fullname_gen_args_continue todo name ps =
     case ps.tok.typ of
         Symbol s ->
@@ -183,7 +184,7 @@ parse_fullname_gen_args_continue todo name ps =
             Err (FailedNamedTypeParse (NameError ps.tok.loc "Expected a symbol like 'a' or 'std' here")) |> todo
 
 
-parse_fullname_gen_args_dot_or_end : NameWithSquareArgsTodo -> AST.Identifier -> ParseStep -> ParseRes
+parse_fullname_gen_args_dot_or_end : FullNameParseTodo -> AST.Identifier -> ParseStep -> ParseRes
 parse_fullname_gen_args_dot_or_end todo name_so_far ps =
     case ps.tok.typ of
         DotToken ->
@@ -196,10 +197,10 @@ parse_fullname_gen_args_dot_or_end todo name_so_far ps =
             reapply_token_or_fail (todo (Ok (NameWithoutArgs name_so_far))) ps
 
 
-parse_full_name : NameWithSquareArgsTodo -> ParseStep -> ParseRes
+parse_full_name : FullNameParseTodo -> ParseStep -> ParseRes
 parse_full_name todo ps =
     let
-        todo_if_ref : NameWithSquareArgsTodo
+        todo_if_ref : FullNameParseTodo
         todo_if_ref res =
             res
                 |> Result.mapError (\e -> Error e)

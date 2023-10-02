@@ -18,22 +18,10 @@ import Ui exposing (code_rep)
 
 {-
    todo:
-   - keyword not allowed error gets emitted from parseName with note about which words are reserved
-   - infix operator expressions
-   - ~~fullnames std.print(std.time)~~
-   - ~~a: Type = 123123213123 is a const thing~~
-   - ~~module.thing.name for types everywhere not just expressons~~
-   - ~~struct parsing~~
-   - ~~enum parsing~~
-   - ~~reference type parsing~~
-   - ~~while loops~~
-   - ~~constrained types~~
    - for loops
    - concept checking for types `T: UnsignedIneger`
-   - ~~THERE IS A SYNTACTIC AMBIGUITY BETWEEN~~
-    - ~~name1[name2](expr) - generic function call of name1 with generic args name2 with expr ~
-    - ~~name1[name2](expr) - array of functions lookup on name1 with index variable name2 then~~
    - array indexing
+   - fancy types
 -}
 
 
@@ -43,6 +31,9 @@ initial_input =
 
 // importing the standard library
 import "std"
+
+
+type Positive[N] = N | n >= 0
 
 struct a{
     val: u8

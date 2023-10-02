@@ -16,9 +16,8 @@ parse toks =
         base_program =
             { module_name = Nothing
             , imports = []
+            , global_typedefs = []
             , global_functions = []
-            , global_structs = []
-            , global_enums = []
             , needs_more = Just "Need at least a `module name` line"
             , src_tokens = toks
             }
@@ -26,7 +25,7 @@ parse toks =
     parse_find_module_kw |> ParseFn |> rec_parse toks base_program
 
 
-parse_possibly_constrained_fullname_after_type : NameWithSquareArgsTodo -> FullName -> ParseStep -> ParseRes
+parse_possibly_constrained_fullname_after_type : FullNameParseTodo -> FullName -> ParseStep -> ParseRes
 parse_possibly_constrained_fullname_after_type todo fn ps =
     let
         todo_with_constraint : ExprParseTodo
@@ -36,7 +35,7 @@ parse_possibly_constrained_fullname_after_type todo fn ps =
                 |> Result.andThen (\expr -> todo (Constrained fn expr |> Ok) |> Ok)
                 |> escape_result
     in
-    case Debug.log "possibly" ps.tok.typ of
+    case ps.tok.typ of
         WhereToken ->
             parse_expr todo_with_constraint |> ParseFn |> Next ps.prog
 
@@ -44,10 +43,10 @@ parse_possibly_constrained_fullname_after_type todo fn ps =
             reapply_token_or_fail (todo (Ok fn)) ps
 
 
-parse_possibly_constrained_fullname : NameWithSquareArgsTodo -> ParseStep -> ParseRes
+parse_possibly_constrained_fullname : FullNameParseTodo -> ParseStep -> ParseRes
 parse_possibly_constrained_fullname todo_after ps =
     let
-        todo : NameWithSquareArgsTodo
+        todo : FullNameParseTodo
         todo res =
             res
                 |> Result.mapError (\e -> Error e)
@@ -77,7 +76,7 @@ parse_struct_fields name list ps =
     in
     case ps.tok.typ of
         CloseCurly ->
-            parse_outer_scope |> ParseFn |> Next { prog | global_structs = List.append prog.global_structs [ me_as_struct ] }
+            parse_outer_scope |> ParseFn |> Next { prog | global_typedefs = List.append prog.global_typedefs [ StructType me_as_struct ] }
 
         NewlineToken ->
             parse_struct_fields name list |> ParseFn |> Next ps.prog
@@ -89,7 +88,7 @@ parse_struct_fields name list ps =
 parse_struct : ParseStep -> ParseRes
 parse_struct ps =
     let
-        todo : NameWithSquareArgsTodo
+        todo : FullNameParseTodo
         todo res =
             case res of
                 Err e ->
@@ -130,7 +129,7 @@ parse_enum_field_arg_list_close_or_continue ef edef ps =
 parse_enum_field_arg_list : EnumField -> EnumDefinition -> ParseStep -> ParseRes
 parse_enum_field_arg_list ef edef ps =
     let
-        todo : NameWithSquareArgsTodo
+        todo : FullNameParseTodo
         todo res =
             res
                 |> Result.mapError (\e -> Error e)
@@ -164,7 +163,7 @@ parse_enum_body edef ps =
             parse_enum_plain_symbol_or_more s edef |> ParseFn |> Next ps.prog
 
         CloseCurly ->
-            parse_outer_scope |> ParseFn |> Next { prog | global_enums = List.append prog.global_enums [ edef ] }
+            parse_outer_scope |> ParseFn |> Next { prog | global_typedefs = List.append prog.global_typedefs [ EnumType edef ] }
 
         NewlineToken ->
             parse_enum_body edef |> ParseFn |> Next ps.prog
@@ -176,7 +175,7 @@ parse_enum_body edef ps =
 parse_enum : ParseStep -> ParseRes
 parse_enum ps =
     let
-        todo_with_full_name : NameWithSquareArgsTodo
+        todo_with_full_name : FullNameParseTodo
         todo_with_full_name res =
             case res of
                 Err e ->
@@ -189,6 +188,52 @@ parse_enum ps =
                         |> parse_expected_token "Expected `{` to start an enum body" OpenCurly
                         |> ParseFn
                         |> Next ps.prog
+    in
+    parse_full_name todo_with_full_name ps
+
+
+parse_type_declaration_after_first_name : FullName -> FullName -> ParseStep -> ParseRes
+parse_type_declaration_after_first_name typname n ps =
+    -- or token
+    let
+        prog = ps.prog
+        prog_after = {prog | global_typedefs = List.append prog.global_typedefs [AliasType (AliasDefinition typname n)]}
+    in
+    
+    parse_outer_scope |> ParseFn |> Next prog_after
+
+
+parse_type_declaration_body : FullName -> ParseStep -> ParseRes
+parse_type_declaration_body fname ps =
+    let
+        after_fn2 : FullNameParseTodo
+        after_fn2 res =
+            res
+                |> Result.mapError (\e -> Error e)
+                |> Result.andThen (\fn -> parse_type_declaration_after_first_name fname fn |> ParseFn |> Next ps.prog |> Ok)
+                |> escape_result
+    in
+    parse_possibly_constrained_fullname after_fn2 ps
+
+
+parse_type_declaration : ParseStep -> ParseRes
+parse_type_declaration ps =
+    let
+        parse_equal : FullName -> ParseStep -> ParseRes
+        parse_equal fname pes =
+            case (Debug.log "Looking for =" pes.tok.typ) of
+                AssignmentToken ->
+                    parse_type_declaration_body fname |> ParseFn |> Next ps.prog
+
+                _ ->
+                    ExpectedEqualInTypeDeclaration pes.tok.loc |> Error
+
+        todo_with_full_name : FullNameParseTodo
+        todo_with_full_name res =
+            res
+                |> Result.mapError (\e -> Error e)
+                |> Result.andThen (\fn -> parse_equal (Debug.log "full name was " fn) |> ParseFn |> Next ps.prog |> Ok)
+                |> escape_result
     in
     parse_full_name todo_with_full_name ps
 
@@ -207,6 +252,9 @@ parse_outer_scope ps =
                 Language.EnumKeyword ->
                     parse_enum |> ParseFn |> Next ps.prog
 
+                Language.TypeKeyword ->
+                    parse_type_declaration |> ParseFn |> Next ps.prog
+
                 _ ->
                     Error (Unimplemented ps.prog "Parsing other outer keywords")
 
@@ -224,10 +272,10 @@ parse_outer_scope ps =
 -- no gen arg list
 
 
-parse_typename : NameWithSquareArgsTodo -> ParseStep -> ParseRes
+parse_typename : FullNameParseTodo -> ParseStep -> ParseRes
 parse_typename todo ps =
     let
-        todo_with_type_and_args : NameWithSquareArgsTodo
+        todo_with_type_and_args : FullNameParseTodo
         todo_with_type_and_args res =
             case res of
                 Err e ->
@@ -236,7 +284,7 @@ parse_typename todo ps =
                 Ok nt ->
                     todo <| Ok nt
 
-        todo_with_type_and_args_ref : NameWithSquareArgsTodo
+        todo_with_type_and_args_ref : FullNameParseTodo
         todo_with_type_and_args_ref res =
             case res of
                 Err e ->
@@ -256,7 +304,7 @@ parse_typename todo ps =
 parse_named_type_type : String -> NamedTypeParseTodo -> ParseStep -> ParseRes
 parse_named_type_type valname todo ps =
     let
-        todo_with_type : NameWithSquareArgsTodo
+        todo_with_type : FullNameParseTodo
         todo_with_type res =
             case res of
                 Err e ->
@@ -347,8 +395,12 @@ parse_global_fn_return_statement todo ps =
                         |> Next ps.prog
     in
     case ps.tok.typ of
-        NewlineToken -> todo (ReturnStatement Nothing |> Ok)
-        CommentToken _ -> todo (ReturnStatement Nothing |> Ok)
+        NewlineToken ->
+            todo (ReturnStatement Nothing |> Ok)
+
+        CommentToken _ ->
+            todo (ReturnStatement Nothing |> Ok)
+
         _ ->
             reapply_token (ParseFn (parse_expr what_to_do_with_expr)) ps
 
@@ -416,7 +468,7 @@ parse_statement_assignment_or_fn_call name statement_todo ps =
                 Ok fcall ->
                     statement_todo (Ok (FunctionCallStatement fcall))
 
-        what_todo_with_type : NameWithSquareArgsTodo
+        what_todo_with_type : FullNameParseTodo
         what_todo_with_type res =
             case res of
                 Err e ->
@@ -589,7 +641,7 @@ parse_global_function_body fname header ps =
 parse_global_fn_return : FullName -> FunctionHeader -> ParseStep -> ParseRes
 parse_global_fn_return fname header_so_far ps =
     let
-        what_to_do_with_ret_type : NameWithSquareArgsTodo
+        what_to_do_with_ret_type : FullNameParseTodo
         what_to_do_with_ret_type typ_res =
             case typ_res of
                 Err e ->
@@ -660,7 +712,7 @@ parse_fn_definition_open_paren fname ps =
 parse_global_fn : ParseStep -> ParseRes
 parse_global_fn ps =
     let
-        todo_with_name : NameWithSquareArgsTodo
+        todo_with_name : FullNameParseTodo
         todo_with_name res =
             case res of
                 Err e ->
@@ -704,6 +756,8 @@ parse_find_imports ps =
 
                 Language.StructKeyword ->
                     parse_struct |> ParseFn |> Next ps.prog
+                Language.TypeKeyword ->
+                    parse_type_declaration |> ParseFn |> Next ps.prog
 
                 _ ->
                     Error (UnknownOuterLevelObject ps.tok.loc)
