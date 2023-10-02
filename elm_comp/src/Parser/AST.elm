@@ -1,15 +1,19 @@
 module Parser.AST exposing (..)
-import Parser.Lexer as Lexer
+
 import Language exposing (InfixOpType(..), LiteralType(..))
+import Parser.Lexer as Lexer
+
 
 type alias Program =
     { module_name : Maybe String
     , imports : List String
     , global_structs : List StructDefnition
+    , global_enums : List EnumDefinition
     , global_functions : List FunctionDefinition
     , needs_more : Maybe String
     , src_tokens : List Lexer.Token
     }
+
 
 type Identifier
     = SingleIdentifier String -- name
@@ -34,11 +38,6 @@ append_maybe_identifier n new =
 
         Nothing ->
             SingleIdentifier new
-
-
-
-
-
 
 
 type IntegerSize
@@ -157,10 +156,24 @@ type alias FunctionDefinition =
     , statements : List Statement
     }
 
+
 type alias StructDefnition =
     { name : FullName
     , fields : List UnqualifiedTypeWithName
     }
+
+
+type alias EnumDefinition =
+    { name : FullName
+    , fields : List EnumField
+    }
+
+
+type alias EnumField =
+    { name : String, args : List FullName }
+add_arg_to_enum_field: EnumField -> FullName -> EnumField
+add_arg_to_enum_field ef fn = 
+    {ef | args = List.append ef.args [fn]}
 
 
 type Statement

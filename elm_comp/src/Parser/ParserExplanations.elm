@@ -2,12 +2,12 @@ module Parser.ParserExplanations exposing (..)
 
 import Html
 import Html.Attributes exposing (style)
-import Parser.AST as AST exposing (Expression(..), FullName, Identifier(..), Qualifier(..), make_qualified_typewithname, stringify_fullname)
-import Parser.Lexer as Lexer 
-import Pallete as Pallete 
-import Parser.ParserCommon as ParserCommon 
-import Util
 import Language
+import Pallete as Pallete
+import Parser.AST as AST exposing (Expression(..), FullName, Identifier(..), Qualifier(..), make_qualified_typewithname, stringify_fullname)
+import Parser.Lexer as Lexer
+import Parser.ParserCommon as ParserCommon
+import Util
 
 
 
@@ -27,8 +27,6 @@ syntaxify_type name =
     Html.span [ style "color" Pallete.blue ]
         [ Html.text (AST.stringify_fullname name)
         ]
-
-
 
 
 syntaxify_keyword : String -> Html.Html msg
@@ -130,9 +128,9 @@ syntaxify_expression expr =
 syntaxify_fheader : AST.FunctionHeader -> Html.Html msg
 syntaxify_fheader header =
     let
-
         pretty_arg_lst : List (Html.Html msg)
-        pretty_arg_lst = List.concat (List.intersperse [ Html.text ", " ] (List.map syntaxify_namedarg header.args))
+        pretty_arg_lst =
+            List.concat (List.intersperse [ Html.text ", " ] (List.map syntaxify_namedarg header.args))
 
         lis =
             List.concat [ [ Html.text "(" ], pretty_arg_lst, [ Html.text ")" ] ]
@@ -196,6 +194,7 @@ syntaxify_statement indentation_level s =
 
         AST.IfStatement expr block ->
             collapsing_block indentation_level (Html.span [] [ syntaxify_keyword "if ", syntaxify_expression expr ]) block
+
         AST.WhileStatement expr block ->
             collapsing_block indentation_level (Html.span [] [ syntaxify_keyword "while ", syntaxify_expression expr ]) block
 
@@ -232,9 +231,66 @@ syntaxify_program prog =
                 , prog.imports |> List.map (\name -> [ syntaxify_keyword "import ", syntaxify_string_literal name, Html.text "\n" ]) |> List.concat
                 , List.repeat 2 (Html.text "\n")
                 , prog.global_structs |> List.map (\s -> syntaxify_struct 0 s)
+                , prog.global_enums |> List.map (\e -> syntaxify_enum 0 e)
                 , prog.global_functions |> List.map (\f -> syntaxify_function 0 f) |> List.concat
                 ]
             )
+        ]
+
+
+syntaxify_enum_field : Int -> AST.EnumField -> Html.Html msg
+syntaxify_enum_field indents ef =
+    let
+        my_tabs =
+            tabs indents
+    in
+    if List.length ef.args == 0 then
+        Html.div [] [ my_tabs, symbol_highlight ef.name ]
+
+    else
+        Html.div []
+            [ my_tabs
+            , symbol_highlight ef.name
+            , Html.text "("
+            , Html.span [] (ef.args |> List.map syntaxify_fullname |> List.intersperse (Html.text ", "))
+            , Html.text ")"
+            ]
+
+
+syntaxify_enum : Int -> AST.EnumDefinition -> Html.Html msg
+syntaxify_enum indent enum =
+    let
+        indents =
+            tabs indent
+
+        fields =
+            enum.fields |> List.map (syntaxify_enum_field (indent + 1)) |> Html.div []
+    in
+    Html.div []
+        [ Html.details
+            [ style "background" Pallete.bg1
+            , style "width" "fit-content"
+            , style "padding-left" "0px"
+            , style "padding-right" "5px"
+            , style "border-radius" "10px"
+            , Html.Attributes.attribute "open" "true"
+            ]
+            [ collapsing_block_style
+            , Html.summary
+                [ style "border" "none"
+                , style "cursor" "pointer"
+                ]
+                [ indents
+                , syntaxify_keyword "enum "
+                , syntaxify_fullname enum.name
+                , Html.text " {\n"
+                ]
+            , fields
+
+            -- , indents
+            , Html.text "}\n"
+            ]
+        , Html.text "\n"
         ]
 
 
@@ -250,20 +306,21 @@ syntaxify_struct indent struct =
                 |> List.map syntaxify_namedarg
                 |> List.map (\f -> Html.span [] [ tabs (indent + 1), Html.span [] f, Html.text "\n" ])
                 |> Html.div []
-        indents = tabs indent
+
+        indents =
+            tabs indent
     in
-    Html.div [] [
-    Html.details
-    [ style "background" Pallete.bg1
-    , style "width" "fit-content"
-    , style "padding-left" "0px"
-    , style "padding-right" "5px"
-    , style "border-radius" "10px"
-    , Html.Attributes.attribute "open" "true"
-    ]
-    (List.concat
-        [ [ collapsing_block_style
-          , Html.summary
+    Html.div []
+        [ Html.details
+            [ style "background" Pallete.bg1
+            , style "width" "fit-content"
+            , style "padding-left" "0px"
+            , style "padding-right" "5px"
+            , style "border-radius" "10px"
+            , Html.Attributes.attribute "open" "true"
+            ]
+            [ collapsing_block_style
+            , Html.summary
                 [ style "border" "none"
                 , style "cursor" "pointer"
                 ]
@@ -272,13 +329,12 @@ syntaxify_struct indent struct =
                 , header
                 , Html.text " {\n"
                 ]
-          ]
-        , ([names])
-        , [ indents, Html.text "}\n" ]
+            , names
+            , indents
+            , Html.text "}\n"
+            ]
+        , Html.text "\n"
         ]
-    )
-    , Html.text "\n"
-    ]
 
 
 syntaxify_block : Int -> List AST.Statement -> Html.Html msg
@@ -388,6 +444,28 @@ explain_struct str =
         ]
 
 
+explain_enum_field : AST.EnumField -> Html.Html msg
+explain_enum_field field =
+    if List.length field.args > 0 then
+        Html.span []
+            [ Html.text field.name
+            , Html.text " with args "
+            , Html.ul []
+                (field.args |> List.map stringify_fullname |> List.map Html.text |> List.map (\s -> Html.li [] [ s ]))
+            ]
+    else 
+        Html.text field.name
+
+explain_enum : AST.EnumDefinition -> Html.Html msg
+explain_enum enum =
+    Html.span []
+        [ Html.text ("Enum with name " ++ stringify_fullname enum.name ++ " and fields")
+        , Html.ul
+            []
+            (enum.fields |> List.map explain_enum_field |> List.map (\el -> Html.li [] [ el ]))
+        ]
+
+
 explain_program : AST.Program -> Html.Html msg
 explain_program prog =
     let
@@ -424,12 +502,31 @@ explain_program prog =
                         prog.global_structs
                     )
                 )
+
+        enums =
+            Util.collapsable (Html.text "Global Enums")
+                (Html.ul []
+                    (List.map
+                        (\e ->
+                            Html.li []
+                                [ Util.collapsable
+                                    (Html.code []
+                                        [ Html.text (AST.stringify_fullname <| e.name)
+                                        ]
+                                    )
+                                    (explain_enum e)
+                                ]
+                        )
+                        prog.global_enums
+                    )
+                )
     in
     Html.div [ style "font-size" "14px" ]
         [ Html.h4 [] [ Html.text ("Module: " ++ Maybe.withDefault "[No name]" prog.module_name) ]
         , imports
         , funcs
         , structs
+        , enums
         ]
 
 
@@ -536,6 +633,12 @@ stringify_error e =
 
         ParserCommon.ExpectedNameForStruct loc ->
             "I expected a name for a structure here but all i got was\n" ++ Util.show_source_view loc
+
+        ParserCommon.UnknownTokenInEnumBody loc ->
+            "Unexpected token in enum body\n" ++ Util.show_source_view loc
+
+        ParserCommon.ExpectedCloseParenInEnumField loc ->
+            "I got to the end of the line without a ). Enum fields should look like `Field(Type1, Type2)`\n" ++ Util.show_source_view loc
 
 
 explain_expression : AST.Expression -> Html.Html msg

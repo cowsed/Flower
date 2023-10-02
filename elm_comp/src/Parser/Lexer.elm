@@ -447,6 +447,8 @@ is_keyword s =
 
         "if" ->
             Just Language.IfKeyword
+        "while" -> Just Language.WhileKeyword
+        "enum" -> Just Language.EnumKeyword
 
         _ ->
             Nothing
@@ -475,6 +477,11 @@ kwt_to_string kwt =
 
         Language.IfKeyword ->
             "if"
+        Language.WhileKeyword ->
+            "while"
+
+        Language.EnumKeyword ->
+            "enum"
 
 
 syntaxify_token : TokenType -> String

@@ -1,21 +1,18 @@
 module Main exposing (..)
 
--- import Element exposing (Element, el)
-
 import Browser
-import Compiler exposing (CompilerError(..), compile)
+import Compiler exposing (CompilerError(..), compile, explain_error)
 import Element exposing (Element, alignBottom, alignRight, el, fill)
 import Element.Background as Background
 import Element.Font as Font
 import Html exposing (..)
 import Html.Attributes exposing (style)
 import Pallete
+import Parser.AST as AST
+import Parser.ParserExplanations
 import Task
 import Time
 import Ui exposing (code_rep)
-import Compiler exposing (explain_error)
-import Parser.ParserExplanations
-import Parser.AST as AST 
 
 
 
@@ -33,7 +30,7 @@ import Parser.AST as AST
    - concept checking for types `T: UnsignedIneger`
    - ~~THERE IS A SYNTACTIC AMBIGUITY BETWEEN~~
     - ~~name1[name2](expr) - generic function call of name1 with generic args name2 with expr ~
-    - ~~name1[name2](expr) - array of functions lookup on name1 with index variable name2 then~~ 
+    - ~~name1[name2](expr) - array of functions lookup on name1 with index variable name2 then~~
    - array indexing
 -}
 
@@ -50,6 +47,13 @@ struct a{
 
 
 }
+enum Result[E, T]{
+    Err(E, T)
+    Res(T)
+
+}
+
+
 
 // adding 2 numbers
 fn add(a: u8, b: u8) -> u8{
@@ -77,7 +81,7 @@ htmlify_output res =
                 Html.div [] []
 
             Ok prog ->
-                Html.div [style "padding-left" "20px"] [Parser.ParserExplanations.explain_program prog]
+                Html.div [ style "padding-left" "20px" ] [ Parser.ParserExplanations.explain_program prog ]
         ]
 
 
@@ -132,8 +136,6 @@ make_output mod =
         ]
 
 
-
-
 view : Maybe Model -> Html.Html Msg
 view mmod =
     case mmod of
@@ -145,7 +147,6 @@ view mmod =
                 |> Element.layout
                     [ Background.color Pallete.bg_c
                     , Font.color Pallete.fg_c
-
                     , Element.clip
                     , Element.height Element.fill
                     , Element.width Element.fill

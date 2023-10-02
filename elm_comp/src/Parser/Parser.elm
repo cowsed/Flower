@@ -1,10 +1,10 @@
 module Parser.Parser exposing (..)
 
+import Language
 import Parser.AST as AST exposing (..)
 import Parser.ExpressionParser as ExpressionParser exposing (..)
 import Parser.Lexer as Lexer exposing (Token, TokenType(..))
 import Parser.ParserCommon as ParserCommon exposing (..)
-import Language
 import Result
 import Util
 
@@ -18,6 +18,7 @@ parse toks =
             , imports = []
             , global_functions = []
             , global_structs = []
+            , global_enums = []
             , needs_more = Just "Need at least a `module name` line"
             , src_tokens = toks
             }
@@ -79,6 +80,86 @@ parse_struct ps =
             Error (ExpectedNameForStruct ps.tok.loc)
 
 
+parse_enum_field_arg_list_close_or_continue : EnumField -> EnumDefinition -> ParseStep -> ParseRes
+parse_enum_field_arg_list_close_or_continue ef edef ps =
+    case ps.tok.typ of
+        CommaToken ->
+            parse_enum_field_arg_list ef edef |> ParseFn |> Next ps.prog
+
+        CloseParen ->
+            parse_enum_body { edef | fields = List.append edef.fields [ ef ] } |> ParseFn |> Next ps.prog
+        NewlineToken -> ExpectedCloseParenInEnumField ps.tok.loc |> Error
+
+        _ ->
+            UnknownTokenInEnumBody ps.tok.loc |> Error
+
+
+parse_enum_field_arg_list : EnumField -> EnumDefinition -> ParseStep -> ParseRes
+parse_enum_field_arg_list ef edef ps =
+    let
+        todo : NameWithSquareArgsTodo
+        todo res =
+            res
+                |> Result.mapError (\e -> Error e)
+                |> Result.andThen (\fn -> parse_enum_field_arg_list_close_or_continue (add_arg_to_enum_field ef fn) edef |> ParseFn |> Next ps.prog |> Ok)
+                |> escape_result
+    in
+    parse_full_name todo ps
+
+
+parse_enum_plain_symbol_or_more : String -> EnumDefinition -> ParseStep -> ParseRes
+parse_enum_plain_symbol_or_more s edef ps =
+    case ps.tok.typ of
+        NewlineToken ->
+            parse_enum_body { edef | fields = List.append edef.fields [ EnumField s [] ] } |> ParseFn |> Next ps.prog
+
+        OpenParen ->
+            parse_enum_field_arg_list (EnumField s []) edef |> ParseFn |> Next ps.prog
+
+        _ ->
+            UnknownTokenInEnumBody ps.tok.loc |> Error
+
+
+parse_enum_body : EnumDefinition -> ParseStep -> ParseRes
+parse_enum_body edef ps =
+    let
+        prog =
+            ps.prog
+    in
+    case ps.tok.typ of
+        Symbol s ->
+            parse_enum_plain_symbol_or_more s edef |> ParseFn |> Next ps.prog
+
+        CloseCurly ->
+            parse_outer_scope |> ParseFn |> Next { prog | global_enums = List.append prog.global_enums [ edef ] }
+
+        NewlineToken ->
+            parse_enum_body edef |> ParseFn |> Next ps.prog
+
+        _ ->
+            UnknownTokenInEnumBody ps.tok.loc |> Error
+
+
+parse_enum : ParseStep -> ParseRes
+parse_enum ps =
+    let
+        todo_with_full_name : NameWithSquareArgsTodo
+        todo_with_full_name res =
+            case res of
+                Err e ->
+                    Error e
+
+                Ok fn ->
+                    parse_enum_body (EnumDefinition fn [])
+                        |> ParseFn
+                        |> Next ps.prog
+                        |> parse_expected_token "Expected `{` to start an enum body" OpenCurly
+                        |> ParseFn
+                        |> Next ps.prog
+    in
+    parse_full_name todo_with_full_name ps
+
+
 parse_outer_scope : ParseStep -> ParseRes
 parse_outer_scope ps =
     case ps.tok.typ of
@@ -90,8 +171,11 @@ parse_outer_scope ps =
                 Language.StructKeyword ->
                     parse_struct |> ParseFn |> Next ps.prog
 
+                Language.EnumKeyword ->
+                    parse_enum |> ParseFn |> Next ps.prog
+
                 _ ->
-                    Error (Unimplemented ps.prog "Parsing outer non fn keywords")
+                    Error (Unimplemented ps.prog "Parsing other outer keywords")
 
         NewlineToken ->
             Next ps.prog (ParseFn parse_outer_scope)
@@ -334,6 +418,39 @@ escape_result res =
             v
 
 
+parse_while_statement : StatementParseTodo -> ParseStep -> ParseRes
+parse_while_statement what_todo_with_statement ps =
+    let
+        what_todo_after_block : Expression -> Result StatementParseError (List Statement) -> ParseRes
+        what_todo_after_block expr res =
+            case res of
+                Err e ->
+                    Error (FailedBlockParse e)
+
+                Ok block ->
+                    what_todo_with_statement (Ok (WhileStatement expr block))
+
+        what_todo_with_expr : ExprParseTodo
+        what_todo_with_expr res =
+            res
+                |> Result.mapError (\e -> Error (FailedExprParse e))
+                -- change err to ParseRes
+                |> Result.andThen
+                    (\expr ->
+                        Ok
+                            ((parse_block_statements [] (what_todo_after_block expr) |> ParseFn |> Next ps.prog)
+                                |> parse_expected_token "Expected a `{` to start the body of an if statement." OpenCurly
+                                |> ParseFn
+                                |> Next ps.prog
+                            )
+                    )
+                --
+                |> escape_result
+    in
+    parse_expr what_todo_with_expr ps
+
+
+
 parse_if_statement : StatementParseTodo -> ParseStep -> ParseRes
 parse_if_statement what_todo_with_statement ps =
     let
@@ -398,6 +515,8 @@ parse_block_statements statements todo_with_block ps =
 
                 Language.IfKeyword ->
                     parse_if_statement what_todo_with_statement |> ParseFn |> Next ps.prog
+                Language.WhileKeyword ->
+                    parse_while_statement what_todo_with_statement |> ParseFn |> Next ps.prog
 
                 _ ->
                     Error (KeywordNotAllowedHere ps.tok.loc)

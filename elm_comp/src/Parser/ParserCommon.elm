@@ -1,6 +1,6 @@
 module Parser.ParserCommon exposing (..)
 
-import Parser.AST as AST exposing (Expression(..), FunctionDefinition, Statement(..), FullName(..), Identifier(..), UnqualifiedTypeWithName)
+import Parser.AST as AST exposing (Expression(..), Statement(..), FullName(..), Identifier(..), UnqualifiedTypeWithName)
 import Parser.Lexer as Lexer exposing (Token, TokenType(..))
 import Util
 
@@ -49,6 +49,8 @@ type Error
     | ExpectedNameAfterDot Util.SourceView
     | UnexpectedTokenInGenArgList Util.SourceView
     | ExpectedNameForStruct Util.SourceView
+    | UnknownTokenInEnumBody Util.SourceView
+    | ExpectedCloseParenInEnumField Util.SourceView
 
 
 type StatementParseError

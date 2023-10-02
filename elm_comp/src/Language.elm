@@ -8,6 +8,8 @@ type KeywordType
     | VarKeyword
     | StructKeyword
     | IfKeyword
+    | WhileKeyword
+    | EnumKeyword
 
 
 
