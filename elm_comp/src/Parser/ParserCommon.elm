@@ -1,13 +1,8 @@
 module Parser.ParserCommon exposing (..)
 
-import Parser.AST as AST exposing (Expression(..), Statement(..), FullName(..), Identifier(..), UnqualifiedTypeWithName)
+import Parser.AST as AST exposing (Expression(..), FullName(..), Identifier(..), Statement(..), UnqualifiedTypeWithName)
 import Parser.Lexer as Lexer exposing (Token, TokenType(..))
-import Util
-
-
-
-
-
+import Util exposing (escape_result)
 
 
 type ParseFn
@@ -203,9 +198,20 @@ parse_fullname_gen_args_dot_or_end todo name_so_far ps =
 
 parse_full_name : NameWithSquareArgsTodo -> ParseStep -> ParseRes
 parse_full_name todo ps =
+    let
+        todo_if_ref : NameWithSquareArgsTodo
+        todo_if_ref res =
+            res
+                |> Result.mapError (\e -> Error e)
+                |> Result.andThen (\fn -> todo (ReferenceToFullName fn |> Ok) |> Ok)
+                |> escape_result
+    in
     case ps.tok.typ of
         Symbol s ->
             parse_fullname_gen_args_dot_or_end todo (AST.SingleIdentifier s) |> ParseFn |> Next ps.prog
+
+        ReferenceToken ->
+            parse_full_name todo_if_ref |> ParseFn |> Next ps.prog
 
         Lexer.Literal l s ->
             AST.Literal l s |> Ok |> todo

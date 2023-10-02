@@ -1,6 +1,6 @@
 module Parser.AST exposing (..)
 
-import Language exposing (InfixOpType(..), LiteralType(..))
+import Language exposing (InfixOpType(..), LiteralType(..), stringify_infix_op)
 import Parser.Lexer as Lexer
 
 
@@ -92,6 +92,7 @@ type FullName
     | NameLookupType { base : Identifier, args : List FullName }
     | ReferenceToFullName FullName
     | Literal Language.LiteralType String
+    | Constrained FullName Expression
 
 
 stringify_fullname : FullName -> String
@@ -112,6 +113,9 @@ stringify_fullname nwt =
         Literal _ s ->
             s
 
+        Constrained typ constraint ->
+            (stringify_fullname typ )++" | "++(stringify_expression constraint)
+
 
 append_fullname_args : FullName -> FullName -> FullName
 append_fullname_args me tn =
@@ -127,7 +131,8 @@ append_fullname_args me tn =
 
         Literal _ _ ->
             Debug.todo "IDK WHAT TO DO HERE"
-
+        Constrained _ _ ->
+            Debug.todo "IDK WHAT TO DO HERE"
 
 
 --
@@ -178,7 +183,7 @@ add_arg_to_enum_field ef fn =
 
 type Statement
     = CommentStatement String
-    | ReturnStatement Expression
+    | ReturnStatement (Maybe Expression)
     | InitilizationStatement QualifiedTypeWithName Expression
     | AssignmentStatement Identifier Expression
     | FunctionCallStatement FunctionCall
@@ -208,3 +213,22 @@ stringify_identifier n =
 
         QualifiedIdentifiers l ->
             String.join "." l
+
+stringify_expression : Expression -> String
+stringify_expression expr =
+    case expr of
+        NameLookup n ->
+            stringify_fullname n
+
+        FunctionCallExpr fc ->
+            stringify_fullname fc.fname ++ "(" ++ (fc.args |> List.map stringify_expression |> String.join ", ") ++ ")"
+
+        LiteralExpr _ s ->
+            s
+
+        Parenthesized e ->
+            stringify_expression e
+
+        InfixExpr lhs rhs op ->
+            stringify_expression lhs ++ stringify_infix_op op ++ stringify_expression rhs
+

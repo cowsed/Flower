@@ -6,7 +6,7 @@ import Parser.ExpressionParser as ExpressionParser exposing (..)
 import Parser.Lexer as Lexer exposing (Token, TokenType(..))
 import Parser.ParserCommon as ParserCommon exposing (..)
 import Result
-import Util
+import Util exposing (escape_result)
 
 
 parse : List Lexer.Token -> Result Error AST.Program
@@ -24,6 +24,37 @@ parse toks =
             }
     in
     parse_find_module_kw |> ParseFn |> rec_parse toks base_program
+
+
+parse_possibly_constrained_fullname_after_type : NameWithSquareArgsTodo -> FullName -> ParseStep -> ParseRes
+parse_possibly_constrained_fullname_after_type todo fn ps =
+    let
+        todo_with_constraint : ExprParseTodo
+        todo_with_constraint res =
+            res
+                |> Result.mapError (\e -> FailedExprParse e |> Error)
+                |> Result.andThen (\expr -> todo (Constrained fn expr |> Ok) |> Ok)
+                |> escape_result
+    in
+    case Debug.log "possibly" ps.tok.typ of
+        WhereToken ->
+            parse_expr todo_with_constraint |> ParseFn |> Next ps.prog
+
+        _ ->
+            reapply_token_or_fail (todo (Ok fn)) ps
+
+
+parse_possibly_constrained_fullname : NameWithSquareArgsTodo -> ParseStep -> ParseRes
+parse_possibly_constrained_fullname todo_after ps =
+    let
+        todo : NameWithSquareArgsTodo
+        todo res =
+            res
+                |> Result.mapError (\e -> Error e)
+                |> Result.andThen (\fname -> parse_possibly_constrained_fullname_after_type todo_after fname |> ParseFn |> Next ps.prog |> Ok)
+                |> escape_result
+    in
+    parse_full_name todo ps
 
 
 parse_struct_fields : AST.FullName -> List AST.UnqualifiedTypeWithName -> ParseStep -> ParseRes
@@ -88,7 +119,9 @@ parse_enum_field_arg_list_close_or_continue ef edef ps =
 
         CloseParen ->
             parse_enum_body { edef | fields = List.append edef.fields [ ef ] } |> ParseFn |> Next ps.prog
-        NewlineToken -> ExpectedCloseParenInEnumField ps.tok.loc |> Error
+
+        NewlineToken ->
+            ExpectedCloseParenInEnumField ps.tok.loc |> Error
 
         _ ->
             UnknownTokenInEnumBody ps.tok.loc |> Error
@@ -232,8 +265,7 @@ parse_named_type_type valname todo ps =
                 Ok t ->
                     UnqualifiedTypeWithName (AST.SingleIdentifier valname) t |> Ok |> todo
     in
-    -- parse the Type of `name: Type`
-    parse_typename todo_with_type ps
+    parse_possibly_constrained_fullname todo_with_type ps
 
 
 
@@ -309,12 +341,16 @@ parse_global_fn_return_statement todo ps =
                     Error (FailedExprParse e)
 
                 Ok expr ->
-                    todo (Ok (ReturnStatement expr))
+                    todo (Ok (ReturnStatement (Just expr)))
                         |> parse_expected_token ("Expected newline after end of this return expression. Hint: I think im returning `" ++ stringify_expression expr ++ "`") NewlineToken
                         |> ParseFn
                         |> Next ps.prog
     in
-    reapply_token (ParseFn (parse_expr what_to_do_with_expr)) ps
+    case ps.tok.typ of
+        NewlineToken -> todo (ReturnStatement Nothing |> Ok)
+        CommentToken _ -> todo (ReturnStatement Nothing |> Ok)
+        _ ->
+            reapply_token (ParseFn (parse_expr what_to_do_with_expr)) ps
 
 
 parse_initilization_statement : StatementParseTodo -> Qualifier -> UnqualifiedTypeWithName -> ParseStep -> ParseRes
@@ -408,16 +444,6 @@ parse_statement_assignment_or_fn_call name statement_todo ps =
             Error (UnknownThingWhileParsingFuncCallOrAssignment ps.tok.loc)
 
 
-escape_result : Result er er -> er
-escape_result res =
-    case res of
-        Err e ->
-            e
-
-        Ok v ->
-            v
-
-
 parse_while_statement : StatementParseTodo -> ParseStep -> ParseRes
 parse_while_statement what_todo_with_statement ps =
     let
@@ -448,7 +474,6 @@ parse_while_statement what_todo_with_statement ps =
                 |> escape_result
     in
     parse_expr what_todo_with_expr ps
-
 
 
 parse_if_statement : StatementParseTodo -> ParseStep -> ParseRes
@@ -515,6 +540,7 @@ parse_block_statements statements todo_with_block ps =
 
                 Language.IfKeyword ->
                     parse_if_statement what_todo_with_statement |> ParseFn |> Next ps.prog
+
                 Language.WhileKeyword ->
                     parse_while_statement what_todo_with_statement |> ParseFn |> Next ps.prog
 

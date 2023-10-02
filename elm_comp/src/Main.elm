@@ -23,10 +23,12 @@ import Ui exposing (code_rep)
    - ~~fullnames std.print(std.time)~~
    - ~~a: Type = 123123213123 is a const thing~~
    - ~~module.thing.name for types everywhere not just expressons~~
-   - struct parsing
-   - enum parsing
+   - ~~struct parsing~~
+   - ~~enum parsing~~
    - ~~reference type parsing~~
-   - while and for loops
+   - ~~while loops~~
+   - ~~constrained types~~
+   - for loops
    - concept checking for types `T: UnsignedIneger`
    - ~~THERE IS A SYNTACTIC AMBIGUITY BETWEEN~~
     - ~~name1[name2](expr) - generic function call of name1 with generic args name2 with expr ~
@@ -53,16 +55,18 @@ enum Result[E, T]{
 
 }
 
-
+fn sqrt(v: f64 | v >= 0) -> f64{
+    return v/2
+}
 
 // adding 2 numbers
-fn add(a: u8, b: u8) -> u8{
-    var c: u8 = a
-    if a {
-        return a
-    }
-    return c
+fn add(args: std.pair[u8] | wont_overflow[u8](args.a, args.b)) -> u8{
+    return a+b
 }
+fn add(args: std.pair[u8]) -> u16{
+    return a+b
+}
+
 
 fn main() -> u8{
     a: u8 = 1

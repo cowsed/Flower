@@ -18,15 +18,8 @@ syntaxify_namedarg : AST.QualifiedTypeWithName -> List (Html.Html msg)
 syntaxify_namedarg na =
     [ symbol_highlight (AST.stringify_identifier na.name)
     , Html.text ": "
-    , Html.span [] [ syntaxify_type na.typename ]
+    , Html.span [] [ syntaxify_fullname na.typename ]
     ]
-
-
-syntaxify_type : AST.FullName -> Html.Html msg
-syntaxify_type name =
-    Html.span [ style "color" Pallete.blue ]
-        [ Html.text (AST.stringify_fullname name)
-        ]
 
 
 syntaxify_keyword : String -> Html.Html msg
@@ -56,7 +49,7 @@ syntaxify_identifier id =
             symbol_highlight s
 
         QualifiedIdentifiers ls ->
-            ls |> List.map symbol_highlight |> List.intersperse (Html.text ", ") |> Html.span []
+            ls |> List.map symbol_highlight |> List.intersperse (Html.text ".") |> Html.span []
 
 
 syntaxify_literal : Language.LiteralType -> String -> Html.Html msg
@@ -92,6 +85,9 @@ syntaxify_fullname fn =
         AST.ReferenceToFullName fn2 ->
             Html.span [] [ Html.text "&", syntaxify_fullname fn2 ]
 
+        AST.Constrained name constraint ->
+            Html.span [] [ syntaxify_fullname name, Html.text " | ", syntaxify_expression constraint ]
+
 
 syntaxify_expression : AST.Expression -> Html.Html msg
 syntaxify_expression expr =
@@ -101,7 +97,7 @@ syntaxify_expression expr =
 
         AST.FunctionCallExpr fcall ->
             Html.span []
-                [ symbol_highlight (AST.stringify_fullname fcall.fname)
+                [ syntaxify_fullname fcall.fname
                 , Html.text "("
                 , Html.span [] (fcall.args |> List.map (\arg -> syntaxify_expression arg) |> List.intersperse (Html.text ", "))
                 , Html.text ")"
@@ -122,7 +118,7 @@ syntaxify_expression expr =
                     Html.span [] [ syntaxify_number_literal s ]
 
         AST.InfixExpr lhs rhs op ->
-            Html.span [] [ syntaxify_expression lhs, Html.text (Language.stringify_infix_op op), syntaxify_expression rhs ]
+            Html.span [] [ syntaxify_expression lhs, Html.text (" " ++ Language.stringify_infix_op op ++ " "), syntaxify_expression rhs ]
 
 
 syntaxify_fheader : AST.FunctionHeader -> Html.Html msg
@@ -140,7 +136,7 @@ syntaxify_fheader header =
             Html.span []
                 (case header.return_type of
                     Just typ ->
-                        [ Html.span [] [ Html.text " 🡒 ", Html.span [] [ syntaxify_type typ ] ] ]
+                        [ Html.span [] [ Html.text " 🡒 ", Html.span [] [ syntaxify_fullname typ ] ] ]
 
                     Nothing ->
                         [ Html.text " " ]
@@ -160,7 +156,12 @@ syntaxify_statement indentation_level s =
             Html.span []
                 [ tabs indentation_level
                 , syntaxify_keyword "return "
-                , syntaxify_expression expr
+                , case expr of
+                    Just e ->
+                        syntaxify_expression e
+
+                    Nothing ->
+                        Html.text ""
                 , Html.text "\n"
                 ]
 
@@ -453,8 +454,10 @@ explain_enum_field field =
             , Html.ul []
                 (field.args |> List.map stringify_fullname |> List.map Html.text |> List.map (\s -> Html.li [] [ s ]))
             ]
-    else 
+
+    else
         Html.text field.name
+
 
 explain_enum : AST.EnumDefinition -> Html.Html msg
 explain_enum enum =
@@ -677,7 +680,10 @@ explain_statement : AST.Statement -> Html.Html msg
 explain_statement s =
     case s of
         AST.ReturnStatement expr ->
-            Html.span [] [ Html.text "return: ", explain_expression expr ]
+            Html.span [] [ Html.text "return: ", case expr of 
+                Just e -> explain_expression e
+                Nothing -> Html.text "Nothing"    
+            ]
 
         AST.CommentStatement src ->
             Html.span [] [ Html.text "// ", Html.text src ]

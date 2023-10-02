@@ -2,8 +2,8 @@ module Parser.Lexer exposing (..)
 
 import Html exposing (pre, text)
 import Html.Attributes exposing (style)
-import Pallete
 import Language
+import Pallete
 import Util
 
 
@@ -41,6 +41,7 @@ type TokenType
     | CloseParen
     | OpenSquare
     | CloseSquare
+    | WhereToken -- |
     | CommentToken String
 
 
@@ -93,7 +94,9 @@ infix_op_from_token tok =
 
         EqualityToken ->
             Just Language.Equality
-        NotEqualToken -> Just Language.NotEqualTo
+
+        NotEqualToken ->
+            Just Language.NotEqualTo
 
         _ ->
             Nothing
@@ -384,7 +387,8 @@ lex_unknown lsi =
         lex_this_or_equal_to NotEqualToken NotToken lsi.pos |> LexFn |> Tokens []
 
     else if c == '&' then
-        Tokens [Token lsi.view_this ReferenceToken] begin_lex
+        Tokens [ Token lsi.view_this ReferenceToken ] begin_lex
+
     else if c == '<' then
         lex_this_or_equal_to LessThanEqualToken LessThanToken lsi.pos |> LexFn |> Tokens []
 
@@ -402,6 +406,8 @@ lex_unknown lsi =
 
     else if c == '/' then
         Tokens [] (LexFn lex_divide_or_comment)
+    else if c =='|' then   
+        Tokens [Token lsi.view_this WhereToken] begin_lex
 
     else
         Error (UnknownCharacter (lsi.input_view lsi.pos (lsi.pos + 1)) c)
@@ -447,8 +453,12 @@ is_keyword s =
 
         "if" ->
             Just Language.IfKeyword
-        "while" -> Just Language.WhileKeyword
-        "enum" -> Just Language.EnumKeyword
+
+        "while" ->
+            Just Language.WhileKeyword
+
+        "enum" ->
+            Just Language.EnumKeyword
 
         _ ->
             Nothing
@@ -477,6 +487,7 @@ kwt_to_string kwt =
 
         Language.IfKeyword ->
             "if"
+
         Language.WhileKeyword ->
             "while"
 
@@ -570,6 +581,9 @@ syntaxify_token tok =
 
         ReferenceToken ->
             "&"
+
+        WhereToken ->
+            "|"
 
 
 token_to_str : Token -> String
@@ -671,5 +685,7 @@ token_to_str tok =
             "[ ! ]"
 
         ReferenceToken ->
-            
             "[ & ] "
+
+        WhereToken ->
+            "[ | ]"

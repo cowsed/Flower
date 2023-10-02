@@ -5,24 +5,6 @@ import Parser.Lexer as Lexer exposing (TokenType(..), infix_op_from_token)
 import Parser.ParserCommon as ParserCommon exposing (..)
 import Language exposing (stringify_infix_op, precedence)
 
-stringify_expression : Expression -> String
-stringify_expression expr =
-    case expr of
-        NameLookup n ->
-            stringify_fullname n
-
-        FunctionCallExpr fc ->
-            stringify_fullname fc.fname ++ "(" ++ (fc.args |> List.map stringify_expression |> String.join ", ") ++ ")"
-
-        LiteralExpr _ s ->
-            s
-
-        Parenthesized e ->
-            stringify_expression e
-
-        InfixExpr lhs rhs op ->
-            stringify_expression lhs ++ stringify_infix_op op ++ stringify_expression rhs
-
 
 parse_expr_check_for_infix : Expression -> ExprParseTodo -> ParseStep -> ParseRes
 parse_expr_check_for_infix lhs outer_todo ps =
