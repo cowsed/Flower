@@ -18,7 +18,7 @@ explain_error ae =
 
             UnknownImport s loc ->
                 Html.text ("I don't know of an import by the name `" ++ s ++ "`. \n" ++ Util.show_source_view loc)
-
+            Unimplemented why -> Html.text ("Unimplemented: "++why)
             Multiple l ->
                 l |> List.map explain_error |> Html.div []
         ]
@@ -59,6 +59,16 @@ explain_type t =
 
         FunctionType f ->
             Html.span [] [ Html.text "fn", explain_fheader f ]
+
+        GenericInstantiation id args ->
+            Html.span []
+                [ Html.text ("generic instantiation of "++(stringify_identifier id)++"with args")
+                , Html.ul []
+                    (args
+                        |> List.map explain_type
+                        |> List.map (\e -> Html.li [] [ e ])
+                    )
+                ]
 
 
 explain_fheader : FunctionHeader -> Html.Html msg

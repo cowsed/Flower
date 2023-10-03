@@ -38,6 +38,7 @@ type Type
     | FloatingPointType FloatingPointSize
     | StringType
     | FunctionType FunctionHeader
+    | GenericInstantiation Identifier (List Type)
 
 
 type alias FunctionHeader =

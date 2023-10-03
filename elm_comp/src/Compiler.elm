@@ -1,6 +1,6 @@
 module Compiler exposing (..)
 
-import Analysis.Analyzer exposing (AnalysisError, GoodProgram, analyze)
+import Analysis.Analyzer exposing (AnalysisError, GoodProgram)
 import Analysis.Explanations
 import Html
 import Parser.AST as AST

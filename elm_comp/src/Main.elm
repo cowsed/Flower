@@ -15,6 +15,7 @@ import Parser.ParserExplanations
 import Task
 import Time
 import Ui exposing (code_rep)
+import Analysis.Serialization
 
 
 
@@ -87,7 +88,7 @@ make_output mod =
     let
         title_bar =
             Element.row
-                [ Font.size 30
+                [ Font.size (Debug.log (Analysis.Serialization.run_test) 30)
                 , Element.width fill
                 , Background.color Pallete.bg1_c
                 , Element.paddingXY 10 6

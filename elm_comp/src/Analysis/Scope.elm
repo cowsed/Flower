@@ -2,7 +2,10 @@ module Analysis.Scope exposing (..)
 
 import Language
 
-
+-- Scope that only has 
+--   names and types of values
+--   Type definitions
+-- Does not have the actual definitions of the values
 type alias OverviewScope =
     { values : List Language.ValueNameAndType
     , types : List Language.Type

@@ -1,8 +1,10 @@
 module Analysis.Analyzer exposing (..)
 
+import Analysis.BuiltinScopes as BuiltinScopes
 import Analysis.Scope as Scope
-import Language exposing (Identifier(..), LiteralType(..), Type(..), ValueNameAndType, builtin_types)
+import Language exposing (Identifier(..), LiteralType(..), Type(..), builtin_types)
 import Parser.AST as AST
+import Parser.ParserCommon exposing (Error(..))
 import Util
 
 
@@ -24,21 +26,6 @@ analyze prog =
 
 
 -- mocked imports until weve got a package manager
-
-
-std_puts_v : ValueNameAndType
-std_puts_v =
-    ValueNameAndType (Language.SingleIdentifier "puts") (Language.FunctionType { args = [ Language.StringType ], rtype = Nothing })
-
-
-std_scope : Scope.OverviewScope
-std_scope =
-    Scope.OverviewScope [ std_puts_v ] [] |> Scope.qualify_all "std"
-
-
-math_scope : Scope.OverviewScope
-math_scope =
-    Scope.OverviewScope [ ValueNameAndType (SingleIdentifier "Pi") (Language.FloatingPointType Language.F64) ] []  |> Scope.qualify_all "math"
 
 
 merge_scopes : List (Result AnalysisError Scope.OverviewScope) -> Result AnalysisError Scope.OverviewScope
@@ -69,26 +56,45 @@ merge_scopes scopes =
 make_outer_scope : AST.Program -> Result AnalysisError Scope.OverviewScope
 make_outer_scope prog =
     let
-        init_scope : Scope.OverviewScope
-        init_scope =
+        builtin_scope : Scope.OverviewScope
+        builtin_scope =
             { values = [], types = builtin_types }
+
+        imported_scopes =
+            import_scopes prog.imports
+
+        global_scope =
+            scope_from_typedefs prog.global_typedefs
     in
-    Ok init_scope
-        |> Result.andThen
-            (\s ->
-                import_scopes prog.imports
-                    |> Result.andThen (\s2 -> Scope.merge_2_scopes s s2 |> Ok)
-            )
+    merge_scopes [ Ok builtin_scope, imported_scopes, global_scope ]
+
+
+scope_from_typedef : AST.TypeDefinitionType -> Result AnalysisError Scope.OverviewScope
+scope_from_typedef t =
+    case t of
+        AST.StructDefType s ->
+            Unimplemented "scope from struct def" |> Err
+
+        AST.EnumDefType edef ->
+            Unimplemented "scope from enum def" |> Err
+
+        AST.AliasDefType adef ->
+            Unimplemented "scope from alias def" |> Err
+
+
+scope_from_typedefs : List AST.TypeDefinitionType -> Result AnalysisError Scope.OverviewScope
+scope_from_typedefs l =
+    l |> List.map scope_from_typedef |> merge_scopes
 
 
 import_scope : AST.ImportAndLocation -> Result AnalysisError Scope.OverviewScope
 import_scope im =
     case im.thing of
         "std" ->
-            std_scope |> Ok
+            BuiltinScopes.std_scope |> Ok
 
         "math" ->
-            math_scope |> Ok
+            BuiltinScopes.math_scope |> Ok
 
         _ ->
             Err (UnknownImport im.thing im.loc)
@@ -102,4 +108,5 @@ import_scopes strs =
 type AnalysisError
     = UnknownImport String Util.SourceView
     | NoModuleName
+    | Unimplemented String
     | Multiple (List AnalysisError)
