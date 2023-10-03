@@ -6,6 +6,16 @@ type Identifier
     | QualifiedIdentifiers (List String) -- name.b.c
 
 
+prepend_identifier : String -> Identifier -> Identifier
+prepend_identifier s i =
+    case i of
+        SingleIdentifier n ->
+            QualifiedIdentifiers [ s, n ]
+
+        QualifiedIdentifiers l ->
+            QualifiedIdentifiers (s :: l)
+
+
 stringify_identifier : Identifier -> String
 stringify_identifier n =
     case n of
@@ -27,6 +37,11 @@ type Type
     | IntegerType IntegerSize
     | FloatingPointType FloatingPointSize
     | StringType
+    | FunctionType FunctionHeader
+
+
+type alias FunctionHeader =
+    { args : List Type, rtype : Maybe Type }
 
 
 
@@ -38,6 +53,11 @@ type alias ValueNameAndType =
     { name : Identifier
     , typ : Type
     }
+
+
+qualify_vnt_name : String -> ValueNameAndType -> ValueNameAndType
+qualify_vnt_name s vnt =
+    { vnt | name = prepend_identifier s vnt.name }
 
 
 type alias StructDefinition =
