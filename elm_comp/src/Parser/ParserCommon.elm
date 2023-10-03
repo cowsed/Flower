@@ -19,7 +19,10 @@ type alias ParseStep =
 type ParseRes
     = Error Error
     | Next AST.Program ParseFn
+    | NextNoChange ParseFn
 
+next_pfn: (ParseStep -> ParseRes) ->  ParseRes
+next_pfn  f= f |> ParseFn |> NextNoChange
 
 type Error
     = NoModuleNameGiven
@@ -101,6 +104,7 @@ type alias FuncCallExprTodo =
 reapply_token_or_fail : ParseRes -> ParseStep -> ParseRes
 reapply_token_or_fail res ps =
     case res of
+        NextNoChange fn -> extract_fn fn ps
         Next prog fn ->
             extract_fn fn { ps | prog = prog }
 

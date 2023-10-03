@@ -1,14 +1,13 @@
 module Parser.Parser exposing (..)
 
 import Language exposing (Identifier(..))
+import Language.Syntax exposing (KeywordType(..))
 import Parser.AST as AST exposing (..)
 import Parser.ExpressionParser as ExpressionParser exposing (..)
 import Parser.Lexer as Lexer exposing (Token, TokenType(..))
 import Parser.ParserCommon exposing (..)
 import Result
 import Util exposing (escape_result)
-import Language.Syntax exposing (KeywordType(..))
-
 
 
 parse : List Lexer.Token -> Result Error AST.Program
@@ -39,7 +38,7 @@ parse_possibly_constrained_fullname_after_type todo fn ps =
     in
     case ps.tok.typ of
         WhereToken ->
-            parse_expr todo_with_constraint |> ParseFn |> Next ps.prog
+            parse_expr todo_with_constraint |> next_pfn
 
         _ ->
             reapply_token_or_fail (todo (Ok fn)) ps
@@ -52,7 +51,7 @@ parse_possibly_constrained_fullname todo_after ps =
         todo res =
             res
                 |> Result.mapError (\e -> Error e)
-                |> Result.andThen (\fname -> parse_possibly_constrained_fullname_after_type todo_after fname |> ParseFn |> Next ps.prog |> Ok)
+                |> Result.andThen (\fname -> parse_possibly_constrained_fullname_after_type todo_after fname |> next_pfn |> Ok)
                 |> escape_result
     in
     parse_full_name todo ps
@@ -74,14 +73,14 @@ parse_struct_fields name list ps =
                     FailedNamedTypeParse e |> Error
 
                 Ok nt ->
-                    parse_struct_fields name (List.append list [ nt ]) |> ParseFn |> Next ps.prog
+                    parse_struct_fields name (List.append list [ nt ]) |> next_pfn
     in
     case ps.tok.typ of
         CloseCurly ->
             parse_outer_scope |> ParseFn |> Next { prog | global_typedefs = List.append prog.global_typedefs [ StructDefType me_as_struct ] }
 
         NewlineToken ->
-            parse_struct_fields name list |> ParseFn |> Next ps.prog
+            parse_struct_fields name list |> next_pfn
 
         _ ->
             parse_named_type todo ps
@@ -116,10 +115,10 @@ parse_enum_field_arg_list_close_or_continue : EnumField -> EnumDefinition -> Par
 parse_enum_field_arg_list_close_or_continue ef edef ps =
     case ps.tok.typ of
         CommaToken ->
-            parse_enum_field_arg_list ef edef |> ParseFn |> Next ps.prog
+            parse_enum_field_arg_list ef edef |> next_pfn
 
         CloseParen ->
-            parse_enum_body { edef | fields = List.append edef.fields [ ef ] } |> ParseFn |> Next ps.prog
+            parse_enum_body { edef | fields = List.append edef.fields [ ef ] } |> next_pfn
 
         NewlineToken ->
             ExpectedCloseParenInEnumField ps.tok.loc |> Error
@@ -135,7 +134,7 @@ parse_enum_field_arg_list ef edef ps =
         todo res =
             res
                 |> Result.mapError (\e -> Error e)
-                |> Result.andThen (\fn -> parse_enum_field_arg_list_close_or_continue (add_arg_to_enum_field ef fn) edef |> ParseFn |> Next ps.prog |> Ok)
+                |> Result.andThen (\fn -> parse_enum_field_arg_list_close_or_continue (add_arg_to_enum_field ef fn) edef |> next_pfn |> Ok)
                 |> escape_result
     in
     parse_full_name todo ps
@@ -145,10 +144,10 @@ parse_enum_plain_symbol_or_more : String -> EnumDefinition -> ParseStep -> Parse
 parse_enum_plain_symbol_or_more s edef ps =
     case ps.tok.typ of
         NewlineToken ->
-            parse_enum_body { edef | fields = List.append edef.fields [ EnumField s [] ] } |> ParseFn |> Next ps.prog
+            parse_enum_body { edef | fields = List.append edef.fields [ EnumField s [] ] } |> next_pfn
 
         OpenParen ->
-            parse_enum_field_arg_list (EnumField s []) edef |> ParseFn |> Next ps.prog
+            parse_enum_field_arg_list (EnumField s []) edef |> next_pfn
 
         _ ->
             UnknownTokenInEnumBody ps.tok.loc |> Error
@@ -162,13 +161,13 @@ parse_enum_body edef ps =
     in
     case ps.tok.typ of
         Symbol s ->
-            parse_enum_plain_symbol_or_more s edef |> ParseFn |> Next ps.prog
+            parse_enum_plain_symbol_or_more s edef |> next_pfn
 
         CloseCurly ->
             parse_outer_scope |> ParseFn |> Next { prog | global_typedefs = List.append prog.global_typedefs [ EnumDefType edef ] }
 
         NewlineToken ->
-            parse_enum_body edef |> ParseFn |> Next ps.prog
+            parse_enum_body edef |> next_pfn
 
         _ ->
             UnknownTokenInEnumBody ps.tok.loc |> Error
@@ -214,7 +213,7 @@ parse_type_declaration_body fname ps =
         after_fn2 res =
             res
                 |> Result.mapError (\e -> Error e)
-                |> Result.andThen (\fn -> parse_type_declaration_after_first_name fname fn |> ParseFn |> Next ps.prog |> Ok)
+                |> Result.andThen (\fn -> parse_type_declaration_after_first_name fname fn |> next_pfn |> Ok)
                 |> escape_result
     in
     parse_possibly_constrained_fullname after_fn2 ps
@@ -227,7 +226,7 @@ parse_type_declaration ps =
         parse_equal fname pes =
             case pes.tok.typ of
                 AssignmentToken ->
-                    parse_type_declaration_body fname |> ParseFn |> Next ps.prog
+                    parse_type_declaration_body fname |> next_pfn
 
                 _ ->
                     ExpectedEqualInTypeDeclaration pes.tok.loc |> Error
@@ -236,7 +235,7 @@ parse_type_declaration ps =
         todo_with_full_name res =
             res
                 |> Result.mapError (\e -> Error e)
-                |> Result.andThen (\fn -> parse_equal fn |> ParseFn |> Next ps.prog |> Ok)
+                |> Result.andThen (\fn -> parse_equal fn |> next_pfn |> Ok)
                 |> escape_result
     in
     parse_full_name todo_with_full_name ps
@@ -251,13 +250,13 @@ parse_outer_scope ps =
                     Next ps.prog (ParseFn parse_global_fn)
 
                 Language.Syntax.StructKeyword ->
-                    parse_struct |> ParseFn |> Next ps.prog
+                    parse_struct |> next_pfn
 
                 Language.Syntax.EnumKeyword ->
-                    parse_enum |> ParseFn |> Next ps.prog
+                    parse_enum |> next_pfn
 
                 Language.Syntax.TypeKeyword ->
-                    parse_type_declaration |> ParseFn |> Next ps.prog
+                    parse_type_declaration |> next_pfn
 
                 _ ->
                     Error (Unimplemented ps.prog "Parsing other outer keywords")
@@ -299,7 +298,7 @@ parse_typename todo ps =
     in
     case ps.tok.typ of
         ReferenceToken ->
-            parse_typename todo_with_type_and_args_ref |> ParseFn |> Next ps.prog
+            parse_typename todo_with_type_and_args_ref |> next_pfn
 
         _ ->
             parse_full_name todo_with_type_and_args ps
@@ -331,7 +330,7 @@ parse_named_type_type valname todo ps =
 parse_consume_this : TokenType -> ParseFn -> ParseStep -> ParseRes
 parse_consume_this what todo ps =
     if ps.tok.typ == what then
-        parse_consume_this what todo |> ParseFn |> Next ps.prog
+        parse_consume_this what todo |> next_pfn
 
     else
         extract_fn todo ps
@@ -346,7 +345,7 @@ parse_named_type todo ps =
     in
     case ps.tok.typ of
         Symbol valname ->
-            parse_expected_token "Expected `:` to split betweem value name and type" Lexer.TypeSpecifier (after_colon valname |> Next ps.prog) |> ParseFn |> Next ps.prog
+            parse_expected_token "Expected `:` to split betweem value name and type" Lexer.TypeSpecifier (after_colon valname |> Next ps.prog) |> next_pfn
 
         _ ->
             Error (ExpectedToken "expected a symbol name like `a` or `name` for something like `a: Type`" ps.tok.loc)
@@ -479,11 +478,11 @@ parse_statement_assignment_or_fn_call name statement_todo ps =
                     Error e
 
                 Ok t ->
-                    parse_initilization_statement statement_todo Constant (UnqualifiedTypeWithName name t) |> ParseFn |> Next ps.prog
+                    parse_initilization_statement statement_todo Constant (UnqualifiedTypeWithName name t) |> next_pfn
     in
     case ps.tok.typ of
         DotToken ->
-            parse_global_fn_assignment_or_fn_call_qualified_name name statement_todo |> ParseFn |> Next ps.prog
+            parse_global_fn_assignment_or_fn_call_qualified_name name statement_todo |> next_pfn
 
         OpenParen ->
             parse_global_fn_fn_call_args todo_with_funccall (AST.FunctionCall (NameWithoutArgs name) []) statement_todo
@@ -491,10 +490,10 @@ parse_statement_assignment_or_fn_call name statement_todo ps =
                 |> Next ps.prog
 
         TypeSpecifier ->
-            parse_typename what_todo_with_type |> ParseFn |> Next ps.prog
+            parse_typename what_todo_with_type |> next_pfn
 
         AssignmentToken ->
-            parse_global_fn_assignment name statement_todo |> ParseFn |> Next ps.prog
+            parse_global_fn_assignment name statement_todo |> next_pfn
 
         _ ->
             Error (UnknownThingWhileParsingFuncCallOrAssignment ps.tok.loc)
@@ -520,7 +519,7 @@ parse_while_statement what_todo_with_statement ps =
                 |> Result.andThen
                     (\expr ->
                         Ok
-                            ((parse_block_statements [] (what_todo_after_block expr) |> ParseFn |> Next ps.prog)
+                            ((parse_block_statements [] (what_todo_after_block expr) |> next_pfn)
                                 |> parse_expected_token "Expected a `{` to start the body of an if statement." OpenCurly
                                 |> ParseFn
                                 |> Next ps.prog
@@ -552,7 +551,7 @@ parse_if_statement what_todo_with_statement ps =
                 |> Result.andThen
                     (\expr ->
                         Ok
-                            ((parse_block_statements [] (what_todo_after_block expr) |> ParseFn |> Next ps.prog)
+                            ((parse_block_statements [] (what_todo_after_block expr) |> next_pfn)
                                 |> parse_expected_token "Expected a `{` to start the body of an if statement." OpenCurly
                                 |> ParseFn
                                 |> Next ps.prog
@@ -574,13 +573,13 @@ parse_block_statements statements todo_with_block ps =
                     Error (FailedBlockParse e)
 
                 Ok s ->
-                    parse_block_statements (List.append statements [ s ]) todo_with_block |> ParseFn |> Next ps.prog
+                    parse_block_statements (List.append statements [ s ]) todo_with_block |> next_pfn
 
         todo_if_var : NamedTypeParseTodo
         todo_if_var res =
             case res of
                 Ok nt ->
-                    parse_initilization_statement what_todo_with_statement Variable nt |> ParseFn |> Next ps.prog
+                    parse_initilization_statement what_todo_with_statement Variable nt |> next_pfn
 
                 Err e ->
                     Error (FailedNamedTypeParse e)
@@ -589,31 +588,31 @@ parse_block_statements statements todo_with_block ps =
         Keyword kwt ->
             case kwt of
                 Language.Syntax.ReturnKeyword ->
-                    parse_global_fn_return_statement what_todo_with_statement |> ParseFn |> Next ps.prog
+                    parse_global_fn_return_statement what_todo_with_statement |> next_pfn
 
                 Language.Syntax.VarKeyword ->
-                    parse_named_type todo_if_var |> ParseFn |> Next ps.prog
+                    parse_named_type todo_if_var |> next_pfn
 
                 Language.Syntax.IfKeyword ->
-                    parse_if_statement what_todo_with_statement |> ParseFn |> Next ps.prog
+                    parse_if_statement what_todo_with_statement |> next_pfn
 
                 Language.Syntax.WhileKeyword ->
-                    parse_while_statement what_todo_with_statement |> ParseFn |> Next ps.prog
+                    parse_while_statement what_todo_with_statement |> next_pfn
 
                 _ ->
                     Error (KeywordNotAllowedHere ps.tok.loc)
 
         CommentToken c ->
-            parse_block_statements (List.append statements [ CommentStatement c ]) todo_with_block |> ParseFn |> Next ps.prog
+            parse_block_statements (List.append statements [ CommentStatement c ]) todo_with_block |> next_pfn
 
         Symbol s ->
-            parse_statement_assignment_or_fn_call (SingleIdentifier s) what_todo_with_statement |> ParseFn |> Next ps.prog
+            parse_statement_assignment_or_fn_call (SingleIdentifier s) what_todo_with_statement |> next_pfn
 
         CloseCurly ->
             todo_with_block (Ok statements)
 
         NewlineToken ->
-            parse_block_statements statements todo_with_block |> ParseFn |> Next ps.prog
+            parse_block_statements statements todo_with_block |> next_pfn
 
         _ ->
             Error (Unimplemented ps.prog ("parsing global function statements like this one:\n" ++ Util.show_source_view ps.tok.loc))
@@ -636,7 +635,7 @@ parse_global_function_body fname header ps =
     in
     case ps.tok.typ of
         OpenCurly ->
-            parse_block_statements [] what_todo_with_block |> ParseFn |> Next ps.prog
+            parse_block_statements [] what_todo_with_block |> next_pfn
 
         _ ->
             Error (ExpectedOpenCurlyForFunction ps.tok.loc)
@@ -658,7 +657,7 @@ parse_global_fn_return fname header_so_far ps =
     in
     case ps.tok.typ of
         ReturnSpecifier ->
-            parse_typename what_to_do_with_ret_type |> ParseFn |> Next ps.prog
+            parse_typename what_to_do_with_ret_type |> next_pfn
 
         OpenCurly ->
             reapply_token (parse_global_function_body fname header_so_far |> ParseFn) ps
@@ -671,10 +670,10 @@ parse_fn_def_arg_list_comma_or_close : List QualifiedTypeWithName -> FullName ->
 parse_fn_def_arg_list_comma_or_close args fname ps =
     case ps.tok.typ of
         CommaToken ->
-            parse_fn_definition_arg_list_or_close args fname |> ParseFn |> Next ps.prog
+            parse_fn_definition_arg_list_or_close args fname |> next_pfn
 
         CloseParen ->
-            parse_global_fn_return fname { args = args, return_type = Nothing } |> ParseFn |> Next ps.prog
+            parse_global_fn_return fname { args = args, return_type = Nothing } |> next_pfn
 
         _ ->
             Error (ExpectedEndOfArgListOrComma ps.tok.loc)
@@ -690,14 +689,14 @@ parse_fn_definition_arg_list_or_close args_sofar fname ps =
                     Error (FailedNamedTypeParse e)
 
                 Ok nt ->
-                    parse_fn_def_arg_list_comma_or_close (List.append args_sofar [ make_qualified_typewithname nt Constant ]) fname |> ParseFn |> Next ps.prog
+                    parse_fn_def_arg_list_comma_or_close (List.append args_sofar [ make_qualified_typewithname nt Constant ]) fname |> next_pfn
     in
     case ps.tok.typ of
         Symbol _ ->
             reapply_token (parse_named_type todo |> ParseFn) ps
 
         CloseParen ->
-            parse_global_fn_return fname { args = args_sofar, return_type = Nothing } |> ParseFn |> Next ps.prog
+            parse_global_fn_return fname { args = args_sofar, return_type = Nothing } |> next_pfn
 
         _ ->
             Error (Unimplemented ps.prog ("Failing to close func param list: name = " ++ stringify_fullname fname))
@@ -707,7 +706,7 @@ parse_fn_definition_open_paren : FullName -> ParseStep -> ParseRes
 parse_fn_definition_open_paren fname ps =
     case ps.tok.typ of
         OpenParen ->
-            parse_fn_definition_arg_list_or_close [] fname |> ParseFn |> Next ps.prog
+            parse_fn_definition_arg_list_or_close [] fname |> next_pfn
 
         _ ->
             Error (ExpectedOpenParenAfterFn (stringify_fullname fname) ps.tok.loc)
@@ -723,7 +722,7 @@ parse_global_fn ps =
                     Error e
 
                 Ok n ->
-                    parse_fn_definition_open_paren n |> ParseFn |> Next ps.prog
+                    parse_fn_definition_open_paren n |> next_pfn
     in
     case ps.tok.typ of
         Symbol _ ->
@@ -759,10 +758,10 @@ parse_find_imports ps =
                     Next ps.prog (ParseFn parse_global_fn)
 
                 Language.Syntax.StructKeyword ->
-                    parse_struct |> ParseFn |> Next ps.prog
+                    parse_struct |> next_pfn
 
                 Language.Syntax.TypeKeyword ->
-                    parse_type_declaration |> ParseFn |> Next ps.prog
+                    parse_type_declaration |> next_pfn
 
                 _ ->
                     Error (UnknownOuterLevelObject ps.tok.loc)
@@ -823,6 +822,9 @@ rec_parse toks prog_sofar fn =
             case res tok of
                 Error e ->
                     Err e
+
+                NextNoChange next_fn ->
+                    rec_parse (Util.always_tail toks) prog_sofar next_fn
 
                 Next prog_now next_fn ->
                     rec_parse (Util.always_tail toks) prog_now next_fn
