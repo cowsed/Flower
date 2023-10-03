@@ -1,6 +1,7 @@
 module Compiler exposing (..)
 
-import Analyzer exposing (AnalysisError, GoodProgram, analyze)
+import Analysis.Analyzer exposing (AnalysisError, GoodProgram, analyze)
+import Analysis.Explanations
 import Html
 import Parser.AST as AST
 import Parser.Lexer as Lexer exposing (Token, token_to_str)
@@ -30,7 +31,7 @@ explain_error e =
             Html.div [] [ ParserExplanations.explain_error pe, explain_toks toks ]
 
         Analysis ae ->
-            Analyzer.explain_error ae
+            Analysis.Explanations.explain_error ae
 
 
 
@@ -46,4 +47,4 @@ compile src =
     in
     lex_result
         |> Result.andThen (\toks -> Parser.parse toks |> Result.mapError (\e -> Parse e toks))
-        |> Result.andThen (\prog -> Analyzer.analyze prog |> Result.map (\gp -> ( prog, gp )) |> Result.mapError (\e -> Analysis e))
+        |> Result.andThen (\prog -> Analysis.Analyzer.analyze prog |> Result.map (\gp -> ( prog, gp )) |> Result.mapError (\e -> Analysis e))

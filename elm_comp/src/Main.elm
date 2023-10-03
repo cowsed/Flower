@@ -1,6 +1,7 @@
 module Main exposing (..)
 
-import Analyzer
+import Analysis.Explanations
+import Analysis.Analyzer as Analyzer
 import Browser
 import Compiler exposing (CompilerError(..), compile, explain_error)
 import Element exposing (Element, alignBottom, alignRight, el, fill)
@@ -77,7 +78,7 @@ htmlify_output res =
                 Html.div [] []
 
             Ok prog ->
-                Html.div [ style "padding-left" "20px" ] [ Analyzer.explain_program (Tuple.second prog), Parser.ParserExplanations.explain_program (Tuple.first prog) ]
+                Html.div [ style "padding-left" "20px" ] [ Analysis.Explanations.explain_program (Tuple.second prog), Parser.ParserExplanations.explain_program (Tuple.first prog) ]
         ]
 
 
