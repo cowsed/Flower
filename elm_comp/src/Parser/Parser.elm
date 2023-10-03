@@ -1,12 +1,14 @@
 module Parser.Parser exposing (..)
 
-import Language
+import Language exposing (Identifier(..))
 import Parser.AST as AST exposing (..)
 import Parser.ExpressionParser as ExpressionParser exposing (..)
 import Parser.Lexer as Lexer exposing (Token, TokenType(..))
 import Parser.ParserCommon exposing (..)
 import Result
 import Util exposing (escape_result)
+import Language.Syntax exposing (KeywordType(..))
+
 
 
 parse : List Lexer.Token -> Result Error AST.Program
@@ -76,7 +78,7 @@ parse_struct_fields name list ps =
     in
     case ps.tok.typ of
         CloseCurly ->
-            parse_outer_scope |> ParseFn |> Next { prog | global_typedefs = List.append prog.global_typedefs [ StructType me_as_struct ] }
+            parse_outer_scope |> ParseFn |> Next { prog | global_typedefs = List.append prog.global_typedefs [ StructDefType me_as_struct ] }
 
         NewlineToken ->
             parse_struct_fields name list |> ParseFn |> Next ps.prog
@@ -163,7 +165,7 @@ parse_enum_body edef ps =
             parse_enum_plain_symbol_or_more s edef |> ParseFn |> Next ps.prog
 
         CloseCurly ->
-            parse_outer_scope |> ParseFn |> Next { prog | global_typedefs = List.append prog.global_typedefs [ EnumType edef ] }
+            parse_outer_scope |> ParseFn |> Next { prog | global_typedefs = List.append prog.global_typedefs [ EnumDefType edef ] }
 
         NewlineToken ->
             parse_enum_body edef |> ParseFn |> Next ps.prog
@@ -200,7 +202,7 @@ parse_type_declaration_after_first_name typname n ps =
             ps.prog
 
         prog_after =
-            { prog | global_typedefs = List.append prog.global_typedefs [ AliasType (AliasDefinition typname n) ] }
+            { prog | global_typedefs = List.append prog.global_typedefs [ AliasDefType (AliasDefinition typname n) ] }
     in
     parse_outer_scope |> ParseFn |> Next prog_after
 
@@ -245,16 +247,16 @@ parse_outer_scope ps =
     case ps.tok.typ of
         Keyword kwt ->
             case kwt of
-                Language.FnKeyword ->
+                Language.Syntax.FnKeyword ->
                     Next ps.prog (ParseFn parse_global_fn)
 
-                Language.StructKeyword ->
+                Language.Syntax.StructKeyword ->
                     parse_struct |> ParseFn |> Next ps.prog
 
-                Language.EnumKeyword ->
+                Language.Syntax.EnumKeyword ->
                     parse_enum |> ParseFn |> Next ps.prog
 
-                Language.TypeKeyword ->
+                Language.Syntax.TypeKeyword ->
                     parse_type_declaration |> ParseFn |> Next ps.prog
 
                 _ ->
@@ -313,7 +315,7 @@ parse_named_type_type valname todo ps =
                     Error e
 
                 Ok t ->
-                    UnqualifiedTypeWithName (AST.SingleIdentifier valname) t |> Ok |> todo
+                    UnqualifiedTypeWithName (Language.SingleIdentifier valname) t |> Ok |> todo
     in
     parse_possibly_constrained_fullname todo_with_type ps
 
@@ -586,16 +588,16 @@ parse_block_statements statements todo_with_block ps =
     case ps.tok.typ of
         Keyword kwt ->
             case kwt of
-                Language.ReturnKeyword ->
+                Language.Syntax.ReturnKeyword ->
                     parse_global_fn_return_statement what_todo_with_statement |> ParseFn |> Next ps.prog
 
-                Language.VarKeyword ->
+                Language.Syntax.VarKeyword ->
                     parse_named_type todo_if_var |> ParseFn |> Next ps.prog
 
-                Language.IfKeyword ->
+                Language.Syntax.IfKeyword ->
                     parse_if_statement what_todo_with_statement |> ParseFn |> Next ps.prog
 
-                Language.WhileKeyword ->
+                Language.Syntax.WhileKeyword ->
                     parse_while_statement what_todo_with_statement |> ParseFn |> Next ps.prog
 
                 _ ->
@@ -739,7 +741,7 @@ parse_get_import_name ps =
     in
     case ps.tok.typ of
         Lexer.Literal Language.StringLiteral s ->
-            Next { prog | imports = List.append prog.imports [ s ] } (ParseFn parse_find_imports)
+            Next { prog | imports = List.append prog.imports [ AST.ThingAndLocation s ps.tok.loc ] } (ParseFn parse_find_imports)
 
         _ ->
             Error (NonStringImport ps.tok.loc)
@@ -750,16 +752,16 @@ parse_find_imports ps =
     case ps.tok.typ of
         Keyword kt ->
             case kt of
-                Language.ImportKeyword ->
+                Language.Syntax.ImportKeyword ->
                     Next ps.prog (ParseFn parse_get_import_name)
 
-                Language.FnKeyword ->
+                Language.Syntax.FnKeyword ->
                     Next ps.prog (ParseFn parse_global_fn)
 
-                Language.StructKeyword ->
+                Language.Syntax.StructKeyword ->
                     parse_struct |> ParseFn |> Next ps.prog
 
-                Language.TypeKeyword ->
+                Language.Syntax.TypeKeyword ->
                     parse_type_declaration |> ParseFn |> Next ps.prog
 
                 _ ->
@@ -797,7 +799,7 @@ parse_find_module_kw ps =
     in
     case ps.tok.typ of
         Keyword kw ->
-            if kw == Language.ModuleKeyword then
+            if kw == Language.Syntax.ModuleKeyword then
                 Next { prog | needs_more = Just "needs module name" } (ParseFn parse_find_module_name)
 
             else

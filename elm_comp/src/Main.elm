@@ -1,5 +1,6 @@
 module Main exposing (..)
 
+import Analyzer
 import Browser
 import Compiler exposing (CompilerError(..), compile, explain_error)
 import Element exposing (Element, alignBottom, alignRight, el, fill)
@@ -68,7 +69,7 @@ fn main() -> u8{
 """
 
 
-htmlify_output : Result CompilerError AST.Program -> Html.Html msg
+htmlify_output : Result CompilerError ( AST.Program, Analyzer.GoodProgram ) -> Html.Html msg
 htmlify_output res =
     Html.div []
         [ case res of
@@ -76,7 +77,7 @@ htmlify_output res =
                 Html.div [] []
 
             Ok prog ->
-                Html.div [ style "padding-left" "20px" ] [ Parser.ParserExplanations.explain_program prog ]
+                Html.div [ style "padding-left" "20px" ] [ Analyzer.explain_program (Tuple.second prog), Parser.ParserExplanations.explain_program (Tuple.first prog) ]
         ]
 
 
@@ -108,7 +109,7 @@ make_output mod =
                     el [ Element.width fill, Element.height fill ] <| Element.html (explain_error e)
 
                 Ok prog ->
-                    code_rep prog
+                    code_rep (Tuple.first prog)
     in
     Element.column
         [ Element.width fill
@@ -202,7 +203,7 @@ type alias Model =
     { source_code : String
     , last_run_start : Time.Posix
     , last_run_end : Time.Posix
-    , output : Result Compiler.CompilerError AST.Program
+    , output : Result Compiler.CompilerError ( AST.Program, Analyzer.GoodProgram )
     }
 
 

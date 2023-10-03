@@ -1,7 +1,7 @@
 module Compiler exposing (..)
 
+import Analyzer exposing (AnalysisError, GoodProgram, analyze)
 import Html
-
 import Parser.AST as AST
 import Parser.Lexer as Lexer exposing (Token, token_to_str)
 import Parser.Parser as Parser
@@ -12,6 +12,7 @@ import Parser.ParserExplanations as ParserExplanations
 type CompilerError
     = Lex Lexer.Error
     | Parse ParserCommon.Error (List Token)
+    | Analysis AnalysisError
 
 
 explain_toks : List Token -> Html.Html msg
@@ -28,28 +29,15 @@ explain_error e =
         Parse pe toks ->
             Html.div [] [ ParserExplanations.explain_error pe, explain_toks toks ]
 
-
-wrap_lexer_output : Result Lexer.Error (List Lexer.Token) -> Result CompilerError (List Lexer.Token)
-wrap_lexer_output res =
-    case res of
-        Err e ->
-            Lex e |> Err
-
-        Ok toks ->
-            Ok toks
+        Analysis ae ->
+            Analyzer.explain_error ae
 
 
-wrap_parser_output : List Token -> Result ParserCommon.Error AST.Program -> Result CompilerError AST.Program
-wrap_parser_output toks res =
-    case res of
-        Err e ->
-            Parse e toks |> Err
-
-        Ok prog ->
-            Ok prog
 
 
-compile : String -> Result CompilerError AST.Program
+
+
+compile : String -> Result CompilerError ( AST.Program, GoodProgram )
 compile src =
     let
         lex_result : Result CompilerError (List Token)
@@ -58,3 +46,4 @@ compile src =
     in
     lex_result
         |> Result.andThen (\toks -> Parser.parse toks |> Result.mapError (\e -> Parse e toks))
+        |> Result.andThen (\prog -> Analyzer.analyze prog |> Result.map (\gp -> ( prog, gp )) |> Result.mapError (\e -> Analysis e))

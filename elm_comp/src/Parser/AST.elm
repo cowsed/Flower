@@ -1,29 +1,37 @@
 module Parser.AST exposing (..)
 
-import Language exposing (InfixOpType(..), LiteralType(..), stringify_infix_op)
+import Language exposing (InfixOpType(..), LiteralType(..), stringify_infix_op, Identifier(..), stringify_identifier)
 import Parser.Lexer as Lexer
+import Util
 
+
+type alias ThingAndLocation a =
+    { thing : a
+    , loc : Util.SourceView
+    }
+
+type alias ImportAndLocation = ThingAndLocation String
 
 type alias Program =
     { module_name : Maybe String
-    , imports : List String
-    , global_typedefs : List TypeType
+    , imports : List ImportAndLocation
+    , global_typedefs : List TypeDefinitionType
     , global_functions : List FunctionDefinition
     , needs_more : Maybe String
     , src_tokens : List Lexer.Token
     }
 
-type TypeType
-    = StructType StructDefnition
-    | EnumType EnumDefinition
-    | AliasType AliasDefinition
 
-type alias AliasDefinition
-    = {name: FullName, alias_to : FullName}
+type TypeDefinitionType
+    = StructDefType StructDefnition
+    | EnumDefType EnumDefinition
+    | AliasDefType AliasDefinition
 
-type Identifier
-    = SingleIdentifier String -- name
-    | QualifiedIdentifiers (List String) -- name.b.c
+
+type alias AliasDefinition =
+    { name : FullName, alias_to : FullName }
+
+
 
 
 append_identifier : Identifier -> String -> Identifier
@@ -44,48 +52,6 @@ append_maybe_identifier n new =
 
         Nothing ->
             SingleIdentifier new
-
-
-type IntegerSize
-    = U8
-    | U16
-    | U32
-    | U64
-    | I8
-    | I16
-    | I32
-    | I64
-
-
-type Type
-    = BooleanType
-    | IntegerType IntegerSize
-    | StringType
-
-
-builtin_type_from_name : String -> Maybe Type
-builtin_type_from_name s =
-    case s of
-        "u8" ->
-            IntegerType U8 |> Just
-
-        _ ->
-            Nothing
-
-
-builtin_types : List Type
-builtin_types =
-    [ BooleanType
-    , StringType
-    , IntegerType U8
-    , IntegerType U16
-    , IntegerType U32
-    , IntegerType U64
-    , IntegerType I8
-    , IntegerType I16
-    , IntegerType I32
-    , IntegerType I64
-    ]
 
 
 type Qualifier
@@ -120,7 +86,7 @@ stringify_fullname nwt =
             s
 
         Constrained typ constraint ->
-            (stringify_fullname typ )++" | "++(stringify_expression constraint)
+            stringify_fullname typ ++ " | " ++ stringify_expression constraint
 
 
 append_fullname_args : FullName -> FullName -> FullName
@@ -137,8 +103,10 @@ append_fullname_args me tn =
 
         Literal _ _ ->
             Debug.todo "IDK WHAT TO DO HERE"
+
         Constrained _ _ ->
             Debug.todo "IDK WHAT TO DO HERE"
+
 
 
 --
@@ -182,9 +150,11 @@ type alias EnumDefinition =
 
 type alias EnumField =
     { name : String, args : List FullName }
-add_arg_to_enum_field: EnumField -> FullName -> EnumField
-add_arg_to_enum_field ef fn = 
-    {ef | args = List.append ef.args [fn]}
+
+
+add_arg_to_enum_field : EnumField -> FullName -> EnumField
+add_arg_to_enum_field ef fn =
+    { ef | args = List.append ef.args [ fn ] }
 
 
 type Statement
@@ -211,14 +181,7 @@ type alias FunctionCall =
     }
 
 
-stringify_identifier : Identifier -> String
-stringify_identifier n =
-    case n of
-        SingleIdentifier s ->
-            s
 
-        QualifiedIdentifiers l ->
-            String.join "." l
 
 stringify_expression : Expression -> String
 stringify_expression expr =
@@ -237,4 +200,3 @@ stringify_expression expr =
 
         InfixExpr lhs rhs op ->
             stringify_expression lhs ++ stringify_infix_op op ++ stringify_expression rhs
-

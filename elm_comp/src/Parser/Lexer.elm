@@ -3,6 +3,7 @@ module Parser.Lexer exposing (..)
 import Html exposing (pre, text)
 import Html.Attributes exposing (style)
 import Language
+import Language.Syntax
 import Pallete
 import Util
 
@@ -14,7 +15,7 @@ type alias Token =
 
 
 type TokenType
-    = Keyword Language.KeywordType
+    = Keyword Language.Syntax.KeywordType
     | Symbol String
     | Literal Language.LiteralType String
     | NewlineToken
@@ -452,74 +453,74 @@ is_special_or_symbol s =
                 Symbol s
 
 
-is_keyword : String -> Maybe Language.KeywordType
+is_keyword : String -> Maybe Language.Syntax.KeywordType
 is_keyword s =
     case s of
         "fn" ->
-            Just Language.FnKeyword
+            Just Language.Syntax.FnKeyword
 
         "return" ->
-            Just Language.ReturnKeyword
+            Just Language.Syntax.ReturnKeyword
 
         "module" ->
-            Just Language.ModuleKeyword
+            Just Language.Syntax.ModuleKeyword
 
         "import" ->
-            Just Language.ImportKeyword
+            Just Language.Syntax.ImportKeyword
 
         "var" ->
-            Just Language.VarKeyword
+            Just Language.Syntax.VarKeyword
 
         "struct" ->
-            Just Language.StructKeyword
+            Just Language.Syntax.StructKeyword
 
         "if" ->
-            Just Language.IfKeyword
+            Just Language.Syntax.IfKeyword
 
         "while" ->
-            Just Language.WhileKeyword
+            Just Language.Syntax.WhileKeyword
 
         "enum" ->
-            Just Language.EnumKeyword
+            Just Language.Syntax.EnumKeyword
 
         "type" ->
-            Just Language.TypeKeyword
+            Just Language.Syntax.TypeKeyword
 
         _ ->
             Nothing
 
 
-kwt_to_string : Language.KeywordType -> String
+kwt_to_string : Language.Syntax.KeywordType -> String
 kwt_to_string kwt =
     case kwt of
-        Language.FnKeyword ->
+        Language.Syntax.FnKeyword ->
             "fn"
 
-        Language.ReturnKeyword ->
+        Language.Syntax.ReturnKeyword ->
             "return"
 
-        Language.ModuleKeyword ->
+        Language.Syntax.ModuleKeyword ->
             "module"
 
-        Language.ImportKeyword ->
+        Language.Syntax.ImportKeyword ->
             "import"
 
-        Language.VarKeyword ->
+        Language.Syntax.VarKeyword ->
             "var"
 
-        Language.StructKeyword ->
+        Language.Syntax.StructKeyword ->
             "struct"
 
-        Language.IfKeyword ->
+        Language.Syntax.IfKeyword ->
             "if"
 
-        Language.WhileKeyword ->
+        Language.Syntax.WhileKeyword ->
             "while"
 
-        Language.EnumKeyword ->
+        Language.Syntax.EnumKeyword ->
             "enum"
 
-        Language.TypeKeyword ->
+        Language.Syntax.TypeKeyword ->
             "Type"
 
 

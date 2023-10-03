@@ -1,6 +1,6 @@
 module Parser.ExpressionParser exposing (..)
 
-import Parser.AST as AST exposing (Expression(..), FunctionCall, FullName, Identifier(..))
+import Parser.AST as AST exposing (Expression(..), FunctionCall, FullName)
 import Parser.Lexer as Lexer exposing (TokenType(..), infix_op_from_token)
 import Parser.ParserCommon exposing (..)
 import Language exposing (precedence)

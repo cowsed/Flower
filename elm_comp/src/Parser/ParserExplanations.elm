@@ -4,7 +4,8 @@ import Html
 import Html.Attributes exposing (style)
 import Language
 import Pallete as Pallete
-import Parser.AST as AST exposing (AliasDefinition, Expression(..), FullName, Identifier(..), Qualifier(..), TypeType(..), make_qualified_typewithname, stringify_fullname)
+import Parser.AST as AST exposing (AliasDefinition, Expression(..), FullName, Qualifier(..), TypeDefinitionType(..), make_qualified_typewithname, stringify_fullname)
+import Language exposing (Identifier(..))
 import Parser.Lexer as Lexer
 import Parser.ParserCommon as ParserCommon
 import Util
@@ -16,7 +17,7 @@ import Util
 
 syntaxify_namedarg : AST.QualifiedTypeWithName -> List (Html.Html msg)
 syntaxify_namedarg na =
-    [ symbol_highlight (AST.stringify_identifier na.name)
+    [ symbol_highlight (Language.stringify_identifier na.name)
     , Html.text ": "
     , Html.span [] [ syntaxify_fullname na.typename ]
     ]
@@ -42,7 +43,7 @@ syntaxify_number_literal s =
     Html.span [ style "color" Pallete.aqua ] [ Html.text s ]
 
 
-syntaxify_identifier : AST.Identifier -> Html.Html msg
+syntaxify_identifier : Identifier -> Html.Html msg
 syntaxify_identifier id =
     case id of
         SingleIdentifier s ->
@@ -181,7 +182,7 @@ syntaxify_statement indentation_level s =
             Html.span [ style "color" Pallete.gray ] [ indent, Html.text ("// " ++ src), Html.text "\n" ]
 
         AST.AssignmentStatement name expr ->
-            Html.span [] [ tab, symbol_highlight (AST.stringify_identifier name), Html.text " = ", syntaxify_expression expr, Html.text "\n" ]
+            Html.span [] [ tab, symbol_highlight (Language.stringify_identifier name), Html.text " = ", syntaxify_expression expr, Html.text "\n" ]
 
         AST.FunctionCallStatement fcal ->
             Html.span []
@@ -229,7 +230,7 @@ syntaxify_program prog =
         [ Html.pre []
             (List.concat
                 [ [ syntaxify_keyword "module ", symbol_highlight (Maybe.withDefault "module_name" prog.module_name), Html.text "\n\n" ]
-                , prog.imports |> List.map (\name -> [ syntaxify_keyword "import ", syntaxify_string_literal name, Html.text "\n" ]) |> List.concat
+                , prog.imports |> List.map (\name -> [ syntaxify_keyword "import ", syntaxify_string_literal name.thing, Html.text "\n" ]) |> List.concat
                 , List.repeat 2 (Html.text "\n")
                 , prog.global_typedefs |> List.map (syntaxify_typedef 0)
                 , prog.global_functions |> List.map (\f -> syntaxify_function 0 f) |> List.concat
@@ -238,16 +239,16 @@ syntaxify_program prog =
         ]
 
 
-syntaxify_typedef : Int -> AST.TypeType -> Html.Html msg
+syntaxify_typedef : Int -> AST.TypeDefinitionType -> Html.Html msg
 syntaxify_typedef indent typ =
     case typ of
-        StructType s ->
+        StructDefType s ->
             syntaxify_struct indent s
 
-        EnumType s ->
+        EnumDefType s ->
             syntaxify_enum indent s
 
-        AliasType s ->
+        AliasDefType s ->
             syntaxify_alias_type indent s
 
 
@@ -463,7 +464,7 @@ explain_struct str =
                     (\f ->
                         Html.li []
                             [ Html.text "field "
-                            , Html.text (AST.stringify_identifier f.name)
+                            , Html.text (Language.stringify_identifier f.name)
                             , Html.text " of type "
                             , Html.text (AST.stringify_fullname f.typename)
                             ]
@@ -500,7 +501,7 @@ explain_program : AST.Program -> Html.Html msg
 explain_program prog =
     let
         imports =
-            Util.collapsable (Html.text "Imports") (Html.ul [] (List.map (\s -> Html.li [] [ Html.text s ]) prog.imports))
+            Util.collapsable (Html.text "Imports") (Html.ul [] (List.map (\s -> Html.li [] [ Html.text s.thing ]) prog.imports))
 
         funcs =
             Util.collapsable (Html.text "Global Functions")
@@ -535,10 +536,10 @@ explain_program prog =
         ]
 
 
-explain_typedef : TypeType -> Html.Html msg
+explain_typedef : TypeDefinitionType -> Html.Html msg
 explain_typedef tt =
     case tt of
-        StructType s ->
+        StructDefType s ->
             Util.collapsable
                 (Html.code []
                     [ Html.text (AST.stringify_fullname <| s.name)
@@ -546,7 +547,7 @@ explain_typedef tt =
                 )
                 (explain_struct s)
 
-        EnumType s ->
+        EnumDefType s ->
             Util.collapsable
                 (Html.code []
                     [ Html.text (AST.stringify_fullname <| s.name)
@@ -554,7 +555,7 @@ explain_typedef tt =
                 )
                 (explain_enum s)
 
-        AliasType s ->
+        AliasDefType s ->
             explain_alias s
 
 
@@ -732,10 +733,10 @@ explain_statement s =
             Html.span [] [ Html.text "// ", Html.text src ]
 
         AST.InitilizationStatement name expr ->
-            Html.span [] [ Html.text ("Initialize `" ++ AST.stringify_identifier name.name ++ "` of type " ++ AST.stringify_fullname name.typename ++ " to "), explain_expression expr ]
+            Html.span [] [ Html.text ("Initialize `" ++ Language.stringify_identifier name.name ++ "` of type " ++ AST.stringify_fullname name.typename ++ " to "), explain_expression expr ]
 
         AST.AssignmentStatement name expr ->
-            Html.span [] [ Html.text ("assigning " ++ AST.stringify_identifier name ++ " with "), explain_expression expr ]
+            Html.span [] [ Html.text ("assigning " ++ Language.stringify_identifier name ++ " with "), explain_expression expr ]
 
         AST.FunctionCallStatement fcal ->
             Html.span []

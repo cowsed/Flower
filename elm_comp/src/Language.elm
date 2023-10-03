@@ -1,22 +1,115 @@
 module Language exposing (..)
 
-type KeywordType
-    = FnKeyword
-    | ReturnKeyword
-    | ModuleKeyword
-    | ImportKeyword
-    | VarKeyword
-    | StructKeyword
-    | IfKeyword
-    | WhileKeyword
-    | EnumKeyword
-    | TypeKeyword
+
+type Identifier
+    = SingleIdentifier String -- name
+    | QualifiedIdentifiers (List String) -- name.b.c
+
+
+stringify_identifier : Identifier -> String
+stringify_identifier n =
+    case n of
+        SingleIdentifier s ->
+            s
+
+        QualifiedIdentifiers l ->
+            String.join "." l
 
 
 type LiteralType
     = BooleanLiteral
     | NumberLiteral
     | StringLiteral
+
+
+type Type
+    = BooleanType
+    | IntegerType IntegerSize
+    | FloatingPointType FloatingPointSize
+    | StringType
+
+
+
+-- | StructType StructDefnition
+-- | EnumType EnumDefinition
+
+
+type alias ValueNameAndType =
+    { name : Identifier
+    , typ : Type
+    }
+
+
+type alias StructDefinition =
+    { name : Identifier
+    , generic_args : List String
+    , fields : List ValueNameAndType
+    }
+
+
+type FloatingPointSize
+    = F32
+    | F64
+
+
+type IntegerSize
+    = U8
+    | U16
+    | U32
+    | U64
+    | I8
+    | I16
+    | I32
+    | I64
+
+
+builtin_type_from_name : String -> Maybe Type
+builtin_type_from_name s =
+    case s of
+        "u8" ->
+            IntegerType U8 |> Just
+
+        "u16" ->
+            IntegerType U16 |> Just
+
+        "u32" ->
+            IntegerType U32 |> Just
+
+        "u64" ->
+            IntegerType U64 |> Just
+
+        "i8" ->
+            IntegerType I8 |> Just
+
+        "i16" ->
+            IntegerType I16 |> Just
+
+        "i32" ->
+            IntegerType I32 |> Just
+
+        "i64" ->
+            IntegerType I64 |> Just
+
+        "string" ->
+            StringType |> Just
+
+        _ ->
+            Nothing
+
+
+builtin_types : List Type
+builtin_types =
+    [ BooleanType
+    , StringType
+    , IntegerType U8
+    , IntegerType U16
+    , IntegerType U32
+    , IntegerType U64
+    , IntegerType I8
+    , IntegerType I16
+    , IntegerType I32
+    , IntegerType I64
+    ]
 
 
 type InfixOpType
@@ -33,6 +126,7 @@ type InfixOpType
     | And
     | Or
     | Xor
+
 
 precedence : InfixOpType -> Int
 precedence op =
@@ -66,9 +160,16 @@ precedence op =
 
         GreaterThanEqualTo ->
             1
-        And -> 0
-        Or -> 0
-        Xor -> 0
+
+        And ->
+            0
+
+        Or ->
+            0
+
+        Xor ->
+            0
+
 
 stringify_infix_op : InfixOpType -> String
 stringify_infix_op op =
@@ -102,6 +203,12 @@ stringify_infix_op op =
 
         GreaterThanEqualTo ->
             ">="
-        And -> "and"
-        Or -> "or"
-        Xor -> "xor"
+
+        And ->
+            "and"
+
+        Or ->
+            "or"
+
+        Xor ->
+            "xor"

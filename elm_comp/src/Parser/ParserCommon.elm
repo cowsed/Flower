@@ -1,8 +1,9 @@
 module Parser.ParserCommon exposing (..)
 
-import Parser.AST as AST exposing (Expression(..), FullName(..), Identifier(..), Statement(..), UnqualifiedTypeWithName)
+import Parser.AST as AST exposing (Expression(..), FullName(..), Statement(..), UnqualifiedTypeWithName)
 import Parser.Lexer as Lexer exposing (Token, TokenType(..))
 import Util exposing (escape_result)
+import Language
 
 
 type ParseFn
@@ -171,7 +172,7 @@ parse_name_with_gen_args_ga_start_or_end todo name_and_args ps =
             parse_full_name todo_with_type ps
 
 
-parse_fullname_gen_args_continue : FullNameParseTodo -> AST.Identifier -> ParseStep -> ParseRes
+parse_fullname_gen_args_continue : FullNameParseTodo -> Language.Identifier -> ParseStep -> ParseRes
 parse_fullname_gen_args_continue todo name ps =
     case ps.tok.typ of
         Symbol s ->
@@ -184,7 +185,7 @@ parse_fullname_gen_args_continue todo name ps =
             Err (FailedNamedTypeParse (NameError ps.tok.loc "Expected a symbol like 'a' or 'std' here")) |> todo
 
 
-parse_fullname_gen_args_dot_or_end : FullNameParseTodo -> AST.Identifier -> ParseStep -> ParseRes
+parse_fullname_gen_args_dot_or_end : FullNameParseTodo -> Language.Identifier -> ParseStep -> ParseRes
 parse_fullname_gen_args_dot_or_end todo name_so_far ps =
     case ps.tok.typ of
         DotToken ->
@@ -209,7 +210,7 @@ parse_full_name todo ps =
     in
     case ps.tok.typ of
         Symbol s ->
-            parse_fullname_gen_args_dot_or_end todo (AST.SingleIdentifier s) |> ParseFn |> Next ps.prog
+            parse_fullname_gen_args_dot_or_end todo (Language.SingleIdentifier s) |> ParseFn |> Next ps.prog
 
         ReferenceToken ->
             parse_full_name todo_if_ref |> ParseFn |> Next ps.prog
