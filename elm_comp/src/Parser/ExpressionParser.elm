@@ -1,9 +1,9 @@
 module Parser.ExpressionParser exposing (..)
 
-import Parser.AST as AST exposing (Expression(..), FunctionCall, FullName, Identifier(..), stringify_fullname)
+import Parser.AST as AST exposing (Expression(..), FunctionCall, FullName, Identifier(..))
 import Parser.Lexer as Lexer exposing (TokenType(..), infix_op_from_token)
-import Parser.ParserCommon as ParserCommon exposing (..)
-import Language exposing (stringify_infix_op, precedence)
+import Parser.ParserCommon exposing (..)
+import Language exposing (precedence)
 
 
 parse_expr_check_for_infix : Expression -> ExprParseTodo -> ParseStep -> ParseRes

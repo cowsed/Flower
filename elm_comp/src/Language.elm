@@ -30,6 +30,9 @@ type InfixOpType
     | LessThanEqualTo
     | GreaterThan
     | GreaterThanEqualTo
+    | And
+    | Or
+    | Xor
 
 precedence : InfixOpType -> Int
 precedence op =
@@ -63,6 +66,9 @@ precedence op =
 
         GreaterThanEqualTo ->
             1
+        And -> 0
+        Or -> 0
+        Xor -> 0
 
 stringify_infix_op : InfixOpType -> String
 stringify_infix_op op =
@@ -96,4 +102,6 @@ stringify_infix_op op =
 
         GreaterThanEqualTo ->
             ">="
-
+        And -> "and"
+        Or -> "or"
+        Xor -> "xor"

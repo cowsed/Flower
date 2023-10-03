@@ -4,7 +4,7 @@ import Language
 import Parser.AST as AST exposing (..)
 import Parser.ExpressionParser as ExpressionParser exposing (..)
 import Parser.Lexer as Lexer exposing (Token, TokenType(..))
-import Parser.ParserCommon as ParserCommon exposing (..)
+import Parser.ParserCommon exposing (..)
 import Result
 import Util exposing (escape_result)
 
@@ -196,10 +196,12 @@ parse_type_declaration_after_first_name : FullName -> FullName -> ParseStep -> P
 parse_type_declaration_after_first_name typname n ps =
     -- or token
     let
-        prog = ps.prog
-        prog_after = {prog | global_typedefs = List.append prog.global_typedefs [AliasType (AliasDefinition typname n)]}
+        prog =
+            ps.prog
+
+        prog_after =
+            { prog | global_typedefs = List.append prog.global_typedefs [ AliasType (AliasDefinition typname n) ] }
     in
-    
     parse_outer_scope |> ParseFn |> Next prog_after
 
 
@@ -221,7 +223,7 @@ parse_type_declaration ps =
     let
         parse_equal : FullName -> ParseStep -> ParseRes
         parse_equal fname pes =
-            case (Debug.log "Looking for =" pes.tok.typ) of
+            case pes.tok.typ of
                 AssignmentToken ->
                     parse_type_declaration_body fname |> ParseFn |> Next ps.prog
 
@@ -232,7 +234,7 @@ parse_type_declaration ps =
         todo_with_full_name res =
             res
                 |> Result.mapError (\e -> Error e)
-                |> Result.andThen (\fn -> parse_equal (Debug.log "full name was " fn) |> ParseFn |> Next ps.prog |> Ok)
+                |> Result.andThen (\fn -> parse_equal fn |> ParseFn |> Next ps.prog |> Ok)
                 |> escape_result
     in
     parse_full_name todo_with_full_name ps
@@ -756,6 +758,7 @@ parse_find_imports ps =
 
                 Language.StructKeyword ->
                     parse_struct |> ParseFn |> Next ps.prog
+
                 Language.TypeKeyword ->
                     parse_type_declaration |> ParseFn |> Next ps.prog
 

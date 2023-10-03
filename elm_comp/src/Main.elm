@@ -21,7 +21,7 @@ import Ui exposing (code_rep)
    - for loops
    - concept checking for types `T: UnsignedIneger`
    - array indexing
-   - fancy types
+   - type thing Type1 or Type2 or Type3
 -}
 
 

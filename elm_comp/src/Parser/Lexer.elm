@@ -31,6 +31,9 @@ type TokenType
     | GreaterThanToken -- >
     | GreaterThanEqualToken -- >=
     | ReferenceToken --&
+    | AndToken
+    | XorToken
+    | OrToken
     | PlusToken
     | MinusToken
     | MultiplyToken
@@ -97,6 +100,15 @@ infix_op_from_token tok =
 
         NotEqualToken ->
             Just Language.NotEqualTo
+
+        AndToken ->
+            Just Language.And
+
+        OrToken ->
+            Just Language.Or
+
+        XorToken ->
+            Just Language.Xor
 
         _ ->
             Nothing
@@ -406,8 +418,9 @@ lex_unknown lsi =
 
     else if c == '/' then
         Tokens [] (LexFn lex_divide_or_comment)
-    else if c =='|' then   
-        Tokens [Token lsi.view_this WhereToken] begin_lex
+
+    else if c == '|' then
+        Tokens [ Token lsi.view_this WhereToken ] begin_lex
 
     else
         Error (UnknownCharacter (lsi.input_view lsi.pos (lsi.pos + 1)) c)
@@ -420,6 +433,15 @@ is_special_or_symbol s =
 
     else if s == "false" then
         Literal Language.BooleanLiteral s
+
+    else if s == "xor" then
+        XorToken
+
+    else if s == "and" then
+        AndToken
+
+    else if s == "or" then
+        OrToken
 
     else
         case is_keyword s of
@@ -459,6 +481,7 @@ is_keyword s =
 
         "enum" ->
             Just Language.EnumKeyword
+
         "type" ->
             Just Language.TypeKeyword
 
@@ -495,6 +518,7 @@ kwt_to_string kwt =
 
         Language.EnumKeyword ->
             "enum"
+
         Language.TypeKeyword ->
             "Type"
 
@@ -588,6 +612,15 @@ syntaxify_token tok =
 
         WhereToken ->
             "|"
+
+        OrToken ->
+            "or"
+
+        AndToken ->
+            "and"
+
+        XorToken ->
+            "xor"
 
 
 token_to_str : Token -> String
@@ -693,3 +726,12 @@ token_to_str tok =
 
         WhereToken ->
             "[ | ]"
+
+        OrToken ->
+            "[ or ]"
+
+        AndToken ->
+            "[ and ]"
+
+        XorToken ->
+            "[ xor ]"
