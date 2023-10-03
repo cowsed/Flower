@@ -61,7 +61,7 @@ type Qualifier
 
 type FullName
     = NameWithoutArgs Identifier
-    | NameLookupType { base : Identifier, args : List FullName }
+    | NameWithArgs { base : Identifier, args : List FullName }
     | ReferenceToFullName FullName
     | Literal Language.LiteralType String
     | Constrained FullName Expression
@@ -73,7 +73,7 @@ stringify_fullname nwt =
         NameWithoutArgs n ->
             stringify_identifier n
 
-        NameLookupType nlt ->
+        NameWithArgs nlt ->
             stringify_identifier nlt.base
                 ++ "["
                 ++ (nlt.args |> List.map stringify_fullname |> String.join ", ")
@@ -93,10 +93,10 @@ append_fullname_args : FullName -> FullName -> FullName
 append_fullname_args me tn =
     case me of
         NameWithoutArgs n ->
-            NameLookupType { base = n, args = [ tn ] }
+            NameWithArgs { base = n, args = [ tn ] }
 
-        NameLookupType nl ->
-            NameLookupType { nl | args = List.append nl.args [ tn ] }
+        NameWithArgs nl ->
+            NameWithArgs { nl | args = List.append nl.args [ tn ] }
 
         ReferenceToFullName _ ->
             Debug.todo "IDK WHAT TO DO HERE"

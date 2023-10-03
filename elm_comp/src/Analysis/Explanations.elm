@@ -16,11 +16,14 @@ explain_error ae =
             NoModuleName ->
                 Html.text "I need a line at the top of the program that looks like `module main`"
 
-            UnknownImport s loc ->
-                Html.text ("I don't know of an import by the name `" ++ s ++ "`. \n" ++ Util.show_source_view loc)
+            UnknownImport sl ->
+                Html.text ("I don't know of an import by the name `" ++ sl.thing ++ "`. \n" ++ Util.show_source_view sl.loc)
             Unimplemented why -> Html.text ("Unimplemented: "++why)
             Multiple l ->
                 l |> List.map explain_error |> Html.div []
+
+            InvalidSyntaxInStructDefinition ->
+                Html.text "Invlaid Syntax in struct definition. Only allowed things are `struct Name{}` or `struct Name[A, B, C]`\n"
         ]
 
 

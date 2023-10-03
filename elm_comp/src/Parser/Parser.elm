@@ -54,7 +54,7 @@ parse_possibly_constrained_fullname todo_after ps =
                 |> Result.andThen (\fname -> parse_possibly_constrained_fullname_after_type todo_after fname |> next_pfn |> Ok)
                 |> escape_result
     in
-    parse_full_name todo ps
+    parse_fullname todo ps
 
 
 parse_struct_fields : AST.FullName -> List AST.UnqualifiedTypeWithName -> ParseStep -> ParseRes
@@ -105,7 +105,7 @@ parse_struct ps =
     in
     case ps.tok.typ of
         Symbol _ ->
-            parse_full_name todo ps
+            parse_fullname todo ps
 
         _ ->
             Error (ExpectedNameForStruct ps.tok.loc)
@@ -137,7 +137,7 @@ parse_enum_field_arg_list ef edef ps =
                 |> Result.andThen (\fn -> parse_enum_field_arg_list_close_or_continue (add_arg_to_enum_field ef fn) edef |> next_pfn |> Ok)
                 |> escape_result
     in
-    parse_full_name todo ps
+    parse_fullname todo ps
 
 
 parse_enum_plain_symbol_or_more : String -> EnumDefinition -> ParseStep -> ParseRes
@@ -190,7 +190,7 @@ parse_enum ps =
                         |> ParseFn
                         |> Next ps.prog
     in
-    parse_full_name todo_with_full_name ps
+    parse_fullname todo_with_full_name ps
 
 
 parse_type_declaration_after_first_name : FullName -> FullName -> ParseStep -> ParseRes
@@ -238,7 +238,7 @@ parse_type_declaration ps =
                 |> Result.andThen (\fn -> parse_equal fn |> next_pfn |> Ok)
                 |> escape_result
     in
-    parse_full_name todo_with_full_name ps
+    parse_fullname todo_with_full_name ps
 
 
 parse_outer_scope : ParseStep -> ParseRes
@@ -301,7 +301,7 @@ parse_typename todo ps =
             parse_typename todo_with_type_and_args_ref |> next_pfn
 
         _ ->
-            parse_full_name todo_with_type_and_args ps
+            parse_fullname todo_with_type_and_args ps
 
 
 parse_named_type_type : String -> NamedTypeParseTodo -> ParseStep -> ParseRes
@@ -726,7 +726,7 @@ parse_global_fn ps =
     in
     case ps.tok.typ of
         Symbol _ ->
-            parse_full_name todo_with_name ps
+            parse_fullname todo_with_name ps
 
         _ ->
             Error (ExpectedNameAfterFn ps.tok.loc)

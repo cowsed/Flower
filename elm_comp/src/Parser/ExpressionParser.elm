@@ -75,7 +75,7 @@ parse_expr todo ps =
             (LiteralExpr t s) |> Ok |> todo
 
         _ ->
-            reapply_token_or_fail (parse_full_name todo_after_fullname |> ParseFn |> Next ps.prog) ps
+            reapply_token_or_fail (parse_fullname todo_after_fullname |> ParseFn |> Next ps.prog) ps
 
 
 

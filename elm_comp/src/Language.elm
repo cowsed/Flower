@@ -40,6 +40,12 @@ type Type
     | FunctionType FunctionHeader
     | GenericInstantiation Identifier (List Type)
 
+type OuterType 
+    = Template OuterType (List Type)
+    | StructOuterType Identifier
+    | EnumOuterType Identifier
+    | AliasOuterType Identifier Type
+
 
 type alias FunctionHeader =
     { args : List Type, rtype : Maybe Type }
@@ -117,19 +123,19 @@ builtin_type_from_name s =
         _ ->
             Nothing
 
-
-builtin_types : List Type
+-- bunch of types aliased to themselves cuz theyre builtin. Definition is in the language
+builtin_types : List OuterType
 builtin_types =
-    [ BooleanType
-    , StringType
-    , IntegerType U8
-    , IntegerType U16
-    , IntegerType U32
-    , IntegerType U64
-    , IntegerType I8
-    , IntegerType I16
-    , IntegerType I32
-    , IntegerType I64
+    [ AliasOuterType (SingleIdentifier "bool")(BooleanType)
+    , AliasOuterType (SingleIdentifier "str")(StringType)
+    , AliasOuterType (SingleIdentifier "u8")(IntegerType U8)
+    , AliasOuterType (SingleIdentifier "u16")(IntegerType U16)
+    , AliasOuterType (SingleIdentifier "u32")(IntegerType U32)
+    , AliasOuterType (SingleIdentifier "u64")(IntegerType U64)
+    , AliasOuterType (SingleIdentifier "i8")(IntegerType I8)
+    , AliasOuterType (SingleIdentifier "i16")(IntegerType I16)
+    , AliasOuterType (SingleIdentifier "i32")(IntegerType I32)
+    , AliasOuterType (SingleIdentifier "i64")(IntegerType I64)
     ]
 
 

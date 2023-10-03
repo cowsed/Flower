@@ -75,7 +75,7 @@ syntaxify_fullname fn =
         AST.NameWithoutArgs id ->
             syntaxify_identifier id
 
-        AST.NameLookupType nl ->
+        AST.NameWithArgs nl ->
             Html.span []
                 [ syntaxify_identifier nl.base
                 , Html.text "["

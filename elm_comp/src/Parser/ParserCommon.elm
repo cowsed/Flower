@@ -133,8 +133,8 @@ parse_expected_token reason expected after ps =
         Error (ExpectedToken reason ps.tok.loc)
 
 
-parse_name_with_gen_args_comma_or_end : FullNameParseTodo -> FullName -> ParseStep -> ParseRes
-parse_name_with_gen_args_comma_or_end todo name_and_args ps =
+parse_fullname_with_gen_args_comma_or_end : FullNameParseTodo -> FullName -> ParseStep -> ParseRes
+parse_fullname_with_gen_args_comma_or_end todo name_and_args ps =
     let
         todo_with_type : FullNameParseTodo
         todo_with_type res =
@@ -143,11 +143,11 @@ parse_name_with_gen_args_comma_or_end todo name_and_args ps =
                     Error e
 
                 Ok t ->
-                    parse_name_with_gen_args_comma_or_end todo (AST.append_fullname_args name_and_args t) |> ParseFn |> Next ps.prog
+                    parse_fullname_with_gen_args_comma_or_end todo (AST.append_fullname_args name_and_args t) |> ParseFn |> Next ps.prog
     in
     case ps.tok.typ of
         CommaToken ->
-            parse_full_name todo_with_type |> ParseFn |> Next ps.prog
+            parse_fullname todo_with_type |> ParseFn |> Next ps.prog
 
         CloseSquare ->
             Ok name_and_args |> todo
@@ -156,8 +156,8 @@ parse_name_with_gen_args_comma_or_end todo name_and_args ps =
             todo <| Err (UnexpectedTokenInGenArgList ps.tok.loc)
 
 
-parse_name_with_gen_args_ga_start_or_end : FullNameParseTodo -> FullName -> ParseStep -> ParseRes
-parse_name_with_gen_args_ga_start_or_end todo name_and_args ps =
+parse_fullname_with_ga_start_or_end : FullNameParseTodo -> FullName -> ParseStep -> ParseRes
+parse_fullname_with_ga_start_or_end todo name_and_args ps =
     let
         todo_with_type : FullNameParseTodo
         todo_with_type res =
@@ -166,14 +166,14 @@ parse_name_with_gen_args_ga_start_or_end todo name_and_args ps =
                     Error e
 
                 Ok t ->
-                    parse_name_with_gen_args_comma_or_end todo (AST.append_fullname_args name_and_args t) |> ParseFn |> Next ps.prog
+                    parse_fullname_with_gen_args_comma_or_end todo (AST.append_fullname_args name_and_args t) |> ParseFn |> Next ps.prog
     in
     case ps.tok.typ of
         CloseSquare ->
-            todo (Ok name_and_args)
+            todo (Ok (name_and_args))
 
         _ ->
-            parse_full_name todo_with_type ps
+            parse_fullname todo_with_type ps
 
 
 parse_fullname_gen_args_continue : FullNameParseTodo -> Language.Identifier -> ParseStep -> ParseRes
@@ -196,14 +196,14 @@ parse_fullname_gen_args_dot_or_end todo name_so_far ps =
             parse_fullname_gen_args_continue todo name_so_far |> ParseFn |> Next ps.prog
 
         OpenSquare ->
-            parse_name_with_gen_args_ga_start_or_end todo (NameWithoutArgs name_so_far) |> ParseFn |> Next ps.prog
+            parse_fullname_with_ga_start_or_end todo (NameWithArgs {base = name_so_far, args = []}) |> ParseFn |> Next ps.prog
 
         _ ->
             reapply_token_or_fail (todo (Ok (NameWithoutArgs name_so_far))) ps
 
 
-parse_full_name : FullNameParseTodo -> ParseStep -> ParseRes
-parse_full_name todo ps =
+parse_fullname : FullNameParseTodo -> ParseStep -> ParseRes
+parse_fullname todo ps =
     let
         todo_if_ref : FullNameParseTodo
         todo_if_ref res =
@@ -217,7 +217,7 @@ parse_full_name todo ps =
             parse_fullname_gen_args_dot_or_end todo (Language.SingleIdentifier s) |> ParseFn |> Next ps.prog
 
         ReferenceToken ->
-            parse_full_name todo_if_ref |> ParseFn |> Next ps.prog
+            parse_fullname todo_if_ref |> ParseFn |> Next ps.prog
 
         Lexer.Literal l s ->
             AST.Literal l s |> Ok |> todo

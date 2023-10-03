@@ -8,7 +8,7 @@ import Language
 -- Does not have the actual definitions of the values
 type alias OverviewScope =
     { values : List Language.ValueNameAndType
-    , types : List Language.Type
+    , types : List Language.OuterType
     }
 
 
@@ -27,7 +27,7 @@ add_val_to_scope scope val =
     { scope | values = List.append scope.values [ val ] }
 
 
-add_type_to_scope : OverviewScope -> Language.Type -> OverviewScope
+add_type_to_scope : OverviewScope -> Language.OuterType -> OverviewScope
 add_type_to_scope scope val =
     { scope | types = List.append scope.types [ val ] }
 
