@@ -2,10 +2,12 @@ module Analysis.Analyzer exposing (..)
 
 import Analysis.BuiltinScopes as BuiltinScopes
 import Analysis.Scope as Scope
+import Element exposing (Length)
 import Language.Language as Language exposing (FunctionHeader, Identifier(..), LiteralType(..), OuterType(..), QualifiedType, Type(..), TypeOfTypeDefinition(..), ValueNameAndType, builtin_types, type_of_non_generic_outer_type)
 import Parser.AST as AST
 import Parser.ParserCommon exposing (Error(..))
 import Util
+import Language.Language exposing (IntegerSize(..))
 
 
 type alias GoodProgram =
@@ -40,24 +42,23 @@ merge_scopes scopes =
 make_outer_scope : AST.Program -> Result AnalysisError Scope.OverviewScope
 make_outer_scope prog =
     let
-        
         builtin_scope : AnalysisRes Scope.OverviewScope
         builtin_scope =
-            Ok  { values = [], types = builtin_types }
+            Ok { values = [], types = builtin_types }
 
         import_scope : AnalysisRes Scope.OverviewScope
         import_scope =
             import_scopes prog.imports
 
-        local_module_scope : AnalysisRes Scope.OverviewScope
-        local_module_scope =
+        local_module_type_scope : AnalysisRes Scope.OverviewScope
+        local_module_type_scope =
             build_this_module_outer_type prog.global_typedefs
 
         full_scopes =
             merge_scopes
                 [ builtin_scope
                 , import_scope
-                , local_module_scope
+                , local_module_type_scope
                 ]
                 |> Result.andThen (build_this_module_values prog.global_functions)
                 |> Result.map (\vals -> Scope.OverviewScope vals [])
@@ -86,8 +87,25 @@ otype_of_fndef os fdef =
                         _ ->
                             FunctionNameArgTooComplicated fdef.name.loc |> Err
 
+                AST.NameWithArgs nm ->
+                    case nm.base of
+                        SingleIdentifier s ->
+                            s |> Ok
+
+                        _ ->
+                            FunctionNameArgTooComplicated fdef.name.loc |> Err
+
                 _ ->
                     FunctionNameArgTooComplicated fdef.name.loc |> Err
+
+        gen_args : AnalysisRes (Maybe (List Type))
+        gen_args =
+            case fdef.name.thing of
+                AST.NameWithArgs nargs ->
+                    nargs.args |> List.map (type_from_fullname os) |> collapse_analysis_results (\a b -> [ a, b ]) |> Result.map (\l -> Just l)
+
+                _ ->
+                    Nothing |> Ok
 
         header =
             fheader_from_ast os fdef.header
@@ -113,7 +131,7 @@ fheader_from_ast os fh =
                 Just t ->
                     t |> (\fn -> type_from_fullname os fn |> Result.map Just)
     in
-    Result.map2 (\a -> FunctionHeader a) args ret
+    Result.map2 (\a -> FunctionHeader a) args (Debug.log "ret type of fheader" ret)
 
 
 qualed_type_and_name_from_ast : Scope.OverviewScope -> AST.QualifiedTypeWithName -> AnalysisRes Language.QualifiedType
@@ -129,8 +147,17 @@ type_from_fullname os fn =
             case ot of
                 _ ->
                     type_of_non_generic_outer_type ot
+
+        is_instantiable : OuterType -> Maybe ( Identifier, TypeOfTypeDefinition, List String )
+        is_instantiable ot =
+            case ot of
+                Generic a b c ->
+                    Just ( a, b, c )
+
+                _ ->
+                    Nothing
     in
-    case fn.thing of
+    (case fn.thing of
         AST.NameWithoutArgs name ->
             name
                 |> Scope.overview_has_outer_type os
@@ -138,8 +165,82 @@ type_from_fullname os fn =
                 |> Result.andThen (\tn -> is_valid_named_type tn |> Result.fromMaybe (GenericTypeNameNotValidWithoutSquareBrackets fn.loc))
                 |> Result.map (\ot -> NamedType name ot)
 
+        AST.NameWithArgs name_and_args ->
+            let
+                validated_name =
+                    name_and_args.base
+                        |> Scope.overview_has_outer_type os
+                        |> Result.fromMaybe (TypeNameNotFound name_and_args.base fn.loc)
+
+                validated_args : AnalysisRes (List Type)
+                validated_args =
+                    name_and_args.args |> List.map (type_from_fullname os) |> collapse_analysis_results (\a b -> [ a, b ])
+            in
+            validated_name
+                |> Result.andThen (\tn -> is_instantiable tn |> Result.fromMaybe (TypeNotInstantiable name_and_args.base fn.loc))
+                |> Result.map (\t -> t)
+                |> Result.andThen
+                    (\( gen_id, tot, gen_args ) ->
+                        validated_args
+                            |> Result.andThen
+                                (\val_args ->
+                                    Language.generic_instantiable_with tot gen_args val_args
+                                        |> (\can ->
+                                                case can of
+                                                    Nothing ->
+                                                        Ok <| GenericInstantiation gen_id tot val_args
+
+                                                    Just r ->
+                                                        CantInstantiateGenericWithTheseArgs r fn.loc |> Err
+                                           )
+                                )
+                    )
+                |> Result.map (\t -> t)
+
         _ ->
             BadTypeParse fn.loc |> Err
+    )
+        |> Result.map extract_builtins
+
+
+extract_builtins : Type -> Type
+extract_builtins t =
+    case Debug.log "extracting " t of
+        NamedType id tot ->
+            if tot == AliasDefinitionType then
+                case id of
+                    SingleIdentifier s ->
+                        case s of
+                            "bool" ->
+                                BooleanType
+                            "u8" ->
+                                IntegerType Language.U8
+                            "u16" ->
+                                IntegerType Language.U16
+                            "u32" ->
+                                IntegerType Language.U32
+                            "u64" ->
+                                IntegerType Language.U64
+                            "i8" ->
+                                IntegerType Language.I8
+                            "i16" ->
+                                IntegerType Language.I16
+                            "i32" ->
+                                IntegerType Language.I32
+                            "i64" ->
+                                IntegerType Language.I64
+                            "str" ->
+                                BooleanType
+                            _ -> t
+
+                    _ ->
+                        t
+
+            else
+                t
+
+        _ ->
+            t
 
 
 ensure_valid_generic_name : AST.ThingAndLocation AST.FullName -> AnalysisRes String
@@ -271,6 +372,8 @@ type AnalysisError
     | FunctionNameArgTooComplicated Util.SourceView
     | BadTypeParse Util.SourceView
     | TypeNameNotFound Identifier Util.SourceView
+    | TypeNotInstantiable Identifier Util.SourceView
+    | CantInstantiateGenericWithTheseArgs Language.ReasonForUninstantiable Util.SourceView
     | GenericTypeNameNotValidWithoutSquareBrackets Util.SourceView
     | Unimplemented String
     | Multiple (List AnalysisError)

@@ -46,16 +46,8 @@ enum Result[E, T]{
     Res(T)
 }
 
-fn sqrt(v: f64 | v >= 0) -> f64{
+fn sqrt(v: bool ) -> f64{
     return v/2
-}
-
-// adding 2 numbers
-fn add(args: std.pair[u8] | wont_overflow[u8](args.a, args.b)) -> u8{
-    return a+b
-}
-fn add(args: std.pair[u8]) -> u16{
-    return a+b
 }
 
 

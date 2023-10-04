@@ -3,6 +3,7 @@ module Analysis.BuiltinScopes exposing (..)
 import Analysis.Scope as Scope
 import Language.Language as Language exposing (Identifier(..), OuterType, QualifiedType, Qualifier(..), ValueNameAndType)
 import Parser.AST as AST
+import Language.Language exposing (OuterType(..))
 
 
 std_puts_v : ValueNameAndType
@@ -12,7 +13,7 @@ std_puts_v =
 
 std_pair_t : OuterType
 std_pair_t =
-    Language.StructOuterType (SingleIdentifier "pair")
+    Generic (SingleIdentifier "pair") Language.StructDefinitionType ["T"]
 
 
 std_scope : Scope.OverviewScope

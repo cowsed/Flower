@@ -39,7 +39,7 @@ type Type
     | StringType
     | FunctionType FunctionHeader
     | NamedType Identifier TypeOfTypeDefinition
-    | GenericInstantiation Identifier (List Type)
+    | GenericInstantiation Identifier TypeOfTypeDefinition (List Type)
 
 
 type Qualifier
@@ -57,6 +57,15 @@ type OuterType
     | EnumOuterType Identifier
     | AliasOuterType Identifier Type
 
+
+type ReasonForUninstantiable
+    = WrongNumber
+generic_instantiable_with: TypeOfTypeDefinition -> List String -> List Type -> Maybe ReasonForUninstantiable
+generic_instantiable_with tot gen_args used_args = 
+    if Debug.log "gen args len"(List.length gen_args) /= Debug.log "used args len" (List.length used_args) then
+        Just WrongNumber
+    else 
+        Nothing
 
 type_of_non_generic_outer_type : OuterType -> Maybe TypeOfTypeDefinition
 type_of_non_generic_outer_type ot =
@@ -100,9 +109,6 @@ type alias FunctionHeader =
     { args : List QualifiedType, rtype : Maybe Type }
 
 
-
--- | StructType StructDefnition
--- | EnumType EnumDefinition
 
 
 type alias ValueNameAndType =

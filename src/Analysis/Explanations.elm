@@ -6,7 +6,7 @@ import Html
 import Html.Attributes exposing (style)
 import Language.Language as Language exposing (..)
 import Pallete
-import Util 
+import Util
 
 
 explain_error : AnalysisError -> Html.Html msg
@@ -44,8 +44,21 @@ explain_error ae =
                 Html.text ("The type of `name` is a generic type but there were wasnt a [] right here. There is no generic argument deductio yet so dont do that\n" ++ Util.show_source_view loc)
 
             TypeNameNotFound id loc ->
-                Html.text ("Type " ++ (stringify_identifier id) ++ " not found\n" ++ Util.show_source_view loc)
+                Html.text ("Type " ++ stringify_identifier id ++ " not found\n" ++ Util.show_source_view loc)
+
+            TypeNotInstantiable typid loc ->
+                Html.text <| "This type `" ++ stringify_identifier typid ++ "` is not instantiable (its not generic)\n" ++ Util.show_source_view loc
+
+            CantInstantiateGenericWithTheseArgs reason loc ->
+                Html.text <| "Cant instantiate this generic type with these type arguments:" ++ stringify_reason_for_unsustantiable reason ++ "\n" ++ Util.show_source_view loc
         ]
+
+
+stringify_reason_for_unsustantiable : ReasonForUninstantiable -> String
+stringify_reason_for_unsustantiable reason =
+    case reason of
+        WrongNumber ->
+            "Wrong number of arguments"
 
 
 explain_program : GoodProgram -> Html.Html msg
@@ -89,13 +102,13 @@ stringify_typeoftypedef : TypeOfTypeDefinition -> String
 stringify_typeoftypedef gt =
     case gt of
         Language.StructDefinitionType ->
-            "generic struct "
+            "struct "
 
         Language.EnumDefinitionType ->
-            "generic enum "
+            "enum "
 
         Language.AliasDefinitionType ->
-            "generic alias "
+            "alias "
 
 
 explain_name_and_type : Language.ValueNameAndType -> Html.Html msg
@@ -124,9 +137,9 @@ explain_type t =
         NamedType n td ->
             Html.span [] [ Html.text <| stringify_typeoftypedef td, Html.text <| " with name " ++ stringify_identifier n ]
 
-        GenericInstantiation id args ->
+        GenericInstantiation id tot args ->
             Html.span []
-                [ Html.text ("generic instantiation of " ++ stringify_identifier id ++ "with args")
+                [ Html.text ("generic "++stringify_typeoftypedef tot++" instantiation of " ++ stringify_identifier id ++ " with args")
                 , Html.ul []
                     (args
                         |> List.map explain_type
@@ -139,21 +152,22 @@ explain_fheader : FunctionHeader -> Html.Html msg
 explain_fheader fh =
     let
         ret =
-            fh.rtype |> Maybe.map explain_type |> Maybe.map List.singleton |> Maybe.map (\l -> Html.text "" :: l) |> Maybe.withDefault []
+            fh.rtype |> Maybe.map explain_type |> Maybe.map List.singleton |> Maybe.map (\l -> Html.text " -> " :: l) |> Maybe.withDefault []
 
         args =
             fh.args |> List.map explain_qualified_name_andtype
     in
     Html.span []
         [ Html.text "("
-        , Html.span [] (List.append args ret)
+        , Html.ul [] (args |> List.map(\a ->  Html.li [] [a]))
         , Html.text ")"
+        , Html.span [] ret
         ]
 
 
 explain_qualified_name_andtype : Language.QualifiedType -> Html.Html msg
 explain_qualified_name_andtype qnt =
-    Html.span [] [ Html.text <| stringify_qualifier qnt.qual, explain_type qnt.typ ]
+    Html.span [] [ Html.text <| (stringify_qualifier qnt.qual ++ " "), explain_type qnt.typ ]
 
 
 stringify_qualifier : Qualifier -> String
