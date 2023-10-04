@@ -33,7 +33,18 @@ type alias SourceView =
     , start : Int
     , end : Int
     }
+invalid_sourceview: SourceView
+invalid_sourceview = {src = "", start = -1, end = -1}
+merge_sv: SourceView -> SourceView -> SourceView
+merge_sv sv1 sv2 = 
+    {src = sv1.src
+    , start = min sv1.start sv2.start
+    , end = max sv1.end sv2.end
+    }
 
+merge_svs: SourceView -> List SourceView -> SourceView
+merge_svs start list = 
+    List.foldl merge_sv start list
 
 last_el : List a -> Maybe a
 last_el l =

@@ -1,6 +1,6 @@
 module Parser.AST exposing (..)
 
-import Language exposing (InfixOpType(..), LiteralType(..), stringify_infix_op, Identifier(..), stringify_identifier)
+import Language exposing (Identifier(..), InfixOpType(..), LiteralType(..), stringify_identifier, stringify_infix_op)
 import Parser.Lexer as Lexer
 import Util
 
@@ -10,7 +10,15 @@ type alias ThingAndLocation a =
     , loc : Util.SourceView
     }
 
-type alias ImportAndLocation = ThingAndLocation String
+
+with_location : Util.SourceView -> a -> ThingAndLocation a
+with_location loc thing =
+    { thing = thing, loc = loc }
+
+
+type alias ImportAndLocation =
+    ThingAndLocation String
+
 
 type alias Program =
     { module_name : Maybe String
@@ -29,9 +37,7 @@ type TypeDefinitionType
 
 
 type alias AliasDefinition =
-    { name : FullName, alias_to : FullName }
-
-
+    { name : FullNameAndLocation, alias_to : FullNameAndLocation }
 
 
 append_identifier : Identifier -> String -> Identifier
@@ -61,10 +67,18 @@ type Qualifier
 
 type FullName
     = NameWithoutArgs Identifier
-    | NameWithArgs { base : Identifier, args : List FullName }
-    | ReferenceToFullName FullName
+    | NameWithArgs { base : Identifier, args : List FullNameAndLocation }
+    | ReferenceToFullName FullNameAndLocation
     | Literal Language.LiteralType String
-    | Constrained FullName Expression
+    | Constrained FullNameAndLocation ExpressionAndLocation
+
+
+type alias FullNameAndLocation =
+    ThingAndLocation FullName
+
+
+type alias ExpressionAndLocation =
+    ThingAndLocation Expression
 
 
 stringify_fullname : FullName -> String
@@ -76,27 +90,29 @@ stringify_fullname nwt =
         NameWithArgs nlt ->
             stringify_identifier nlt.base
                 ++ "["
-                ++ (nlt.args |> List.map stringify_fullname |> String.join ", ")
+                ++ (nlt.args |> List.map (\t -> t.thing) |> List.map stringify_fullname |> String.join ", ")
                 ++ "]"
 
         ReferenceToFullName fn ->
-            "&" ++ stringify_fullname fn
+            "&" ++ stringify_fullname fn.thing
 
         Literal _ s ->
             s
 
         Constrained typ constraint ->
-            stringify_fullname typ ++ " | " ++ stringify_expression constraint
+            stringify_fullname typ.thing ++ " | " ++ stringify_expression constraint
 
 
-append_fullname_args : FullName -> FullName -> FullName
+append_fullname_args : FullNameAndLocation -> FullNameAndLocation -> FullNameAndLocation
 append_fullname_args me tn =
-    case me of
+    case me.thing of
         NameWithoutArgs n ->
             NameWithArgs { base = n, args = [ tn ] }
+                |> (\fn -> { thing = fn, loc = me.loc })
 
         NameWithArgs nl ->
             NameWithArgs { nl | args = List.append nl.args [ tn ] }
+                |> (\fn -> { thing = fn, loc = me.loc })
 
         ReferenceToFullName _ ->
             Debug.todo "IDK WHAT TO DO HERE"
@@ -113,7 +129,7 @@ append_fullname_args me tn =
 
 
 type alias UnqualifiedTypeWithName =
-    { name : Identifier, typename : FullName }
+    { name : Identifier, typename : FullNameAndLocation }
 
 
 make_qualified_typewithname : UnqualifiedTypeWithName -> Qualifier -> QualifiedTypeWithName
@@ -122,75 +138,77 @@ make_qualified_typewithname t q =
 
 
 type alias QualifiedTypeWithName =
-    { name : Identifier, typename : FullName, qualifiedness : Qualifier }
+    { name : Identifier, typename : FullNameAndLocation, qualifiedness : Qualifier }
 
 
 type alias FunctionHeader =
-    { args : List QualifiedTypeWithName, return_type : Maybe FullName }
+    { args : List QualifiedTypeWithName, return_type : Maybe FullNameAndLocation }
 
 
 type alias FunctionDefinition =
-    { name : FullName
+    { name : FullNameAndLocation
     , header : FunctionHeader
     , statements : List Statement
     }
 
 
 type alias StructDefnition =
-    { name : FullName
+    { name : FullNameAndLocation
     , fields : List UnqualifiedTypeWithName
     }
 
 
 type alias EnumDefinition =
-    { name : FullName
+    { name : FullNameAndLocation
     , fields : List EnumField
     }
 
 
 type alias EnumField =
-    { name : String, args : List FullName }
+    { name : String, args : List FullNameAndLocation }
 
 
-add_arg_to_enum_field : EnumField -> FullName -> EnumField
+add_arg_to_enum_field : EnumField -> FullNameAndLocation -> EnumField
 add_arg_to_enum_field ef fn =
     { ef | args = List.append ef.args [ fn ] }
 
 
 type Statement
     = CommentStatement String
-    | ReturnStatement (Maybe Expression)
-    | InitilizationStatement QualifiedTypeWithName Expression
-    | AssignmentStatement Identifier Expression
-    | FunctionCallStatement FunctionCall
-    | IfStatement Expression (List Statement)
-    | WhileStatement Expression (List Statement)
+    | ReturnStatement (Maybe ExpressionAndLocation)
+    | InitilizationStatement QualifiedTypeWithName ExpressionAndLocation
+    | AssignmentStatement Identifier ExpressionAndLocation
+    | FunctionCallStatement FunctionCallAndLocation
+    | IfStatement ExpressionAndLocation (List Statement)
+    | WhileStatement ExpressionAndLocation (List Statement)
 
 
 type Expression
-    = FunctionCallExpr FunctionCall
+    = FunctionCallExpr FunctionCallAndLocation
     | LiteralExpr LiteralType String
-    | NameLookup FullName
-    | Parenthesized Expression
-    | InfixExpr Expression Expression InfixOpType
+    | NameLookup FullNameAndLocation
+    | Parenthesized ExpressionAndLocation
+    | InfixExpr ExpressionAndLocation ExpressionAndLocation InfixOpType
 
 
 type alias FunctionCall =
-    { fname : FullName
-    , args : List Expression
+    { fname : FullNameAndLocation
+    , args : List ExpressionAndLocation
     }
 
 
+type alias FunctionCallAndLocation =
+    ThingAndLocation FunctionCall
 
 
-stringify_expression : Expression -> String
+stringify_expression : ExpressionAndLocation -> String 
 stringify_expression expr =
-    case expr of
+    case expr.thing of
         NameLookup n ->
-            stringify_fullname n
+            stringify_fullname n.thing
 
         FunctionCallExpr fc ->
-            stringify_fullname fc.fname ++ "(" ++ (fc.args |> List.map stringify_expression |> String.join ", ") ++ ")"
+            stringify_fullname fc.thing.fname.thing ++ "(" ++ (fc.thing.args |> List.map stringify_expression |> String.join ", ") ++ ")"
 
         LiteralExpr _ s ->
             s

@@ -2,16 +2,15 @@ module Analysis.Analyzer exposing (..)
 
 import Analysis.BuiltinScopes as BuiltinScopes
 import Analysis.Scope as Scope
-import Language exposing (Identifier(..), LiteralType(..), OuterType(..), Type(..), builtin_types, stringify_identifier)
-import Parser.AST as AST
+import Language exposing (Identifier(..), LiteralType(..), OuterType(..), GenericType(..), Type(..), builtin_types, stringify_identifier)
 import Parser.ParserCommon exposing (Error(..))
 import Util
-
+import Parser.AST as AST
 
 type alias GoodProgram =
     { module_name : String, outer_scope : Scope.OverviewScope }
 
-
+ 
 analyze : AST.Program -> Result AnalysisError GoodProgram
 analyze prog =
     let
@@ -53,16 +52,27 @@ make_outer_scope prog =
     merge_scopes [ Ok builtin_scope, imported_scopes, global_scope ]
 
 
+ensure_valid_generic_name : AST.ThingAndLocation AST.FullName -> AnalysisRes String
+ensure_valid_generic_name name_and_loc =
+    case name_and_loc.thing of 
+        AST.NameWithoutArgs id -> case id of 
+            SingleIdentifier s -> Ok s
+            _ -> GenericArgIdentifierTooComplicated name_and_loc.loc |> Err
+        _ -> ExpectedSymbolInGenericArg name_and_loc.loc |> Err
 
--- ensure_valid_generic_args: List AST.FullName -> Result AnalysisError (List Language.Type)
--- ensure_valid_generic_args l = l |> List.map ensure_valid_type |>
+
+ensure_valid_generic_names : List (AST.ThingAndLocation AST.FullName) -> Result AnalysisError (List String)
+ensure_valid_generic_names l =
+    l
+        |> List.map ensure_valid_generic_name
+        |> collapse_analysis_results (\a b -> [ a, b ])
 
 
-collapse_aes : (a -> a -> List a) -> List (Result AnalysisError a) -> Result AnalysisError (List a)
-collapse_aes joiner l =
+collapse_analysis_results : (a -> a -> List a) -> List (Result AnalysisError a) -> Result AnalysisError (List a)
+collapse_analysis_results joiner l =
     case List.head l of
         Just el ->
-            res_join_n (collapse_aes joiner (Util.always_tail l)) el
+            res_join_n (collapse_analysis_results joiner (Util.always_tail l)) el
 
         Nothing ->
             Ok []
@@ -70,12 +80,13 @@ collapse_aes joiner l =
 
 otype_of_structdef : AST.StructDefnition -> Result AnalysisError Language.OuterType
 otype_of_structdef sdef =
-    case sdef.name of
+    case sdef.name.thing of
         AST.NameWithoutArgs id ->
             StructOuterType id |> Ok
 
         AST.NameWithArgs def ->
-            Err (Unimplemented (stringify_identifier def.base))
+            ensure_valid_generic_names def.args
+                |> Result.map (Generic def.base GenericStruct)
 
         _ ->
             InvalidSyntaxInStructDefinition |> Err
@@ -83,7 +94,7 @@ otype_of_structdef sdef =
 
 otype_of_enumdef : AST.EnumDefinition -> Result AnalysisError Language.OuterType
 otype_of_enumdef edef =
-    case edef.name of
+    case edef.name.thing of
         AST.NameWithoutArgs id ->
             EnumOuterType id |> Ok
 
@@ -93,7 +104,7 @@ otype_of_enumdef edef =
 
 otype_of_aliasdef : AST.AliasDefinition -> Result AnalysisError Language.OuterType
 otype_of_aliasdef adef =
-    case adef.name of
+    case adef.name.thing of
         AST.NameWithoutArgs id ->
             EnumOuterType id |> Ok
 
@@ -148,6 +159,8 @@ type AnalysisError
     = UnknownImport AST.ImportAndLocation
     | NoModuleName
     | InvalidSyntaxInStructDefinition
+    | ExpectedSymbolInGenericArg Util.SourceView
+    | GenericArgIdentifierTooComplicated Util.SourceView
     | Unimplemented String
     | Multiple (List AnalysisError)
 

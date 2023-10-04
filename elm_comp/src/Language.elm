@@ -41,11 +41,15 @@ type Type
     | GenericInstantiation Identifier (List Type)
 
 type OuterType 
-    = Template OuterType (List Type)
+    = Generic Identifier GenericType (List String)
     | StructOuterType Identifier
     | EnumOuterType Identifier
     | AliasOuterType Identifier Type
 
+type GenericType 
+    = GenericStruct
+    | GenericEnum
+    | GenericAlias
 
 type alias FunctionHeader =
     { args : List Type, rtype : Maybe Type }

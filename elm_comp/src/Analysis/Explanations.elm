@@ -24,6 +24,8 @@ explain_error ae =
 
             InvalidSyntaxInStructDefinition ->
                 Html.text "Invlaid Syntax in struct definition. Only allowed things are `struct Name{}` or `struct Name[A, B, C]`\n"
+            ExpectedSymbolInGenericArg loc -> Html.text ("Expected a one word symbol in generic arg list. something like `T` or `Name`\n"++Util.show_source_view loc)
+            GenericArgIdentifierTooComplicated loc -> Html.text ("Too complicated for generic argument\n"++Util.show_source_view loc)
         ]
 
 
