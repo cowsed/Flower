@@ -2,7 +2,6 @@ module Main exposing (..)
 
 import Analysis.Analyzer as Analyzer
 import Analysis.Explanations
-import Analysis.Serialization
 import Browser
 import Compiler exposing (CompilerError(..), compile, explain_error)
 import Element exposing (Element, alignBottom, alignRight, el, fill)
@@ -16,7 +15,6 @@ import Parser.ParserExplanations
 import Task
 import Time
 import Ui exposing (code_rep)
-import Util
 
 
 

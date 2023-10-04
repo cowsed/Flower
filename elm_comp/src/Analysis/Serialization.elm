@@ -34,7 +34,7 @@ encode_type t =
             encode_floating_point s
 
         _ ->
-            JE.null
+            Debug.todo "encode other types"
 
 
 integer_from_size : String -> JD.Decoder Type
@@ -86,7 +86,7 @@ type_from_descriminator s =
             JD.succeed StringType
 
         _ ->
-            JD.fail ("Invalid type type: " ++ s)
+            Debug.todo "Decode other types"
 
 
 type_decoder : JD.Decoder Type
