@@ -28,11 +28,23 @@ explain_error ae =
             InvalidSyntaxInStructDefinition ->
                 Html.text "Invlaid Syntax in struct definition. Only allowed things are `struct Name{}` or `struct Name[A, B, C]`\n"
 
+            BadTypeParse loc ->
+                Html.text ("Arbitrary bad type parse\n" ++ Util.show_source_view loc)
+
             ExpectedSymbolInGenericArg loc ->
                 Html.text ("Expected a one word symbol in generic arg list. something like `T` or `Name`\n" ++ Util.show_source_view loc)
 
+            FunctionNameArgTooComplicated loc ->
+                Html.text ("Function name is too complicated. I expect something like `foo()` or `do_stuff`\n" ++ Util.show_source_view loc)
+
             GenericArgIdentifierTooComplicated loc ->
                 Html.text ("Too complicated for generic argument\n" ++ Util.show_source_view loc)
+
+            GenericTypeNameNotValidWithoutSquareBrackets loc ->
+                Html.text ("The type of `name` is a generic type but there were wasnt a [] right here. There is no generic argument deductio yet so dont do that\n" ++ Util.show_source_view loc)
+
+            TypeNameNotFound id loc ->
+                Html.text ("Type " ++ (stringify_identifier id) ++ " not found\n" ++ Util.show_source_view loc)
         ]
 
 
@@ -57,31 +69,32 @@ explain_outer_type ot =
     case ot of
         Generic id gt args ->
             Html.span []
-                [ Html.text (stringify_generic_type gt)
+                [ Html.text (stringify_typeoftypedef gt)
                 , Html.text (stringify_identifier id)
                 , Html.text " with args "
                 , Html.span [] [ Html.text (String.join ", " args) ]
                 ]
 
         StructOuterType st ->
-            Html.span [] [Html.text ("struct with name "++stringify_identifier st)]
+            Html.span [] [ Html.text ("struct with name " ++ stringify_identifier st) ]
 
         EnumOuterType et ->
-            Html.span [] [Html.text ("enum with name "++stringify_identifier et)]
+            Html.span [] [ Html.text ("enum with name " ++ stringify_identifier et) ]
 
         AliasOuterType at _ ->
-            Html.span [] [Html.text ("alias with name "++stringify_identifier at)]
+            Html.span [] [ Html.text ("alias with name " ++ stringify_identifier at) ]
 
 
-stringify_generic_type gt =
+stringify_typeoftypedef : TypeOfTypeDefinition -> String
+stringify_typeoftypedef gt =
     case gt of
-        GenericStruct ->
+        Language.StructDefinitionType ->
             "generic struct "
 
-        GenericEnum ->
+        Language.EnumDefinitionType ->
             "generic enum "
 
-        GenericAlias ->
+        Language.AliasDefinitionType ->
             "generic alias "
 
 
@@ -108,6 +121,9 @@ explain_type t =
         FunctionType f ->
             Html.span [] [ Html.text "fn", explain_fheader f ]
 
+        NamedType n td ->
+            Html.span [] [ Html.text <| stringify_typeoftypedef td, Html.text <| " with name " ++ stringify_identifier n ]
+
         GenericInstantiation id args ->
             Html.span []
                 [ Html.text ("generic instantiation of " ++ stringify_identifier id ++ "with args")
@@ -126,13 +142,28 @@ explain_fheader fh =
             fh.rtype |> Maybe.map explain_type |> Maybe.map List.singleton |> Maybe.map (\l -> Html.text "" :: l) |> Maybe.withDefault []
 
         args =
-            fh.args |> List.map explain_type
+            fh.args |> List.map explain_qualified_name_andtype
     in
     Html.span []
         [ Html.text "("
         , Html.span [] (List.append args ret)
         , Html.text ")"
         ]
+
+
+explain_qualified_name_andtype : Language.QualifiedType -> Html.Html msg
+explain_qualified_name_andtype qnt =
+    Html.span [] [ Html.text <| stringify_qualifier qnt.qual, explain_type qnt.typ ]
+
+
+stringify_qualifier : Qualifier -> String
+stringify_qualifier qual =
+    case qual of
+        Constant ->
+            "const"
+
+        Variable ->
+            "var"
 
 
 stringify_integer_size : IntegerSize -> String

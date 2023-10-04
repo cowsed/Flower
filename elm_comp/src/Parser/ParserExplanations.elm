@@ -4,7 +4,7 @@ import Html
 import Html.Attributes exposing (style)
 import Language
 import Pallete as Pallete
-import Parser.AST as AST exposing (AliasDefinition, Expression(..), FullName, Qualifier(..), TypeDefinitionType(..), make_qualified_typewithname, stringify_fullname)
+import Parser.AST as AST exposing (AliasDefinition, Expression(..), FullName,  TypeDefinitionType(..), make_qualified_typewithname, stringify_fullname)
 import Language exposing (Identifier(..))
 import Parser.Lexer as Lexer
 import Parser.ParserCommon as ParserCommon
@@ -170,10 +170,10 @@ syntaxify_statement indentation_level s =
             let
                 qual =
                     case taname.qualifiedness of
-                        Constant ->
+                        Language.Constant ->
                             ""
 
-                        Variable ->
+                        Language.Variable ->
                             "var "
             in
             Html.span [] (List.concat [ [ indent, syntaxify_keyword qual ], syntaxify_namedarg taname, [ Html.text " = ", syntaxify_expression expr.thing, Html.text "\n" ] ])
@@ -331,7 +331,7 @@ syntaxify_struct indent struct =
 
         names =
             struct.fields
-                |> List.map (\f -> make_qualified_typewithname f AST.Constant)
+                |> List.map (\f -> make_qualified_typewithname f Language.Constant)
                 |> List.map syntaxify_namedarg
                 |> List.map (\f -> Html.span [] [ tabs (indent + 1), Html.span [] f, Html.text "\n" ])
                 |> Html.div []

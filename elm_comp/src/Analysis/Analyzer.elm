@@ -2,15 +2,16 @@ module Analysis.Analyzer exposing (..)
 
 import Analysis.BuiltinScopes as BuiltinScopes
 import Analysis.Scope as Scope
-import Language exposing (Identifier(..), LiteralType(..), OuterType(..), GenericType(..), Type(..), builtin_types)
+import Language exposing (FunctionHeader, Identifier(..), LiteralType(..), OuterType(..), QualifiedType, Type(..), TypeOfTypeDefinition(..), ValueNameAndType, builtin_types, type_of_non_generic_outer_type)
+import Parser.AST as AST
 import Parser.ParserCommon exposing (Error(..))
 import Util
-import Parser.AST as AST
+
 
 type alias GoodProgram =
     { module_name : String, outer_scope : Scope.OverviewScope }
 
- 
+
 analyze : AST.Program -> Result AnalysisError GoodProgram
 analyze prog =
     let
@@ -43,22 +44,118 @@ make_outer_scope prog =
         builtin_scope =
             { values = [], types = builtin_types }
 
-        imported_scopes =
+        import_scope =
             import_scopes prog.imports
 
-        global_scope =
-            build_global_scope prog.global_typedefs
+        starting_scopes =
+            import_scope |> Result.map (\s -> Scope.merge_2_scopes builtin_scope s)
+
+        local_module_scope =
+            starting_scopes |> Result.andThen (\ss -> build_local_type_scope ss prog.global_typedefs)
+
+        local_value_scope =
+            local_module_scope |> Result.andThen (\ts -> build_global_values prog.global_functions ts)
+
+        full_scopes =
+            merge_scopes
+                [ starting_scopes
+                , local_module_scope
+                , local_value_scope |> Result.map (\vals -> Scope.OverviewScope vals [])
+                ]
     in
-    merge_scopes [ Ok builtin_scope, imported_scopes, global_scope ]
+    full_scopes
+
+
+build_global_values : List AST.FunctionDefinition -> Scope.OverviewScope -> AnalysisRes (List ValueNameAndType)
+build_global_values l os =
+    l
+        |> List.map (otype_of_fndef os)
+        |> collapse_analysis_results (\a b -> [ a, b ])
+
+
+otype_of_fndef : Scope.OverviewScope -> AST.FunctionDefinition -> AnalysisRes Language.ValueNameAndType
+otype_of_fndef os fdef =
+    let
+        name : AnalysisRes String
+        name =
+            case fdef.name.thing of
+                AST.NameWithoutArgs nm ->
+                    case nm of
+                        SingleIdentifier s ->
+                            s |> Ok
+
+                        _ ->
+                            FunctionNameArgTooComplicated fdef.name.loc |> Err
+
+                _ ->
+                    FunctionNameArgTooComplicated fdef.name.loc |> Err
+
+        header =
+            fheader_from_ast os fdef.header
+    in
+    Result.map2 (\n h -> ValueNameAndType (SingleIdentifier n) (Language.FunctionType h)) name header
+
+
+fheader_from_ast : Scope.OverviewScope -> AST.FunctionHeader -> AnalysisRes Language.FunctionHeader
+fheader_from_ast os fh =
+    let
+        args : AnalysisRes (List Language.QualifiedType)
+        args =
+            fh.args
+                |> List.map (qualed_type_and_name_from_ast os)
+                |> collapse_analysis_results (\qt1 qt2 -> [ qt1, qt2 ])
+
+        ret : AnalysisRes (Maybe Language.Type)
+        ret =
+            case fh.return_type of
+                Nothing ->
+                    Nothing |> Ok
+
+                Just t ->
+                    t |> (\fn -> type_from_fullname os fn  |> Result.map Just)
+    in
+    Result.map2 (\a -> FunctionHeader a) args ret
+
+
+qualed_type_and_name_from_ast : Scope.OverviewScope -> AST.QualifiedTypeWithName -> AnalysisRes Language.QualifiedType
+qualed_type_and_name_from_ast os qtwn =
+    type_from_fullname os qtwn.typename |> Result.map (QualifiedType qtwn.qualifiedness)
+
+
+type_from_fullname : Scope.OverviewScope -> AST.FullNameAndLocation -> AnalysisRes Language.Type
+type_from_fullname os fn  =
+    let
+        is_valid_named_type : OuterType -> Maybe TypeOfTypeDefinition
+        is_valid_named_type ot =
+            case ot of
+                _ ->
+                    type_of_non_generic_outer_type ot
+    in
+    case fn.thing of
+        AST.NameWithoutArgs name ->
+            name
+                |> Scope.overview_has_outer_type os
+                |> Result.fromMaybe (TypeNameNotFound name fn.loc)
+                |> Result.andThen (\tn -> is_valid_named_type tn |> Result.fromMaybe (GenericTypeNameNotValidWithoutSquareBrackets fn.loc))
+                |> Result.map (\ot -> NamedType name ot)
+
+        _ ->
+            BadTypeParse fn.loc |> Err
 
 
 ensure_valid_generic_name : AST.ThingAndLocation AST.FullName -> AnalysisRes String
 ensure_valid_generic_name name_and_loc =
-    case name_and_loc.thing of 
-        AST.NameWithoutArgs id -> case id of 
-            SingleIdentifier s -> Ok s
-            _ -> GenericArgIdentifierTooComplicated name_and_loc.loc |> Err
-        _ -> ExpectedSymbolInGenericArg name_and_loc.loc |> Err
+    case name_and_loc.thing of
+        AST.NameWithoutArgs id ->
+            case id of
+                SingleIdentifier s ->
+                    Ok s
+
+                _ ->
+                    GenericArgIdentifierTooComplicated name_and_loc.loc |> Err
+
+        _ ->
+            ExpectedSymbolInGenericArg name_and_loc.loc |> Err
 
 
 ensure_valid_generic_names : List (AST.ThingAndLocation AST.FullName) -> Result AnalysisError (List String)
@@ -86,7 +183,7 @@ otype_of_structdef sdef =
 
         AST.NameWithArgs def ->
             ensure_valid_generic_names def.args
-                |> Result.map (Generic def.base GenericStruct)
+                |> Result.map (Generic def.base StructDefinitionType)
 
         _ ->
             InvalidSyntaxInStructDefinition |> Err
@@ -100,8 +197,7 @@ otype_of_enumdef edef =
 
         AST.NameWithArgs def ->
             ensure_valid_generic_names def.args
-                |> Result.map (Generic def.base GenericEnum)
-
+                |> Result.map (Generic def.base EnumDefinitionType)
 
         _ ->
             Unimplemented "generic enum to otype" |> Err
@@ -113,11 +209,9 @@ otype_of_aliasdef adef =
         AST.NameWithoutArgs id ->
             EnumOuterType id |> Ok
 
-
         AST.NameWithArgs def ->
             ensure_valid_generic_names def.args
-                |> Result.map (Generic def.base GenericAlias)
-
+                |> Result.map (Generic def.base AliasDefinitionType)
 
         _ ->
             Unimplemented "generic alias to otype" |> Err
@@ -136,14 +230,17 @@ otype_of_typedef t =
             otype_of_aliasdef adef
 
 
-build_global_scope : List AST.TypeDefinitionType -> Result AnalysisError Scope.OverviewScope
-build_global_scope l =
+build_local_type_scope : Scope.OverviewScope -> List AST.TypeDefinitionType -> Result AnalysisError Scope.OverviewScope
+build_local_type_scope os l =
     let
-        types : Result AnalysisError Scope.OverviewScope
+        types : Result AnalysisError (List OuterType)
         types =
-            l |> List.map otype_of_typedef |> List.map (\ot -> scope_from_type (Debug.log "Outer Type:" ot)) |> merge_scopes
+            l |> List.map otype_of_typedef |> collapse_analysis_results (\a b -> [ a, b ])
+
+        scope =
+            types |> Result.andThen (\ts -> merge_scopes [ Ok os, Scope.OverviewScope [] ts |> Ok ])
     in
-    types
+    scope
 
 
 scope_from_type : Result AnalysisError OuterType -> Result AnalysisError Scope.OverviewScope
@@ -172,6 +269,10 @@ type AnalysisError
     | InvalidSyntaxInStructDefinition
     | ExpectedSymbolInGenericArg Util.SourceView
     | GenericArgIdentifierTooComplicated Util.SourceView
+    | FunctionNameArgTooComplicated Util.SourceView
+    | BadTypeParse Util.SourceView
+    | TypeNameNotFound Identifier Util.SourceView
+    | GenericTypeNameNotValidWithoutSquareBrackets Util.SourceView
     | Unimplemented String
     | Multiple (List AnalysisError)
 

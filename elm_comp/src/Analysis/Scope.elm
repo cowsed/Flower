@@ -11,10 +11,20 @@ type alias OverviewScope =
     , types : List Language.OuterType
     }
 
+overview_has_outer_type: OverviewScope -> Language.Identifier -> Maybe Language.OuterType
+overview_has_outer_type os id = 
+    let
+        matches = List.filter (\ot -> (Language.get_id ot) == id) os.types
+    in
+    
+    if (matches |> List.length) > 0 then
+        List.head matches
+    else 
+    Nothing
 
-qualify_all : String -> OverviewScope -> OverviewScope
-qualify_all q s =
-    { s | values = s.values |> List.map (Language.qualify_vnt_name q) }
+qualify_all_names : String -> OverviewScope -> OverviewScope
+qualify_all_names q s =
+    { s | values = s.values |> List.map (Language.qualify_vnt_name q), types = s.types |> List.map (Language.qualify_type_name q) }
 
 
 empty_scope : OverviewScope

@@ -183,7 +183,7 @@ parse_enum ps =
                     Error e
 
                 Ok fn ->
-                    parse_enum_body (EnumDefinition fn [])
+                    parse_enum_body (AST.EnumDefinition fn [])
                         |> ParseFn
                         |> Next ps.prog
                         |> parse_expected_token "Expected `{` to start an enum body" OpenCurly
@@ -411,7 +411,7 @@ parse_global_fn_return_statement todo ps =
             reapply_token (ParseFn (parse_expr what_to_do_with_expr)) ps
 
 
-parse_initilization_statement : StatementParseTodo -> Qualifier -> UnqualifiedTypeWithName -> ParseStep -> ParseRes
+parse_initilization_statement : StatementParseTodo -> Language.Qualifier -> UnqualifiedTypeWithName -> ParseStep -> ParseRes
 parse_initilization_statement todo qual nt ps =
     let
         newtype =
@@ -481,7 +481,7 @@ parse_statement_assignment_or_fn_call id_loc name statement_todo ps =
                     Error e
 
                 Ok t ->
-                    parse_initilization_statement statement_todo Constant (UnqualifiedTypeWithName name t) |> next_pfn
+                    parse_initilization_statement statement_todo Language.Constant (UnqualifiedTypeWithName name t) |> next_pfn
     in
     case ps.tok.typ of
         DotToken ->
@@ -582,7 +582,7 @@ parse_block_statements statements todo_with_block ps =
         todo_if_var res =
             case res of
                 Ok nt ->
-                    parse_initilization_statement what_todo_with_statement Variable nt |> next_pfn
+                    parse_initilization_statement what_todo_with_statement Language.Variable nt |> next_pfn
 
                 Err e ->
                     Error (FailedNamedTypeParse e)
@@ -692,7 +692,7 @@ parse_fn_definition_arg_list_or_close args_sofar fname ps =
                     Error (FailedNamedTypeParse e)
 
                 Ok nt ->
-                    parse_fn_def_arg_list_comma_or_close (List.append args_sofar [ make_qualified_typewithname nt Constant ]) fname |> next_pfn
+                    parse_fn_def_arg_list_comma_or_close (List.append args_sofar [ make_qualified_typewithname nt Language.Constant ]) fname |> next_pfn
     in
     case ps.tok.typ of
         Symbol _ ->

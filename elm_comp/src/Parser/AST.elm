@@ -60,9 +60,6 @@ append_maybe_identifier n new =
             SingleIdentifier new
 
 
-type Qualifier
-    = Variable
-    | Constant
 
 
 type FullName
@@ -132,13 +129,13 @@ type alias UnqualifiedTypeWithName =
     { name : Identifier, typename : FullNameAndLocation }
 
 
-make_qualified_typewithname : UnqualifiedTypeWithName -> Qualifier -> QualifiedTypeWithName
+make_qualified_typewithname : UnqualifiedTypeWithName -> Language.Qualifier -> QualifiedTypeWithName
 make_qualified_typewithname t q =
     QualifiedTypeWithName t.name t.typename q
 
 
 type alias QualifiedTypeWithName =
-    { name : Identifier, typename : FullNameAndLocation, qualifiedness : Qualifier }
+    { name : Identifier, typename : FullNameAndLocation, qualifiedness : Language.Qualifier }
 
 
 type alias FunctionHeader =

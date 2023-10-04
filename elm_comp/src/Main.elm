@@ -1,7 +1,8 @@
 module Main exposing (..)
 
-import Analysis.Explanations
 import Analysis.Analyzer as Analyzer
+import Analysis.Explanations
+import Analysis.Serialization
 import Browser
 import Compiler exposing (CompilerError(..), compile, explain_error)
 import Element exposing (Element, alignBottom, alignRight, el, fill)
@@ -15,9 +16,8 @@ import Parser.ParserExplanations
 import Task
 import Time
 import Ui exposing (code_rep)
-import Analysis.Serialization
-
 import Util
+
 
 
 {-
@@ -81,13 +81,13 @@ htmlify_output res =
                 Html.div [ style "padding-left" "20px" ] [ Analysis.Explanations.explain_program (Tuple.second prog), Parser.ParserExplanations.explain_program (Tuple.first prog) ]
         ]
 
- 
+
 make_output : Model -> Element Msg
 make_output mod =
     let
         title_bar =
             Element.row
-                [ Font.size (Debug.log (Analysis.Serialization.run_test) 30)
+                [ Font.size 30
                 , Element.width fill
                 , Background.color Pallete.bg1_c
                 , Element.paddingXY 10 6
