@@ -25,17 +25,23 @@ explain_error : CompilerError -> Html.Html msg
 explain_error e =
     case e of
         Lex le ->
-            Lexer.explain_error le
+            Html.div []
+                [ Html.h1 [] [ Html.text "Lexer error" ]
+                , Lexer.explain_error le
+                ]
 
         Parse pe toks ->
-            Html.div [] [ ParserExplanations.explain_error pe, explain_toks toks ]
+            Html.div []
+                [ Html.h1 [] [ Html.text "Parser error" ]
+                , ParserExplanations.explain_error pe
+                , explain_toks toks
+                ]
 
         Analysis ae ->
-            Analysis.Explanations.explain_error ae
-
-
-
-
+            Html.div []
+                [ Html.h1 [] [ Html.text "Analysis error" ]
+                , Analysis.Explanations.explain_error ae
+                ]
 
 
 compile : String -> Result CompilerError ( AST.Program, GoodProgram )

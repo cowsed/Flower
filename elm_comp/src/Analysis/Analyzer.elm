@@ -2,7 +2,7 @@ module Analysis.Analyzer exposing (..)
 
 import Analysis.BuiltinScopes as BuiltinScopes
 import Analysis.Scope as Scope
-import Language exposing (Identifier(..), LiteralType(..), OuterType(..), GenericType(..), Type(..), builtin_types, stringify_identifier)
+import Language exposing (Identifier(..), LiteralType(..), OuterType(..), GenericType(..), Type(..), builtin_types)
 import Parser.ParserCommon exposing (Error(..))
 import Util
 import Parser.AST as AST
@@ -98,6 +98,11 @@ otype_of_enumdef edef =
         AST.NameWithoutArgs id ->
             EnumOuterType id |> Ok
 
+        AST.NameWithArgs def ->
+            ensure_valid_generic_names def.args
+                |> Result.map (Generic def.base GenericEnum)
+
+
         _ ->
             Unimplemented "generic enum to otype" |> Err
 
@@ -107,6 +112,12 @@ otype_of_aliasdef adef =
     case adef.name.thing of
         AST.NameWithoutArgs id ->
             EnumOuterType id |> Ok
+
+
+        AST.NameWithArgs def ->
+            ensure_valid_generic_names def.args
+                |> Result.map (Generic def.base GenericAlias)
+
 
         _ ->
             Unimplemented "generic alias to otype" |> Err
@@ -130,7 +141,7 @@ build_global_scope l =
     let
         types : Result AnalysisError Scope.OverviewScope
         types =
-            l |> List.map otype_of_typedef |> List.map scope_from_type |> merge_scopes
+            l |> List.map otype_of_typedef |> List.map (\ot -> scope_from_type (Debug.log "Outer Type:" ot)) |> merge_scopes
     in
     types
 

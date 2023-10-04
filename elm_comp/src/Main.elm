@@ -41,13 +41,11 @@ type Positive[N] = N | n >= 0
 
 struct a{
     val: u8
-
-
 }
+
 enum Result[E, T]{
     Err(E, T)
     Res(T)
-
 }
 
 fn sqrt(v: f64 | v >= 0) -> f64{

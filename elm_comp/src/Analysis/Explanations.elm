@@ -18,14 +18,21 @@ explain_error ae =
 
             UnknownImport sl ->
                 Html.text ("I don't know of an import by the name `" ++ sl.thing ++ "`. \n" ++ Util.show_source_view sl.loc)
-            Unimplemented why -> Html.text ("Unimplemented: "++why)
+
+            Unimplemented why ->
+                Html.text ("Unimplemented: " ++ why)
+
             Multiple l ->
                 l |> List.map explain_error |> Html.div []
 
             InvalidSyntaxInStructDefinition ->
                 Html.text "Invlaid Syntax in struct definition. Only allowed things are `struct Name{}` or `struct Name[A, B, C]`\n"
-            ExpectedSymbolInGenericArg loc -> Html.text ("Expected a one word symbol in generic arg list. something like `T` or `Name`\n"++Util.show_source_view loc)
-            GenericArgIdentifierTooComplicated loc -> Html.text ("Too complicated for generic argument\n"++Util.show_source_view loc)
+
+            ExpectedSymbolInGenericArg loc ->
+                Html.text ("Expected a one word symbol in generic arg list. something like `T` or `Name`\n" ++ Util.show_source_view loc)
+
+            GenericArgIdentifierTooComplicated loc ->
+                Html.text ("Too complicated for generic argument\n" ++ Util.show_source_view loc)
         ]
 
 
@@ -39,7 +46,43 @@ explain_program gp =
 
 explain_global_scope : Scope.OverviewScope -> Html.Html msg
 explain_global_scope scope =
-    scope.values |> List.map explain_name_and_type |> List.map (\h -> Html.li [] [ h ]) |> Html.ul []
+    Html.div []
+        [ Util.collapsable (Html.text "Values") (scope.values |> List.map explain_name_and_type |> List.map (\h -> Html.li [] [ h ]) |> Html.ul [])
+        , Util.collapsable (Html.text "Types") (scope.types |> List.map explain_outer_type |> List.map (\h -> Html.li [] [ h ]) |> Html.ul [])
+        ]
+
+
+explain_outer_type : Language.OuterType -> Html.Html msg
+explain_outer_type ot =
+    case ot of
+        Generic id gt args ->
+            Html.span []
+                [ Html.text (stringify_generic_type gt)
+                , Html.text (stringify_identifier id)
+                , Html.text " with args "
+                , Html.span [] [ Html.text (String.join ", " args) ]
+                ]
+
+        StructOuterType st ->
+            Html.span [] [Html.text ("struct with name "++stringify_identifier st)]
+
+        EnumOuterType et ->
+            Html.span [] [Html.text ("enum with name "++stringify_identifier et)]
+
+        AliasOuterType at _ ->
+            Html.span [] [Html.text ("alias with name "++stringify_identifier at)]
+
+
+stringify_generic_type gt =
+    case gt of
+        GenericStruct ->
+            "generic struct "
+
+        GenericEnum ->
+            "generic enum "
+
+        GenericAlias ->
+            "generic alias "
 
 
 explain_name_and_type : Language.ValueNameAndType -> Html.Html msg
@@ -67,7 +110,7 @@ explain_type t =
 
         GenericInstantiation id args ->
             Html.span []
-                [ Html.text ("generic instantiation of "++(stringify_identifier id)++"with args")
+                [ Html.text ("generic instantiation of " ++ stringify_identifier id ++ "with args")
                 , Html.ul []
                     (args
                         |> List.map explain_type

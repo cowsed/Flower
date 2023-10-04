@@ -118,8 +118,7 @@ infix_op_from_token tok =
 explain_error : Error -> Html.Html msg
 explain_error e =
     Html.div []
-        [ Html.h1 [] [ text "Lexer Error" ]
-        , pre [ style "color" Pallete.red ]
+        [ pre [ style "color" Pallete.red ]
             [ case e of
                 UnknownCharacter sv c ->
                     text (Util.addchar "Unknown character: " c ++ "\n" ++ Util.show_source_view sv)

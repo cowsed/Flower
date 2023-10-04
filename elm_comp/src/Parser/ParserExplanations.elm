@@ -448,8 +448,7 @@ explain_error e =
 
         _ ->
             Html.div []
-                [ Html.h3 [] [ Html.text "Parser Error" ]
-                , Html.pre [ Html.Attributes.style "color" Pallete.red ] [ Html.text (stringify_error e) ]
+                [ Html.pre [ Html.Attributes.style "color" Pallete.red ] [ Html.text (stringify_error e) ]
                 ]
 
 
