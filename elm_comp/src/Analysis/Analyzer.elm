@@ -40,34 +40,33 @@ merge_scopes scopes =
 make_outer_scope : AST.Program -> Result AnalysisError Scope.OverviewScope
 make_outer_scope prog =
     let
-        builtin_scope : Scope.OverviewScope
+        
+        builtin_scope : AnalysisRes Scope.OverviewScope
         builtin_scope =
-            { values = [], types = builtin_types }
+            Ok  { values = [], types = builtin_types }
 
+        import_scope : AnalysisRes Scope.OverviewScope
         import_scope =
             import_scopes prog.imports
 
-        starting_scopes =
-            import_scope |> Result.map (\s -> Scope.merge_2_scopes builtin_scope s)
-
+        local_module_scope : AnalysisRes Scope.OverviewScope
         local_module_scope =
-            starting_scopes |> Result.andThen (\ss -> build_local_type_scope ss prog.global_typedefs)
-
-        local_value_scope =
-            local_module_scope |> Result.andThen (\ts -> build_global_values prog.global_functions ts)
+            build_this_module_outer_type prog.global_typedefs
 
         full_scopes =
             merge_scopes
-                [ starting_scopes
+                [ builtin_scope
+                , import_scope
                 , local_module_scope
-                , local_value_scope |> Result.map (\vals -> Scope.OverviewScope vals [])
                 ]
+                |> Result.andThen (build_this_module_values prog.global_functions)
+                |> Result.map (\vals -> Scope.OverviewScope vals [])
     in
     full_scopes
 
 
-build_global_values : List AST.FunctionDefinition -> Scope.OverviewScope -> AnalysisRes (List ValueNameAndType)
-build_global_values l os =
+build_this_module_values : List AST.FunctionDefinition -> Scope.OverviewScope -> AnalysisRes (List ValueNameAndType)
+build_this_module_values l os =
     l
         |> List.map (otype_of_fndef os)
         |> collapse_analysis_results (\a b -> [ a, b ])
@@ -112,7 +111,7 @@ fheader_from_ast os fh =
                     Nothing |> Ok
 
                 Just t ->
-                    t |> (\fn -> type_from_fullname os fn  |> Result.map Just)
+                    t |> (\fn -> type_from_fullname os fn |> Result.map Just)
     in
     Result.map2 (\a -> FunctionHeader a) args ret
 
@@ -123,7 +122,7 @@ qualed_type_and_name_from_ast os qtwn =
 
 
 type_from_fullname : Scope.OverviewScope -> AST.FullNameAndLocation -> AnalysisRes Language.Type
-type_from_fullname os fn  =
+type_from_fullname os fn =
     let
         is_valid_named_type : OuterType -> Maybe TypeOfTypeDefinition
         is_valid_named_type ot =
@@ -230,15 +229,15 @@ otype_of_typedef t =
             otype_of_aliasdef adef
 
 
-build_local_type_scope : Scope.OverviewScope -> List AST.TypeDefinitionType -> Result AnalysisError Scope.OverviewScope
-build_local_type_scope os l =
+build_this_module_outer_type : List AST.TypeDefinitionType -> Result AnalysisError Scope.OverviewScope
+build_this_module_outer_type l =
     let
         types : Result AnalysisError (List OuterType)
         types =
             l |> List.map otype_of_typedef |> collapse_analysis_results (\a b -> [ a, b ])
 
         scope =
-            types |> Result.andThen (\ts -> merge_scopes [ Ok os, Scope.OverviewScope [] ts |> Ok ])
+            types |> Result.andThen (\ts -> Scope.OverviewScope [] ts |> Ok)
     in
     scope
 

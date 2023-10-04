@@ -182,13 +182,13 @@ parse_fullname_with_ga_start_or_end todo name_and_args ps =
 
 
 parse_fullname_gen_args_continue : FullNameParseTodo -> Language.Identifier -> Util.SourceView -> ParseStep -> ParseRes
-parse_fullname_gen_args_continue todo name loc ps =
+parse_fullname_gen_args_continue todo name idloc ps =
     case ps.tok.typ of
         Symbol s ->
-            parse_fullname_gen_args_dot_or_end todo ps.tok.loc (AST.append_identifier name s) |> ParseFn |> Next ps.prog
+            parse_fullname_gen_args_dot_or_end todo (Util.merge_sv idloc ps.tok.loc) (AST.append_identifier name s) |> ParseFn |> Next ps.prog
 
         CommaToken ->
-            todo (Ok (NameWithoutArgs name |> AST.with_location (Util.merge_sv loc ps.tok.loc)))
+            todo (Ok (NameWithoutArgs name |> AST.with_location (Util.merge_sv idloc ps.tok.loc)))
 
         _ ->
             Err (FailedNamedTypeParse (NameError ps.tok.loc "Expected a symbol like 'a' or 'std' here")) |> todo

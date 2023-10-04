@@ -204,6 +204,8 @@ builtin_types =
     , AliasOuterType (SingleIdentifier "i16") (IntegerType I16)
     , AliasOuterType (SingleIdentifier "i32") (IntegerType I32)
     , AliasOuterType (SingleIdentifier "i64") (IntegerType I64)
+    , AliasOuterType (SingleIdentifier "f32") (FloatingPointType F32)
+    , AliasOuterType (SingleIdentifier "f64") (FloatingPointType F64)
     ]
 
 
