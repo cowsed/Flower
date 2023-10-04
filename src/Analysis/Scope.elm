@@ -1,6 +1,6 @@
 module Analysis.Scope exposing (..)
 
-import Language
+import Language.Language as Language
 
 -- Scope that only has 
 --   names and types of values
@@ -10,7 +10,7 @@ type alias OverviewScope =
     { values : List Language.ValueNameAndType
     , types : List Language.OuterType
     }
-
+ 
 overview_has_outer_type: OverviewScope -> Language.Identifier -> Maybe Language.OuterType
 overview_has_outer_type os id = 
     let

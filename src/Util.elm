@@ -2,7 +2,7 @@ module Util exposing (..)
 
 import Html
 import Html.Attributes
-import Language
+import Language.Language as Language
 
 
 escape_result : Result er er -> er
@@ -12,7 +12,7 @@ escape_result res =
             e
 
         Ok v ->
-            v
+            v 
 
 
 collapsable : Html.Html msg -> Html.Html msg -> Html.Html msg

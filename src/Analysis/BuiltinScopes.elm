@@ -1,7 +1,7 @@
 module Analysis.BuiltinScopes exposing (..)
 
 import Analysis.Scope as Scope
-import Language exposing (Identifier(..), OuterType, QualifiedType, Qualifier(..), ValueNameAndType)
+import Language.Language as Language exposing (Identifier(..), OuterType, QualifiedType, Qualifier(..), ValueNameAndType)
 import Parser.AST as AST
 
 

@@ -1,6 +1,6 @@
 module Parser.AST exposing (..)
 
-import Language exposing (Identifier(..), InfixOpType(..), LiteralType(..), stringify_identifier, stringify_infix_op)
+import Language.Language as Language exposing (Identifier(..), InfixOpType(..), LiteralType(..), stringify_identifier, stringify_infix_op)
 import Parser.Lexer as Lexer
 import Util
 

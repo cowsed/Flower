@@ -4,9 +4,9 @@ import Analysis.Analyzer exposing (..)
 import Analysis.Scope as Scope
 import Html
 import Html.Attributes exposing (style)
-import Language exposing (..)
+import Language.Language as Language exposing (..)
 import Pallete
-import Util
+import Util 
 
 
 explain_error : AnalysisError -> Html.Html msg

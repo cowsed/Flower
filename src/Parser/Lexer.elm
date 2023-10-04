@@ -2,7 +2,7 @@ module Parser.Lexer exposing (..)
 
 import Html exposing (pre, text)
 import Html.Attributes exposing (style)
-import Language
+import Language.Language as Language
 import Language.Syntax
 import Pallete
 import Util
@@ -13,7 +13,7 @@ type alias Token =
     , typ : TokenType
     }
 
-
+ 
 type TokenType
     = Keyword Language.Syntax.KeywordType
     | Symbol String

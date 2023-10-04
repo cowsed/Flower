@@ -1,6 +1,6 @@
 module Parser.ParserCommon exposing (..)
 
-import Language
+import Language.Language as Language
 import Parser.AST as AST exposing (Expression(..), ExpressionAndLocation, FullName(..), FullNameAndLocation, Statement(..), UnqualifiedTypeWithName)
 import Parser.Lexer as Lexer exposing (Token, TokenType(..))
 import Util exposing (escape_result)
@@ -11,7 +11,7 @@ type ParseFn
 
 
 type alias ParseStep =
-    { tok : Token
+    { tok : Token 
     , prog : AST.Program
     }
 

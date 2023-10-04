@@ -1,4 +1,4 @@
-module Language exposing (..)
+module Language.Language exposing (..)
 
 
 type Identifier

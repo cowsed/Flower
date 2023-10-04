@@ -1,6 +1,6 @@
 module Parser.Parser exposing (..)
 
-import Language exposing (Identifier(..))
+import Language.Language as Language exposing (Identifier(..))
 import Language.Syntax exposing (KeywordType(..))
 import Parser.AST as AST exposing (..)
 import Parser.ExpressionParser as ExpressionParser exposing (..)

@@ -2,7 +2,7 @@ module Analysis.Analyzer exposing (..)
 
 import Analysis.BuiltinScopes as BuiltinScopes
 import Analysis.Scope as Scope
-import Language exposing (FunctionHeader, Identifier(..), LiteralType(..), OuterType(..), QualifiedType, Type(..), TypeOfTypeDefinition(..), ValueNameAndType, builtin_types, type_of_non_generic_outer_type)
+import Language.Language as Language exposing (FunctionHeader, Identifier(..), LiteralType(..), OuterType(..), QualifiedType, Type(..), TypeOfTypeDefinition(..), ValueNameAndType, builtin_types, type_of_non_generic_outer_type)
 import Parser.AST as AST
 import Parser.ParserCommon exposing (Error(..))
 import Util

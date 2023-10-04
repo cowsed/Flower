@@ -3,7 +3,7 @@ module Analysis.Serialization exposing (..)
 import Analysis.Explanations exposing (stringify_floating_size, stringify_integer_size)
 import Json.Decode as JD
 import Json.Encode as JE
-import Language exposing (FloatingPointSize, IntegerSize(..), Type(..))
+import Language.Language as Language exposing (FloatingPointSize, IntegerSize(..), Type(..))
 
 
 encode_boolean : JE.Value
@@ -12,7 +12,7 @@ encode_boolean =
 
 
 encode_integer : IntegerSize -> JE.Value
-encode_integer s =
+encode_integer s = 
     JE.object [ ( "type_type", JE.string "integer" ), ( "width", JE.string (stringify_integer_size s) ) ]
 
 
