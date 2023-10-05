@@ -276,7 +276,7 @@ parse_outer_scope ps =
 
 
 parse_typename : FullNameParseTodo -> ParseStep -> ParseRes
-parse_typename todo ps =
+parse_typename outer_todo ps =
     let
         todo_with_type_and_args : FullNameParseTodo
         todo_with_type_and_args res =
@@ -285,7 +285,7 @@ parse_typename todo ps =
                     Error e
 
                 Ok nt ->
-                    todo <| Ok nt
+                    outer_todo <| Ok nt
 
         todo_with_type_and_args_ref : FullNameParseTodo
         todo_with_type_and_args_ref res =
@@ -294,7 +294,7 @@ parse_typename todo ps =
                     Error e
 
                 Ok nt ->
-                    todo <| Ok (ReferenceToFullName nt |> AST.with_location (Util.merge_sv ps.tok.loc nt.loc))
+                    outer_todo <| Ok (ReferenceToFullName nt |> AST.with_location (Util.merge_sv ps.tok.loc nt.loc))
     in
     case ps.tok.typ of
         ReferenceToken ->
@@ -660,7 +660,7 @@ parse_global_fn_return fname header_so_far ps =
     in
     case ps.tok.typ of
         ReturnSpecifier ->
-            parse_typename what_to_do_with_ret_type |> next_pfn
+            parse_possibly_constrained_fullname what_to_do_with_ret_type |> next_pfn
 
         OpenCurly ->
             reapply_token (parse_global_function_body fname header_so_far |> ParseFn) ps

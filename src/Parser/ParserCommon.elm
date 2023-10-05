@@ -196,12 +196,15 @@ parse_fullname_gen_args_continue todo name idloc ps =
 
 parse_fullname_gen_args_dot_or_end : FullNameParseTodo -> Util.SourceView -> Language.Identifier -> ParseStep -> ParseRes
 parse_fullname_gen_args_dot_or_end todo name_loc name_so_far ps =
+
+    
     case ps.tok.typ of
         DotToken ->
             parse_fullname_gen_args_continue todo name_so_far name_loc |> ParseFn |> Next ps.prog
 
         OpenSquare ->
             parse_fullname_with_ga_start_or_end todo (NameWithArgs { base = name_so_far, args = [] } |> AST.with_location name_loc) |> ParseFn |> Next ps.prog
+
 
         _ ->
             reapply_token_or_fail (todo (Ok (NameWithoutArgs name_so_far |> AST.with_location name_loc))) ps
@@ -210,19 +213,21 @@ parse_fullname_gen_args_dot_or_end todo name_loc name_so_far ps =
 parse_fullname : FullNameParseTodo -> ParseStep -> ParseRes
 parse_fullname todo ps =
     let
+        inner_todo = todo
         todo_if_ref : FullNameParseTodo
         todo_if_ref res =
             res
                 |> Result.mapError (\e -> Error e)
-                |> Result.andThen (\fn -> todo (ReferenceToFullName fn |> AST.with_location (Util.merge_sv ps.tok.loc fn.loc) |> Ok) |> Ok)
+                |> Result.andThen (\fn -> inner_todo (ReferenceToFullName fn |> AST.with_location (Util.merge_sv ps.tok.loc fn.loc) |> Ok) |> Ok)
                 |> escape_result
     in
     case ps.tok.typ of
         Symbol s ->
-            parse_fullname_gen_args_dot_or_end todo ps.tok.loc (Language.SingleIdentifier s) |> ParseFn |> Next ps.prog
+            parse_fullname_gen_args_dot_or_end inner_todo ps.tok.loc (Language.SingleIdentifier s) |> ParseFn |> Next ps.prog
 
         ReferenceToken ->
             parse_fullname todo_if_ref |> ParseFn |> Next ps.prog
+
 
         Lexer.Literal l s ->
             AST.Literal l s |> AST.with_location ps.tok.loc |> Ok |> todo

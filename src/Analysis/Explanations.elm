@@ -65,7 +65,7 @@ explain_program : GoodProgram -> Html.Html msg
 explain_program gp =
     Html.div [ style "font-size" "15px" ]
         [ Html.h3 [] [ Html.text ("module: " ++ gp.module_name) ]
-        , Util.collapsable (Html.text "Outer Scope") (explain_global_scope gp.outer_scope)
+        , Util.collapsable (Html.text "Declarations") (explain_global_scope gp.outer_scope)
         ]
 
 
