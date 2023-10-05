@@ -7,7 +7,7 @@ import Html.Attributes exposing (style)
 import Language.Language as Language exposing (..)
 import Pallete
 import Util
-
+import Analysis.Util exposing (AnalysisError(..))
 
 explain_error : AnalysisError -> Html.Html msg
 explain_error ae =
@@ -19,7 +19,7 @@ explain_error ae =
             UnknownImport sl ->
                 Html.text ("I don't know of an import by the name `" ++ sl.thing ++ "`. \n" ++ Util.show_source_view sl.loc)
 
-            Unimplemented why ->
+            Unimplemented why -> 
                 Html.text ("Unimplemented: " ++ why)
 
             Multiple l ->
@@ -76,7 +76,10 @@ explain_global_scope scope =
         , Util.collapsable (Html.text "Types") (scope.types |> List.map explain_outer_type |> List.map (\h -> Html.li [] [ h ]) |> Html.ul [])
         ]
 
-
+explain_type_type: Language.TypeType -> String
+explain_type_type tt = 
+    case tt of 
+        Any s -> s++": Any"
 explain_outer_type : Language.OuterType -> Html.Html msg
 explain_outer_type ot =
     case ot of
@@ -85,7 +88,7 @@ explain_outer_type ot =
                 [ Html.text (stringify_typeoftypedef gt)
                 , Html.text (stringify_identifier id)
                 , Html.text " with args "
-                , Html.span [] [ Html.text (String.join ", " args) ]
+                , Html.span [] [ Html.text (String.join ", " (args |> List.map explain_type_type)) ]
                 ]
 
         StructOuterType st ->

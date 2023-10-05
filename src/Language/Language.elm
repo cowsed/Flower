@@ -6,14 +6,36 @@ type Identifier
     | QualifiedIdentifiers (List String) -- name.b.c
 
 
-prepend_identifier : String -> Identifier -> Identifier
-prepend_identifier s i =
-    case i of
-        SingleIdentifier n ->
-            QualifiedIdentifiers [ s, n ]
+type FloatingPointSize
+    = F32
+    | F64
 
-        QualifiedIdentifiers l ->
-            QualifiedIdentifiers (s :: l)
+
+type IntegerSize
+    = U8
+    | U16
+    | U32
+    | U64
+    | I8
+    | I16
+    | I32
+    | I64
+
+
+type InfixOpType
+    = Addition
+    | Subtraction
+    | Multiplication
+    | Division
+    | Equality
+    | NotEqualTo
+    | LessThan
+    | LessThanEqualTo
+    | GreaterThan
+    | GreaterThanEqualTo
+    | And
+    | Or
+    | Xor
 
 
 stringify_identifier : Identifier -> String
@@ -52,7 +74,7 @@ type alias QualifiedType =
 
 
 type OuterType
-    = Generic Identifier TypeOfTypeDefinition (List String)
+    = Generic Identifier TypeOfTypeDefinition (List TypeType)
     | StructOuterType Identifier
     | EnumOuterType Identifier
     | AliasOuterType Identifier Type
@@ -60,12 +82,20 @@ type OuterType
 
 type ReasonForUninstantiable
     = WrongNumber
-generic_instantiable_with: TypeOfTypeDefinition -> List String -> List Type -> Maybe ReasonForUninstantiable
-generic_instantiable_with tot gen_args used_args = 
-    if Debug.log "gen args len"(List.length gen_args) /= Debug.log "used args len" (List.length used_args) then
+
+
+type TypeType -- analagous to c++ concepts. constrain on type
+    = Any String
+
+
+is_generic_instantiable_with : TypeOfTypeDefinition -> List TypeType -> List Type -> Maybe ReasonForUninstantiable
+is_generic_instantiable_with tot gen_args used_args =
+    if Debug.log "gen args len" (List.length gen_args) /= Debug.log "used args len" (List.length used_args) then
         Just WrongNumber
-    else 
+
+    else
         Nothing
+
 
 type_of_non_generic_outer_type : OuterType -> Maybe TypeOfTypeDefinition
 type_of_non_generic_outer_type ot =
@@ -109,8 +139,6 @@ type alias FunctionHeader =
     { args : List QualifiedType, rtype : Maybe Type }
 
 
-
-
 type alias ValueNameAndType =
     { name : Identifier
     , typ : Type
@@ -144,20 +172,14 @@ type alias StructDefinition =
     }
 
 
-type FloatingPointSize
-    = F32
-    | F64
+prepend_identifier : String -> Identifier -> Identifier
+prepend_identifier s i =
+    case i of
+        SingleIdentifier n ->
+            QualifiedIdentifiers [ s, n ]
 
-
-type IntegerSize
-    = U8
-    | U16
-    | U32
-    | U64
-    | I8
-    | I16
-    | I32
-    | I64
+        QualifiedIdentifiers l ->
+            QualifiedIdentifiers (s :: l)
 
 
 builtin_type_from_name : String -> Maybe Type
@@ -215,20 +237,23 @@ builtin_types =
     ]
 
 
-type InfixOpType
-    = Addition
-    | Subtraction
-    | Multiplication
-    | Division
-    | Equality
-    | NotEqualTo
-    | LessThan
-    | LessThanEqualTo
-    | GreaterThan
-    | GreaterThanEqualTo
-    | And
-    | Or
-    | Xor
+extract_builtins : Type -> Type
+extract_builtins t =
+    case Debug.log "extracting " t of
+        NamedType id tot ->
+            if tot == AliasDefinitionType then
+                case id of
+                    SingleIdentifier s ->
+                        builtin_type_from_name s |> Maybe.withDefault t
+
+                    _ ->
+                        t
+
+            else
+                t
+
+        _ ->
+            t
 
 
 precedence : InfixOpType -> Int

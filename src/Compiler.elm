@@ -1,6 +1,6 @@
 module Compiler exposing (..)
 
-import Analysis.Analyzer exposing (AnalysisError, GoodProgram)
+import Analysis.Analyzer exposing (GoodProgram)
 import Analysis.Explanations
 import Html
 import Parser.AST as AST
@@ -8,7 +8,7 @@ import Parser.Lexer as Lexer exposing (Token, token_to_str)
 import Parser.Parser as Parser
 import Parser.ParserCommon as ParserCommon
 import Parser.ParserExplanations as ParserExplanations
-
+import Analysis.Util exposing (AnalysisError)
 
 type CompilerError
     = Lex Lexer.Error

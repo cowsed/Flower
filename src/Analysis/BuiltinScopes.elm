@@ -13,7 +13,7 @@ std_puts_v =
 
 std_pair_t : OuterType
 std_pair_t =
-    Generic (SingleIdentifier "pair") Language.StructDefinitionType ["T"]
+    Generic (SingleIdentifier "pair") Language.StructDefinitionType [Language.Any "T"]
 
 
 std_scope : Scope.OverviewScope

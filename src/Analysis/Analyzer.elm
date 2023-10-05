@@ -3,11 +3,11 @@ module Analysis.Analyzer exposing (..)
 import Analysis.BuiltinScopes as BuiltinScopes
 import Analysis.Scope as Scope
 import Element exposing (Length)
-import Language.Language as Language exposing (FunctionHeader, Identifier(..), LiteralType(..), OuterType(..), QualifiedType, Type(..), TypeOfTypeDefinition(..), ValueNameAndType, builtin_types, type_of_non_generic_outer_type)
+import Language.Language as Language exposing (FunctionHeader, Identifier(..), IntegerSize(..), LiteralType(..), OuterType(..), QualifiedType, Type(..), TypeOfTypeDefinition(..), ValueNameAndType, builtin_types, type_of_non_generic_outer_type)
 import Parser.AST as AST
 import Parser.ParserCommon exposing (Error(..))
 import Util
-import Language.Language exposing (IntegerSize(..))
+import Analysis.Util exposing (..)
 
 
 type alias GoodProgram =
@@ -29,16 +29,6 @@ analyze prog =
     Result.map2 assemble_gp outer_scopes module_name
 
 
-merge_scopes : List (Result AnalysisError Scope.OverviewScope) -> Result AnalysisError Scope.OverviewScope
-merge_scopes scopes =
-    let
-        merge_2 : AnalysisRes Scope.OverviewScope -> AnalysisRes Scope.OverviewScope -> AnalysisRes Scope.OverviewScope
-        merge_2 res1 res2 =
-            res_join_2 Scope.merge_2_scopes res1 res2
-    in
-    List.foldl merge_2 (Ok Scope.empty_scope) scopes
-
-
 make_outer_scope : AST.Program -> Result AnalysisError Scope.OverviewScope
 make_outer_scope prog =
     let
@@ -54,16 +44,17 @@ make_outer_scope prog =
         local_module_type_scope =
             build_this_module_outer_type prog.global_typedefs
 
-        full_scopes =
-            merge_scopes
+        pre_fn_scopes = merge_scopes
                 [ builtin_scope
                 , import_scope
                 , local_module_type_scope
                 ]
+        full_scopes =
+            pre_fn_scopes
                 |> Result.andThen (build_this_module_values prog.global_functions)
                 |> Result.map (\vals -> Scope.OverviewScope vals [])
     in
-    full_scopes
+    merge_scopes [full_scopes, pre_fn_scopes]
 
 
 build_this_module_values : List AST.FunctionDefinition -> Scope.OverviewScope -> AnalysisRes (List ValueNameAndType)
@@ -98,11 +89,11 @@ otype_of_fndef os fdef =
                 _ ->
                     FunctionNameArgTooComplicated fdef.name.loc |> Err
 
-        gen_args : AnalysisRes (Maybe (List Type))
+        gen_args : AnalysisRes (Maybe (List Language.TypeType))
         gen_args =
             case fdef.name.thing of
                 AST.NameWithArgs nargs ->
-                    nargs.args |> List.map (type_from_fullname os) |> collapse_analysis_results (\a b -> [ a, b ]) |> Result.map (\l -> Just l)
+                    nargs.args |> ensure_valid_generic_names |> Result.map (\l -> Just l)
 
                 _ ->
                     Nothing |> Ok
@@ -148,14 +139,6 @@ type_from_fullname os fn =
                 _ ->
                     type_of_non_generic_outer_type ot
 
-        is_instantiable : OuterType -> Maybe ( Identifier, TypeOfTypeDefinition, List String )
-        is_instantiable ot =
-            case ot of
-                Generic a b c ->
-                    Just ( a, b, c )
-
-                _ ->
-                    Nothing
     in
     (case fn.thing of
         AST.NameWithoutArgs name ->
@@ -166,90 +149,63 @@ type_from_fullname os fn =
                 |> Result.map (\ot -> NamedType name ot)
 
         AST.NameWithArgs name_and_args ->
-            let
-                validated_name =
-                    name_and_args.base
-                        |> Scope.overview_has_outer_type os
-                        |> Result.fromMaybe (TypeNameNotFound name_and_args.base fn.loc)
-
-                validated_args : AnalysisRes (List Type)
-                validated_args =
-                    name_and_args.args |> List.map (type_from_fullname os) |> collapse_analysis_results (\a b -> [ a, b ])
-            in
-            validated_name
-                |> Result.andThen (\tn -> is_instantiable tn |> Result.fromMaybe (TypeNotInstantiable name_and_args.base fn.loc))
-                |> Result.map (\t -> t)
-                |> Result.andThen
-                    (\( gen_id, tot, gen_args ) ->
-                        validated_args
-                            |> Result.andThen
-                                (\val_args ->
-                                    Language.generic_instantiable_with tot gen_args val_args
-                                        |> (\can ->
-                                                case can of
-                                                    Nothing ->
-                                                        Ok <| GenericInstantiation gen_id tot val_args
-
-                                                    Just r ->
-                                                        CantInstantiateGenericWithTheseArgs r fn.loc |> Err
-                                           )
-                                )
-                    )
-                |> Result.map (\t -> t)
+            generic_instantiation_type_from_fullname os fn name_and_args
 
         _ ->
             BadTypeParse fn.loc |> Err
     )
-        |> Result.map extract_builtins
+        |> Result.map Language.extract_builtins
 
 
-extract_builtins : Type -> Type
-extract_builtins t =
-    case Debug.log "extracting " t of
-        NamedType id tot ->
-            if tot == AliasDefinitionType then
-                case id of
-                    SingleIdentifier s ->
-                        case s of
-                            "bool" ->
-                                BooleanType
-                            "u8" ->
-                                IntegerType Language.U8
-                            "u16" ->
-                                IntegerType Language.U16
-                            "u32" ->
-                                IntegerType Language.U32
-                            "u64" ->
-                                IntegerType Language.U64
-                            "i8" ->
-                                IntegerType Language.I8
-                            "i16" ->
-                                IntegerType Language.I16
-                            "i32" ->
-                                IntegerType Language.I32
-                            "i64" ->
-                                IntegerType Language.I64
-                            "str" ->
-                                BooleanType
-                            _ -> t
+generic_instantiation_type_from_fullname : Scope.OverviewScope -> AST.FullNameAndLocation -> { a | base : Identifier, args : List AST.FullNameAndLocation } -> Result AnalysisError Type
+generic_instantiation_type_from_fullname os fn name_and_args =
+    let
+        is_instantiable : OuterType -> Maybe ( Identifier, TypeOfTypeDefinition, List Language.TypeType )
+        is_instantiable ot =
+            case ot of
+                Generic a b c ->
+                    Just ( a, b, c )
 
-                    _ ->
-                        t
+                _ ->
+                    Nothing
+        validated_name =
+            name_and_args.base
+                |> Scope.overview_has_outer_type os
+                |> Result.fromMaybe (TypeNameNotFound name_and_args.base fn.loc)
 
-            else
-                t
+        validated_args : AnalysisRes (List Type)
+        validated_args =
+            name_and_args.args |> List.map (type_from_fullname os) |> collapse_analysis_results (\a b -> [ a, b ])
 
-        _ ->
-            t
+        wrap_can_instantiate_err gen_id tot val_args can =
+            case can of
+                Nothing ->
+                    Ok <| GenericInstantiation gen_id tot val_args
+
+                Just r ->
+                    CantInstantiateGenericWithTheseArgs r fn.loc |> Err
+    in
+    validated_name
+        |> Result.andThen (\tn -> is_instantiable tn |> Result.fromMaybe (TypeNotInstantiable name_and_args.base fn.loc))
+        |> Result.andThen
+            (\( gen_id, tot, gen_args ) ->
+                validated_args
+                    |> Result.andThen
+                        (\val_args ->
+                            Language.is_generic_instantiable_with tot gen_args val_args |> wrap_can_instantiate_err gen_id tot val_args
+                        )
+            )
 
 
-ensure_valid_generic_name : AST.ThingAndLocation AST.FullName -> AnalysisRes String
+
+
+ensure_valid_generic_name : AST.ThingAndLocation AST.FullName -> AnalysisRes Language.TypeType
 ensure_valid_generic_name name_and_loc =
     case name_and_loc.thing of
         AST.NameWithoutArgs id ->
             case id of
                 SingleIdentifier s ->
-                    Ok s
+                    Language.Any s |> Ok
 
                 _ ->
                     GenericArgIdentifierTooComplicated name_and_loc.loc |> Err
@@ -258,7 +214,7 @@ ensure_valid_generic_name name_and_loc =
             ExpectedSymbolInGenericArg name_and_loc.loc |> Err
 
 
-ensure_valid_generic_names : List (AST.ThingAndLocation AST.FullName) -> Result AnalysisError (List String)
+ensure_valid_generic_names : List AST.FullNameAndLocation -> Result AnalysisError (List Language.TypeType)
 ensure_valid_generic_names l =
     l
         |> List.map ensure_valid_generic_name
@@ -300,7 +256,7 @@ otype_of_enumdef edef =
                 |> Result.map (Generic def.base EnumDefinitionType)
 
         _ ->
-            Unimplemented "generic enum to otype" |> Err
+            Analysis.Util.Unimplemented "generic enum to otype" |> Err
 
 
 otype_of_aliasdef : AST.AliasDefinition -> Result AnalysisError Language.OuterType
@@ -314,7 +270,7 @@ otype_of_aliasdef adef =
                 |> Result.map (Generic def.base AliasDefinitionType)
 
         _ ->
-            Unimplemented "generic alias to otype" |> Err
+            Analysis.Util.Unimplemented "generic alias to otype" |> Err
 
 
 otype_of_typedef : AST.TypeDefinitionType -> Result AnalysisError Language.OuterType
@@ -362,77 +318,3 @@ import_scopes strs =
             )
         |> merge_scopes
 
-
-type AnalysisError
-    = UnknownImport AST.ImportAndLocation
-    | NoModuleName
-    | InvalidSyntaxInStructDefinition
-    | ExpectedSymbolInGenericArg Util.SourceView
-    | GenericArgIdentifierTooComplicated Util.SourceView
-    | FunctionNameArgTooComplicated Util.SourceView
-    | BadTypeParse Util.SourceView
-    | TypeNameNotFound Identifier Util.SourceView
-    | TypeNotInstantiable Identifier Util.SourceView
-    | CantInstantiateGenericWithTheseArgs Language.ReasonForUninstantiable Util.SourceView
-    | GenericTypeNameNotValidWithoutSquareBrackets Util.SourceView
-    | Unimplemented String
-    | Multiple (List AnalysisError)
-
-
-res_join_2 : (a -> a -> b) -> AnalysisRes a -> AnalysisRes a -> AnalysisRes b
-res_join_2 joiner res1 res2 =
-    case res1 of
-        Err e1 ->
-            case res2 of
-                Err e2 ->
-                    add_error e1 e2 |> Err
-
-                Ok _ ->
-                    Err e1
-
-        Ok s1 ->
-            case res2 of
-                Err e2 ->
-                    Err e2
-
-                Ok s2 ->
-                    joiner s1 s2 |> Ok
-
-
-res_join_n : AnalysisRes (List a) -> AnalysisRes a -> AnalysisRes (List a)
-res_join_n resl res2 =
-    case resl of
-        Err e1 ->
-            case res2 of
-                Err e2 ->
-                    add_error e1 e2 |> Err
-
-                Ok _ ->
-                    Err e1
-
-        Ok s1 ->
-            case res2 of
-                Err e2 ->
-                    Err e2
-
-                Ok s2 ->
-                    List.append s1 [ s2 ] |> Ok
-
-
-type alias AnalysisRes a =
-    Result AnalysisError a
-
-
-add_error : AnalysisError -> AnalysisError -> AnalysisError
-add_error e1 e2 =
-    Multiple (List.append (flatten e1) (flatten e2))
-
-
-flatten : AnalysisError -> List AnalysisError
-flatten ae =
-    case ae of
-        Multiple l ->
-            l
-
-        _ ->
-            [ ae ]
