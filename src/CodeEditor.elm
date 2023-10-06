@@ -296,7 +296,11 @@ code_editor colored_ranges state onchange =
         , Element.Events.onLoseFocus (onchange { state | focused = False })
         , Element.Events.onFocus (onchange { state | focused = True })
         , Html.Attributes.tabindex 0 |> Element.htmlAttribute
-        , Html.Events.preventDefaultOn "keydown" (Decode.succeed (onchange (update_editor state ), True)) |> Element.htmlAttribute
+        , Html.Events.preventDefaultOn
+            "keydown"
+            (Decode.map (\ke -> (update_editor state ke |> onchange, True)) Keyboard.Event.decodeKeyboardEvent)
+            -- (Decode.succeed ( onchange (update_editor state ke), True ))
+            |> Element.htmlAttribute
         ]
         (Element.row
             [ Element.spacingXY 0 2
