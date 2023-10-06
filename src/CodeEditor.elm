@@ -2,7 +2,10 @@ module CodeEditor exposing (..)
 
 import Element exposing (Color, px)
 import Element.Background as Background
+import Element.Border
+import Element.Events
 import Element.Font as Font
+import Html.Attributes
 import Html.Events
 import List.Extra
 import Pallete
@@ -14,8 +17,8 @@ type alias Range =
     { low : Int, high : Int }
 
 
-type alias ColoredRange =
-    { range : Range, color : Color }
+type alias InfoRange =
+    { range : Range, color : Color, on_hover : Maybe String }
 
 
 type alias EditorState =
@@ -48,18 +51,18 @@ non_empty_range r =
         True
 
 
-intersperse_normals : Range -> List ColoredRange -> List ColoredRange
-intersperse_normals r s =
+intersperse_normal_text : Range -> List InfoRange -> List InfoRange
+intersperse_normal_text r s =
     if List.length s == 0 then
-        [ ColoredRange r Pallete.fg_c ]
+        [ InfoRange r Pallete.fg_c Nothing ]
 
     else if List.length s == 1 then
         List.head s
             |> Maybe.map
                 (\c1 ->
-                    [ ColoredRange (Range r.low c1.range.low) Pallete.fg_c
+                    [ InfoRange (Range r.low c1.range.low) Pallete.fg_c Nothing
                     , c1
-                    , ColoredRange (Range c1.range.high r.high) Pallete.fg_c
+                    , InfoRange (Range c1.range.high r.high) Pallete.fg_c Nothing
                     ]
                 )
             |> Maybe.withDefault []
@@ -70,16 +73,16 @@ intersperse_normals r s =
             Just first ->
                 zip s (Util.always_tail s)
                     -- between all specified colored sections
-                    |> List.map (\( r1, r2 ) -> [ r1, ColoredRange (Range r1.range.high r2.range.low) Pallete.fg_c ])
+                    |> List.map (\( r1, r2 ) -> [ r1, InfoRange (Range r1.range.high r2.range.low) Pallete.fg_c Nothing ])
                     -- 0 to first colored section
-                    |> (::) [ ColoredRange (Range r.low first.range.low) Pallete.fg_c ]
+                    |> (::) [ InfoRange (Range r.low first.range.low) Pallete.fg_c Nothing ]
                     |> flatten_2d
                     -- rest of line
-                    |> (\l -> List.append l (List.Extra.last s |> Maybe.map List.singleton |> Maybe.withDefault [] ))
+                    |> (\l -> List.append l (List.Extra.last s |> Maybe.map List.singleton |> Maybe.withDefault []))
                     |> (\l ->
                             List.append l
                                 (List.Extra.last s
-                                    |> Maybe.map (\cr -> [ ColoredRange (Range cr.range.high r.high) Pallete.fg_c ])
+                                    |> Maybe.map (\cr -> [ InfoRange (Range cr.range.high r.high) Pallete.fg_c Nothing ])
                                     |> Maybe.withDefault []
                                 )
                        )
@@ -87,22 +90,62 @@ intersperse_normals r s =
                     |> List.filter (\cr -> non_empty_range cr.range)
 
             Nothing ->
-                [ ColoredRange r Pallete.fg_c ]
+                [ InfoRange r Pallete.fg_c Nothing ]
 
 
-code_line : EditorStyle -> String -> ( Range, List ColoredRange ) -> Element.Element msg
-code_line style source ( line_range, colors ) =
+tooltip : (Element.Element msg -> Element.Attribute msg) -> Element.Element Never -> Element.Attribute msg
+tooltip usher tooltip_ =
+    Element.inFront <|
+        Element.el
+            [ Element.width Element.fill
+            , Element.height Element.fill
+            , Element.transparent True
+            , Element.mouseOver [ Element.transparent False ]
+            , (usher << Element.map never) <|
+                Element.el [ Element.htmlAttribute (Html.Attributes.style "pointerEvents" "none") ]
+                    tooltip_
+            ]
+            Element.none
+
+
+element_info : String -> InfoRange -> Element.Element msg
+element_info source ir =
     let
+        s =
+            ir.on_hover
+
+        tool =
+            s
+                |> Maybe.map
+                    (\t ->
+                        tooltip Element.above
+                            (Element.el
+                                [ Background.color Pallete.bg1_c
+                                , Element.padding 6
+                                , Element.Border.rounded 6
+                                ]
+                                (Element.text t)
+                            )
+                    )
+    in
+    Element.el
+        [ Font.color ir.color
+        , tool |> Maybe.withDefault (Font.color ir.color)
+        ]
+        (Element.text (slice_of_str source ir.range))
+
+
+code_line : EditorStyle -> String -> Int -> ( Range, List InfoRange ) -> Element.Element msg
+code_line style source cursor ( line_range, colors ) =
+    let
+        ranges =
+            colors
+                |> intersperse_normal_text line_range
+
         spans : List (Element.Element msg)
         spans =
-            colors
-                |> intersperse_normals line_range
-                |> List.map
-                    (\cr ->
-                        Element.el
-                            [ Font.color cr.color ]
-                            (Element.text (slice_of_str source cr.range))
-                    )
+            ranges
+                |> List.map (element_info source)
     in
     if line_range.high > line_range.low then
         Element.row
@@ -132,10 +175,10 @@ make_splits l =
             []
 
 
-split_colors : List Range -> List ColoredRange -> List (List ColoredRange)
+split_colors : List Range -> List InfoRange -> List (List InfoRange)
 split_colors rs crs =
     let
-        in_range : Range -> ColoredRange -> Bool
+        in_range : Range -> InfoRange -> Bool
         in_range r cr =
             if r.low <= cr.range.low && r.high >= cr.range.high then
                 True
@@ -146,10 +189,9 @@ split_colors rs crs =
     rs |> List.map (\r -> List.filter (in_range r) crs)
 
 
-code_editor : List ColoredRange -> EditorState -> (EditorState -> msg) -> Element.Element msg
+code_editor : List InfoRange -> EditorState -> (EditorState -> msg) -> Element.Element msg
 code_editor colored_ranges state onchange =
     let
-
         style =
             { line_height = 20 }
 
@@ -159,12 +201,12 @@ code_editor colored_ranges state onchange =
         splits =
             newlines |> List.append [ -1 ] |> make_splits
 
-        color_splits : List (List ColoredRange)
+        color_splits : List (List InfoRange)
         color_splits =
             split_colors splits colored_ranges
 
         output_lines =
-            zip splits color_splits |> List.map (code_line style state.text)
+            zip splits color_splits |> List.map (code_line style state.text state.cursor_pos)
 
         num_lines =
             List.length output_lines

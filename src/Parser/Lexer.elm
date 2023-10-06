@@ -325,7 +325,7 @@ lex_divide_or_comment lsi =
 lex_string_literal : Int -> String -> LexStepInfo -> LexRes
 lex_string_literal start sofar lsi =
     if lsi.char == '"' then
-        Tokens [ Token (lsi.view_from_start start) (Literal Language.StringLiteral sofar) ] begin_lex
+        Tokens [ Token (lsi.input_view start (lsi.pos+1)) (Literal Language.StringLiteral sofar) ] begin_lex
 
     else if lsi.char == '\n' then
         Error (UnclosedStringLiteral (lsi.view_from_start start))

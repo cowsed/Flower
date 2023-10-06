@@ -6,7 +6,7 @@ import Browser
 import Browser.Events
 import CodeEditor
 import Compiler exposing (CompilerError(..), compile, explain_error)
-import Element exposing (Element, alignBottom, alignRight, el, fill)
+import Element exposing (Element, alignBottom, alignRight, el, fill, scrollbarY)
 import Element.Background as Background
 import Element.Border
 import Element.Font as Font
@@ -14,13 +14,11 @@ import Html exposing (..)
 import Html.Attributes exposing (style)
 import Pallete
 import Parser.AST as AST
+import Parser.Lexer as Lexer
 import Parser.ParserExplanations
-import Parser.Lexer
 import Task
 import Time
 import Ui exposing (code_rep)
-import Element exposing (scrollbarY)
-import Parser.Lexer as Lexer
 
 
 
@@ -84,16 +82,32 @@ htmlify_output res =
                 Html.div [ style "padding-left" "20px" ] [ Analysis.Explanations.explain_program prog, Parser.ParserExplanations.explain_program prog.ast ]
         ]
 
-color_tok_type: Lexer.TokenType -> Element.Color
-color_tok_type tt = 
-    case tt of 
-        Lexer.Symbol _ -> Pallete.orange_c
-        Lexer.Keyword _ -> Pallete.red_c   
-        Lexer.CommentToken _ -> Pallete.gray_c
-        Lexer.Literal _ _ -> Pallete.aqua_c
-        _ -> Pallete.fg_c 
-range_from_toks: List Parser.Lexer.Token -> List CodeEditor.ColoredRange 
-range_from_toks toks = toks |> List.map (\t -> CodeEditor.ColoredRange (CodeEditor.Range t.loc.start t.loc.end) (color_tok_type t.typ))
+
+color_tok_type : Lexer.TokenType -> Element.Color
+color_tok_type tt =
+    case tt of
+        Lexer.Symbol _ ->
+            Pallete.orange_c
+
+        Lexer.Keyword _ ->
+            Pallete.red_c
+
+        Lexer.CommentToken _ ->
+            Pallete.gray_c
+
+        Lexer.Literal _ _ ->
+            Pallete.aqua_c
+
+        _ ->
+            Pallete.fg_c
+
+
+range_from_toks : List Lexer.Token -> List CodeEditor.InfoRange
+range_from_toks toks =
+    toks
+        |> List.map (\t -> CodeEditor.InfoRange (CodeEditor.Range t.loc.start t.loc.end) (color_tok_type t.typ) (Just <| Lexer.syntaxify_token t.typ))
+
+
 make_output : Model -> Element Msg
 make_output mod =
     let
@@ -113,13 +127,14 @@ make_output mod =
                 [ Element.text ("Compiled in " ++ millis_elapsed mod.last_run_start mod.last_run_end ++ " ms")
                 ]
 
-        colored_ranges = mod.output |> Result.map (\gp -> range_from_toks gp.ast.src_tokens) |> Result.withDefault []
+        colored_ranges =
+            mod.output |> Result.map (\gp -> range_from_toks gp.ast.src_tokens) |> Result.withDefault []
 
         left_pane =
             Element.el
                 [ Element.width fill
                 , Element.height fill
-                , Element.paddingEach {top = 0, bottom = 0, left = 0, right = 4}
+                , Element.paddingEach { top = 0, bottom = 0, left = 0, right = 4 }
                 , Element.Border.color Pallete.fg_c
                 , Element.Border.solid
                 , Element.Border.width 2
@@ -134,7 +149,7 @@ make_output mod =
                     el [ Element.width fill, Element.height fill ] <| Element.html (explain_error e)
 
                 Ok prog ->
-                    code_rep (prog.ast)
+                    code_rep prog.ast
     in
     Element.column
         [ Element.width fill
@@ -166,12 +181,12 @@ view mmod =
             text "Not Loaded Yet"
 
         Just mod ->
-            Element.row [ Element.height (Element.fill), Element.width fill ] [ make_output mod ]
+            Element.row [ Element.height Element.fill, Element.width fill ] [ make_output mod ]
                 |> Element.layout
                     [ Background.color Pallete.bg_c
                     , Font.color Pallete.fg_c
                     , Element.clip
-                    , Element.height (Element.fill)
+                    , Element.height Element.fill
                     , Element.width Element.fill
 
                     -- , Element.explain Debug.todo
@@ -179,7 +194,7 @@ view mmod =
 
 
 type Msg
-    = WindowSizeChanged (Int, Int)
+    = WindowSizeChanged ( Int, Int )
     | Recompile
     | EditorAction CodeEditor.EditorState
     | GotTimeToStart Time.Posix -- for timing
@@ -200,15 +215,17 @@ update msg mmod =
                 , last_run_start = Time.millisToPosix 0
                 , last_run_end = Time.millisToPosix 0
                 , output = compile initial_input
-                , window_size = (100, 100)
+                , window_size = ( 100, 100 )
                 }
             , Task.perform GotTimeToStart Time.now
             )
 
         Just mod ->
             case msg of
-                WindowSizeChanged s -> (Just {mod | window_size = s}, Cmd.none)
-                EditorAction es -> 
+                WindowSizeChanged s ->
+                    ( Just { mod | window_size = s }, Cmd.none )
+
+                EditorAction es ->
                     ( Just { mod | editor_state = es }, Task.perform GotTimeToStart Time.now )
 
                 Recompile ->
@@ -237,8 +254,8 @@ type alias Model =
     { editor_state : CodeEditor.EditorState
     , last_run_start : Time.Posix
     , last_run_end : Time.Posix
-    , output : Result Compiler.CompilerError  Analyzer.GoodProgram
-    , window_size : (Int, Int)
+    , output : Result Compiler.CompilerError Analyzer.GoodProgram
+    , window_size : ( Int, Int )
     }
 
 
@@ -254,5 +271,8 @@ main =
         , update = update
         , subscriptions = \_ -> Sub.none
         }
+
+
+
 -- subscriptions _ =
 --   Browser.Events.onResize (\w h -> WindowSizeChanged <| Debug.log "Changed" (w, h))
