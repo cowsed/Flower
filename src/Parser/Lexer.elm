@@ -159,7 +159,7 @@ rec_lex lf iv pos cs =
             let
                 lsi =
                     { input_view = iv
-                    , view_from_start = \s -> iv s pos
+                    , view_from_start = \s -> iv s (pos)
                     , view_this = iv pos (pos + 1)
                     , pos = pos
                     , char = c

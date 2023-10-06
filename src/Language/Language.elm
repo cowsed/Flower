@@ -90,7 +90,7 @@ type TypeType -- analagous to c++ concepts. constrain on type
 
 is_generic_instantiable_with : TypeOfTypeDefinition -> List TypeType -> List Type -> Maybe ReasonForUninstantiable
 is_generic_instantiable_with _ gen_args used_args =
-    if Debug.log "gen args len" (List.length gen_args) /= Debug.log "used args len" (List.length used_args) then
+    if List.length gen_args /= List.length used_args then
         Just WrongNumber
 
     else

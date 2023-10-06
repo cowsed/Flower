@@ -6,12 +6,13 @@ import Browser
 import Browser.Events
 import CodeEditor
 import Compiler exposing (CompilerError(..), compile, explain_error)
-import Element exposing (Element, alignBottom, alignRight, el, fill, scrollbarY)
+import Element exposing (Element, alignBottom, alignRight, alignTop, el, fill, scrollbarY)
 import Element.Background as Background
 import Element.Border
 import Element.Font as Font
 import Html exposing (..)
 import Html.Attributes exposing (style)
+import Keyboard.Event
 import Pallete
 import Parser.AST as AST
 import Parser.Lexer as Lexer
@@ -58,10 +59,6 @@ fn sqrt(v: bool ) -> f64{
 
 
 
-
-
-
-
 fn main() -> u8{
     a: u8 = 1
     b: u8 = 2
@@ -75,8 +72,8 @@ htmlify_output : Result CompilerError Analyzer.GoodProgram -> Html.Html msg
 htmlify_output res =
     Html.div []
         [ case res of
-            Err _ ->
-                Html.div [] []
+            Err e ->
+                explain_error e
 
             Ok prog ->
                 Html.div [ style "padding-left" "20px" ] [ Analysis.Explanations.explain_program prog, Parser.ParserExplanations.explain_program prog.ast ]
@@ -142,14 +139,23 @@ make_output mod =
             <|
                 CodeEditor.code_editor colored_ranges mod.editor_state (\s -> EditorAction s)
 
-        -- Element.html (Ui.code_editor mod.source_code (\s -> Compile s))
         right_pane =
-            case mod.output of
-                Err e ->
-                    el [ Element.width fill, Element.height fill ] <| Element.html (explain_error e)
-
-                Ok prog ->
-                    code_rep prog.ast
+            Element.column [ Element.width fill, Element.height fill, alignTop ]
+                [ Element.el
+                    [ Element.width fill
+                    , Element.height Element.fill
+                    ]
+                    (Element.html (htmlify_output mod.output))
+                , Element.column
+                    [ Element.width fill
+                    , Element.height Element.fill
+                    , Element.Border.color Pallete.fg_c
+                    , Element.Border.widthEach { top = 2, bottom = 2, left = 0, right = 2 }
+                    , Element.scrollbarY
+                    , Element.padding 5
+                    ]
+                    (mod.db_console |> List.map Element.text)
+                ]
     in
     Element.column
         [ Element.width fill
@@ -164,11 +170,6 @@ make_output mod =
             ]
             [ left_pane
             , right_pane
-            , Element.el
-                [ Element.width fill
-                , Element.height Element.fill
-                ]
-                (Element.html (htmlify_output mod.output))
             ]
         , footer
         ]
@@ -196,6 +197,7 @@ view mmod =
 type Msg
     = WindowSizeChanged ( Int, Int )
     | Recompile
+    | EditorKey Keyboard.Event.KeyboardEvent
     | EditorAction CodeEditor.EditorState
     | GotTimeToStart Time.Posix -- for timing
     | GotTimeEnd Time.Posix
@@ -211,11 +213,12 @@ update msg mmod =
     case mmod of
         Nothing ->
             ( Just
-                { editor_state = CodeEditor.EditorState initial_input 0
+                { editor_state = CodeEditor.EditorState initial_input 0 False
                 , last_run_start = Time.millisToPosix 0
                 , last_run_end = Time.millisToPosix 0
                 , output = compile initial_input
                 , window_size = ( 100, 100 )
+                , db_console = [ "Message 1" ]
                 }
             , Task.perform GotTimeToStart Time.now
             )
@@ -225,8 +228,20 @@ update msg mmod =
                 WindowSizeChanged s ->
                     ( Just { mod | window_size = s }, Cmd.none )
 
+                EditorKey ke ->
+                    let
+                        newes =
+                            if mod.editor_state.focused then 
+                                CodeEditor.update_editor mod.editor_state ke
+                            else
+                                mod.editor_state
+                        m =
+                            { mod | editor_state = newes }
+                    in
+                    update (EditorAction newes) (Just m)
+
                 EditorAction es ->
-                    ( Just { mod | editor_state = es }, Task.perform GotTimeToStart Time.now )
+                    ( Just { mod | editor_state = es, db_console = List.append mod.db_console [ "editor action: cursor = " ++ String.fromInt es.cursor_pos ] }, Task.perform GotTimeToStart Time.now )
 
                 Recompile ->
                     ( Just mod, Task.perform GotTimeToStart Time.now )
@@ -256,6 +271,7 @@ type alias Model =
     , last_run_end : Time.Posix
     , output : Result Compiler.CompilerError Analyzer.GoodProgram
     , window_size : ( Int, Int )
+    , db_console : List String
     }
 
 
@@ -269,10 +285,17 @@ main =
         { init = init
         , view = view
         , update = update
-        , subscriptions = \_ -> Sub.none
+        , subscriptions = subscriptions
         }
 
 
+subscriptions : Maybe Model -> Sub Msg
+subscriptions _ =
+    Sub.batch
+        [--Browser.Events.onKeyDown (Keyboard.Event.considerKeyboardEvent ke_to_msg)
+        ]
 
--- subscriptions _ =
---   Browser.Events.onResize (\w h -> WindowSizeChanged <| Debug.log "Changed" (w, h))
+
+ke_to_msg : Keyboard.Event.KeyboardEvent -> Maybe Msg
+ke_to_msg ke =
+    Just (EditorKey ke)
