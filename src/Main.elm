@@ -3,9 +3,9 @@ module Main exposing (..)
 import Analysis.Analyzer as Analyzer
 import Analysis.Explanations
 import Browser
-import Browser.Events
-import CodeEditor
 import Compiler exposing (CompilerError(..), compile, explain_error)
+import Editor.CodeEditor as Editor
+import Editor.Util
 import Element exposing (Element, alignBottom, alignRight, alignTop, el, fill, scrollbarY)
 import Element.Background as Background
 import Element.Border
@@ -14,12 +14,10 @@ import Html exposing (..)
 import Html.Attributes exposing (style)
 import Keyboard.Event
 import Pallete
-import Parser.AST as AST
 import Parser.Lexer as Lexer
 import Parser.ParserExplanations
 import Task
 import Time
-import Ui exposing (code_rep)
 
 
 
@@ -99,10 +97,10 @@ color_tok_type tt =
             Pallete.fg_c
 
 
-range_from_toks : List Lexer.Token -> List CodeEditor.InfoRange
+range_from_toks : List Lexer.Token -> List Editor.Util.InfoRange
 range_from_toks toks =
     toks
-        |> List.map (\t -> CodeEditor.InfoRange (CodeEditor.Range t.loc.start t.loc.end) (color_tok_type t.typ) (Just <| Lexer.syntaxify_token t.typ))
+        |> List.map (\t -> Editor.Util.InfoRange (Editor.Util.Range t.loc.start t.loc.end) (color_tok_type t.typ) (Just <| Lexer.syntaxify_token t.typ))
 
 
 make_output : Model -> Element Msg
@@ -124,8 +122,8 @@ make_output mod =
                 [ Element.text ("Compiled in " ++ millis_elapsed mod.last_run_start mod.last_run_end ++ " ms")
                 ]
 
-        colored_ranges =
-            mod.output |> Result.map (\gp -> range_from_toks gp.ast.src_tokens) |> Result.withDefault []
+        
+
 
         left_pane =
             Element.el
@@ -137,7 +135,7 @@ make_output mod =
                 , Element.Border.width 2
                 ]
             <|
-                CodeEditor.code_editor colored_ranges mod.editor_state (\s -> EditorAction s)
+                Editor.code_editor mod.editor_state (\s -> EditorAction s)
 
         right_pane =
             Element.column [ Element.width fill, Element.height fill, alignTop ]
@@ -198,14 +196,14 @@ type Msg
     = WindowSizeChanged ( Int, Int )
     | Recompile
     | EditorKey Keyboard.Event.KeyboardEvent
-    | EditorAction CodeEditor.EditorState
-    | GotTimeToStart Time.Posix -- for timing
-    | GotTimeEnd Time.Posix
+    | EditorAction Editor.EditorState
+    | CompileStartedAtTime Time.Posix -- for timing
+    | CompileFinishedAtTime Time.Posix
 
 
 init : a -> ( Maybe Model, Cmd Msg )
 init _ =
-    ( Nothing, Task.perform GotTimeToStart Time.now )
+    ( Nothing, Task.perform CompileStartedAtTime Time.now )
 
 
 update : Msg -> Maybe Model -> ( Maybe Model, Cmd Msg )
@@ -213,14 +211,14 @@ update msg mmod =
     case mmod of
         Nothing ->
             ( Just
-                { editor_state = CodeEditor.EditorState initial_input 0 False
+                { editor_state = Editor.EditorState initial_input 0 False []
                 , last_run_start = Time.millisToPosix 0
                 , last_run_end = Time.millisToPosix 0
                 , output = compile initial_input
                 , window_size = ( 100, 100 )
                 , db_console = [ "Message 1" ]
                 }
-            , Task.perform GotTimeToStart Time.now
+            , Task.perform CompileStartedAtTime Time.now
             )
 
         Just mod ->
@@ -231,26 +229,35 @@ update msg mmod =
                 EditorKey ke ->
                     let
                         newes =
-                            if mod.editor_state.focused then 
-                                CodeEditor.update_editor mod.editor_state ke
+                            if mod.editor_state.focused then
+                                Editor.update_editor mod.editor_state ke
+
                             else
                                 mod.editor_state
+
                         m =
                             { mod | editor_state = newes }
                     in
                     update (EditorAction newes) (Just m)
 
                 EditorAction es ->
-                    ( Just { mod | editor_state = es, db_console = List.append mod.db_console [ "editor action: cursor = " ++ String.fromInt es.cursor_pos ] }, Task.perform GotTimeToStart Time.now )
+                    ( Just { mod | editor_state = es, db_console = List.append mod.db_console [ "editor action: cursor = " ++ String.fromInt es.cursor_pos ] }, Task.perform CompileStartedAtTime Time.now )
 
                 Recompile ->
-                    ( Just mod, Task.perform GotTimeToStart Time.now )
+                    ( Just mod, Task.perform CompileStartedAtTime Time.now )
 
-                GotTimeToStart t ->
-                    ( Just { mod | last_run_start = t, output = compile mod.editor_state.text }, Task.perform GotTimeEnd Time.now )
+                CompileStartedAtTime t ->
+                    ( Just { mod | last_run_start = t, output = compile mod.editor_state.text }, Task.perform CompileFinishedAtTime Time.now )
 
-                GotTimeEnd t ->
-                    ( { mod | last_run_end = t }
+                CompileFinishedAtTime t ->
+                    let
+                        es = mod.editor_state
+                        colored_ranges =
+                            mod.output |> Result.map (\gp -> range_from_toks gp.ast.src_tokens) |> Result.withDefault []
+                        new_es = {es | info_ranges = colored_ranges}
+                    in
+                    
+                    ( { mod | last_run_end = t, editor_state =  new_es}
                         |> Just
                     , Cmd.none
                     )
@@ -266,7 +273,7 @@ millis_elapsed start end =
 
 
 type alias Model =
-    { editor_state : CodeEditor.EditorState
+    { editor_state : Editor.EditorState
     , last_run_start : Time.Posix
     , last_run_end : Time.Posix
     , output : Result Compiler.CompilerError Analyzer.GoodProgram
@@ -291,11 +298,4 @@ main =
 
 subscriptions : Maybe Model -> Sub Msg
 subscriptions _ =
-    Sub.batch
-        [--Browser.Events.onKeyDown (Keyboard.Event.considerKeyboardEvent ke_to_msg)
-        ]
-
-
-ke_to_msg : Keyboard.Event.KeyboardEvent -> Maybe Msg
-ke_to_msg ke =
-    Just (EditorKey ke)
+    Sub.batch []

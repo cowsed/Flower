@@ -1,11 +1,12 @@
-module CodeEditor exposing (..)
+module Editor.CodeEditor exposing (..)
 
-import Browser.Events as Events
-import Element exposing (Color, alignRight, px)
+import Editor.Util exposing (..)
+import Element exposing (alignRight, px)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Events
 import Element.Font as Font
+import Html
 import Html.Attributes
 import Html.Events
 import Json.Decode as Decode
@@ -17,18 +18,11 @@ import Time exposing (Month(..))
 import Util
 
 
-type alias Range =
-    { low : Int, high : Int }
-
-
-type alias InfoRange =
-    { range : Range, color : Color, on_hover : Maybe String }
-
-
 type alias EditorState =
     { text : String
     , cursor_pos : Int
     , focused : Bool
+    , info_ranges : List InfoRange
     }
 
 
@@ -37,28 +31,9 @@ type alias EditorStyle =
     }
 
 
-in_range : Range -> Int -> Bool
-in_range r i =
-    i >= r.low && i < r.high
-
-
 range_of_str : String -> Range -> String
 range_of_str s r =
     s |> String.dropLeft r.low |> String.dropRight (String.length s - r.high)
-
-
-flatten_2d : List (List a) -> List a
-flatten_2d list =
-    List.foldr (++) [] list
-
-
-non_empty_range : Range -> Bool
-non_empty_range r =
-    if r.low == r.high then
-        False
-
-    else
-        True
 
 
 intersperse_normal_text : Range -> List InfoRange -> List InfoRange
@@ -76,7 +51,7 @@ intersperse_normal_text r s =
                     ]
                 )
             |> Maybe.withDefault []
-            |> List.filter (\cr -> non_empty_range cr.range)
+            |> List.filter (\cr -> range_isnt_empty cr.range)
 
     else
         case List.head s of
@@ -97,54 +72,20 @@ intersperse_normal_text r s =
                                 )
                        )
                     -- last colored section to end
-                    |> List.filter (\cr -> non_empty_range cr.range)
+                    |> List.filter (\cr -> range_isnt_empty cr.range)
 
             Nothing ->
                 [ InfoRange r Pallete.fg_c Nothing ]
 
 
-tooltip : (Element.Element msg -> Element.Attribute msg) -> Element.Element Never -> Element.Attribute msg
-tooltip usher tooltip_ =
-    Element.inFront <|
-        Element.el
-            [ Element.width Element.fill
-            , Element.height Element.fill
-            , Element.transparent True
-            , Element.mouseOver [ Element.transparent False ]
-            , Element.htmlAttribute <| Html.Attributes.style "user-select" "none"
-            , (usher << Element.map never) <|
-                Element.el [ Element.htmlAttribute (Html.Attributes.style "pointerEvents" "none") ]
-                    tooltip_
-            ]
-            Element.none
-
-
-element_info : (EditorState -> msg) -> EditorState -> InfoRange -> Element.Element msg
-element_info onchange state ir =
+build_colored_range : (EditorState -> msg) -> EditorState -> InfoRange -> Element.Element msg
+build_colored_range onchange state ir =
     let
-        focus_handler =
-            Element.Events.onClick (onchange { state | focused = True })
-
-        tool =
-            ir.on_hover
-                |> Maybe.map
-                    (\t ->
-                        tooltip Element.above
-                            (Element.el
-                                [ Background.color Pallete.bg1_c
-                                , Element.padding 6
-                                , Border.rounded 6
-                                ]
-                                (Element.text t)
-                            )
-                    )
+        onclick index =
+            Element.Events.onMouseDown (onchange { state | cursor_pos = index, focused = True })
     in
     Element.row
-        [ Font.color ir.color
-
-        -- , Element.Events.onDoubleClick (onchange state)
-        -- , tool |> Maybe.withDefault (Font.color ir.color)
-        ]
+        [ Font.color ir.color ]
         (range_of_str state.text ir.range
             |> String.toList
             |> List.map String.fromChar
@@ -152,40 +93,19 @@ element_info onchange state ir =
             |> List.map
                 (\( i, s ) ->
                     [ Element.el
-                        ([ Element.Events.onMouseDown (onchange { state | cursor_pos = ir.range.low + i, focused = True })
-                         , Border.widthEach { left = 1, right = 0, top = 0, bottom = 0 }
+                        [ onclick (ir.range.low + i)
+                        , Border.widthEach { left = 1, right = 0, top = 0, bottom = 0 }
+                        , if ir.range.low + i == state.cursor_pos then
+                            Border.color Pallete.fg_c
 
-                         -- , Element.Events.onMouseDown (onchange {state | text = insert state.text state.cursor_pos "A"})
-                         ]
-                            |> List.append
-                                (if ir.range.low + i == state.cursor_pos then
-                                    [ Border.color Pallete.fg_c
-                                    ]
-
-                                 else
-                                    [ Border.color Pallete.bg_c ]
-                                )
-                        )
+                          else
+                            Border.color Pallete.bg_c
+                        ]
                         (Element.text s)
                     ]
                 )
             |> flatten_2d
         )
-
-
-insert : String -> Int -> String -> String
-insert initial ind new =
-    String.slice 0 ind initial ++ new ++ String.slice ind (String.length initial) initial
-
-
-remove : String -> Range -> String
-remove s r =
-    String.slice 0 r.low s ++ String.slice r.high (String.length s) s
-
-
-zip : List a -> List b -> List ( a, b )
-zip =
-    List.map2 Tuple.pair
 
 
 make_splits : List Int -> List Range
@@ -198,8 +118,8 @@ make_splits l =
             []
 
 
-split_colors : List Range -> List InfoRange -> List (List InfoRange)
-split_colors rs crs =
+split_colors_per_row : List Range -> List InfoRange -> List (List InfoRange)
+split_colors_per_row rs crs =
     let
         range_in_range : Range -> InfoRange -> Bool
         range_in_range r cr =
@@ -224,15 +144,18 @@ code_line onchange style state ( line_range, colors ) =
 
         restofline =
             Element.el
-                [ focus_handler
-                , Element.width Element.fill
+                [ Element.width Element.fill
                 , Element.height (px style.line_height)
                 , Element.Events.onClick (onchange { state | cursor_pos = line_range.high })
                 , alignRight
                 , Border.widthEach { left = 1, right = 0, top = 0, bottom = 0 }
                 , Border.color
                     (if line_range.high == state.cursor_pos then
-                        Pallete.fg_c
+                        if state.focused then
+                            Pallete.fg_c
+
+                        else
+                            Pallete.red_c
 
                      else
                         Pallete.bg_c
@@ -243,7 +166,7 @@ code_line onchange style state ( line_range, colors ) =
         spans : List (Element.Element msg)
         spans =
             ranges
-                |> List.map (element_info onchange state)
+                |> List.map (build_colored_range onchange state)
                 |> (\l -> List.append l [ restofline ])
     in
     Element.row
@@ -258,8 +181,8 @@ code_line onchange style state ( line_range, colors ) =
         ]
 
 
-code_editor : List InfoRange -> EditorState -> (EditorState -> msg) -> Element.Element msg
-code_editor colored_ranges state onchange =
+code_editor : EditorState -> (EditorState -> msg) -> Element.Element msg
+code_editor state onchange =
     let
         style =
             { line_height = 20 }
@@ -272,23 +195,29 @@ code_editor colored_ranges state onchange =
 
         color_splits : List (List InfoRange)
         color_splits =
-            split_colors splits colored_ranges
+            split_colors_per_row splits state.info_ranges
 
-        output_lines =
+        code_lines =
             zip splits color_splits |> List.map (code_line onchange style state)
 
-        num_lines =
-            List.length output_lines
-
         line_nums =
+            make_line_nums style (List.length code_lines)
+
+        code_line_col =
             Element.column
-                [ Background.color Pallete.bg1_c
-                , Element.paddingEach { left = 4, right = 4, top = 0, bottom = 0 }
-                , Font.size style.line_height
-                , Element.alignTop
-                , Element.htmlAttribute <| Html.Attributes.style "user-select" "none"
+                [ Element.width Element.fill
                 ]
-                (List.range 1 num_lines |> List.map (\i -> Element.text (String.fromInt i)))
+                code_lines
+
+        decoder : Decode.Decoder ( msg, Bool )
+        decoder =
+            Decode.map (\ke -> ( update_editor state ke |> onchange, True )) Keyboard.Event.decodeKeyboardEvent
+
+        key_override : Html.Attribute msg
+        key_override =
+            Html.Events.preventDefaultOn
+                "keydown"
+                decoder
     in
     Element.el
         [ Element.scrollbarY
@@ -296,11 +225,7 @@ code_editor colored_ranges state onchange =
         , Element.Events.onLoseFocus (onchange { state | focused = False })
         , Element.Events.onFocus (onchange { state | focused = True })
         , Html.Attributes.tabindex 0 |> Element.htmlAttribute
-        , Html.Events.preventDefaultOn
-            "keydown"
-            (Decode.map (\ke -> (update_editor state ke |> onchange, True)) Keyboard.Event.decodeKeyboardEvent)
-            -- (Decode.succeed ( onchange (update_editor state ke), True ))
-            |> Element.htmlAttribute
+        , key_override |> Element.htmlAttribute
         ]
         (Element.row
             [ Element.spacingXY 0 2
@@ -309,10 +234,7 @@ code_editor colored_ranges state onchange =
             , Element.width Element.fill
             ]
             [ line_nums
-            , Element.column
-                [ Element.width Element.fill
-                ]
-                output_lines
+            , code_line_col
             ]
         )
 
@@ -391,3 +313,15 @@ is_text_keye ke =
                     else
                         Debug.log s Nothing
                 )
+
+
+make_line_nums : EditorStyle -> Int -> Element.Element msg
+make_line_nums style len =
+    Element.column
+        [ Background.color Pallete.bg1_c
+        , Element.paddingEach { left = 4, right = 4, top = 0, bottom = 0 }
+        , Font.size style.line_height
+        , Element.alignTop
+        , Element.htmlAttribute <| Html.Attributes.style "user-select" "none"
+        ]
+        (List.range 1 len |> List.map (\i -> Element.text (String.fromInt i)))
