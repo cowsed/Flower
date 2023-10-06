@@ -2,7 +2,6 @@ module Analysis.Analyzer exposing (..)
 
 import Analysis.BuiltinScopes as BuiltinScopes
 import Analysis.Scope as Scope
-import Element exposing (Length)
 import Language.Language as Language exposing (FunctionHeader, Identifier(..), IntegerSize(..), LiteralType(..), OuterType(..), QualifiedType, Type(..), TypeOfTypeDefinition(..), ValueNameAndType, builtin_types, type_of_non_generic_outer_type)
 import Parser.AST as AST
 import Parser.ParserCommon exposing (Error(..))
@@ -11,7 +10,7 @@ import Analysis.Util exposing (..)
 
 
 type alias GoodProgram =
-    { module_name : String, outer_scope : Scope.OverviewScope }
+    { module_name : String, outer_scope : Scope.OverviewScope, ast: AST.Program }
 
 
 analyze : AST.Program -> Result AnalysisError GoodProgram
@@ -21,7 +20,7 @@ analyze prog =
             make_outer_scope prog
 
         assemble_gp scope name =
-            GoodProgram name scope
+            GoodProgram name scope prog
 
         module_name =
             Result.fromMaybe NoModuleName prog.module_name
@@ -122,7 +121,7 @@ analyze_fheader os fh =
                 Just t ->
                     t |> (\fn -> analyze_type os fn |> Result.map Just)
     in
-    Result.map2 (\a -> FunctionHeader a) args (Debug.log "ret type of fheader" ret)
+    Result.map2 (\a -> FunctionHeader a) args ret
 
 
 analyze_qualled_type_and_name : Scope.OverviewScope -> AST.QualifiedTypeWithName -> AnalysisRes Language.QualifiedType

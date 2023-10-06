@@ -1,11 +1,12 @@
 module CodeEditor exposing (..)
 
-import Element exposing (Color, Element, px, width)
+import Element exposing (Color, px)
 import Element.Background as Background
 import Element.Font as Font
-import Html exposing (output)
 import Html.Events
+import List.Extra
 import Pallete
+import Time exposing (Month(..))
 import Util
 
 
@@ -30,16 +31,63 @@ type alias EditorStyle =
 
 slice_of_str : String -> Range -> String
 slice_of_str s r =
-    s |> String.dropLeft (r.low) |> String.dropRight (String.length s - r.high)
+    s |> String.dropLeft r.low |> String.dropRight (String.length s - r.high)
+
+
+flatten_2d : List (List a) -> List a
+flatten_2d list =
+    List.foldr (++) [] list
+
+
+non_empty_range : Range -> Bool
+non_empty_range r =
+    if r.low == r.high then
+        False
+
+    else
+        True
 
 
 intersperse_normals : Range -> List ColoredRange -> List ColoredRange
 intersperse_normals r s =
-    if List.length s > 0 then
-        zip s (Util.always_tail s) |> List.map (\( r1, r2 ) -> ColoredRange (Range r1.range.high r2.range.low) Pallete.fg_c)
+    if List.length s == 0 then
+        [ ColoredRange r Pallete.fg_c ]
+
+    else if List.length s == 1 then
+        List.head s
+            |> Maybe.map
+                (\c1 ->
+                    [ ColoredRange (Range r.low c1.range.low) Pallete.fg_c
+                    , c1
+                    , ColoredRange (Range c1.range.high r.high) Pallete.fg_c
+                    ]
+                )
+            |> Maybe.withDefault []
+            |> List.filter (\cr -> non_empty_range cr.range)
 
     else
-        [ ColoredRange r Pallete.fg_c ]
+        case List.head s of
+            Just first ->
+                zip s (Util.always_tail s)
+                    -- between all specified colored sections
+                    |> List.map (\( r1, r2 ) -> [ r1, ColoredRange (Range r1.range.high r2.range.low) Pallete.fg_c ])
+                    -- 0 to first colored section
+                    |> (::) [ ColoredRange (Range r.low first.range.low) Pallete.fg_c ]
+                    |> flatten_2d
+                    -- rest of line
+                    |> (\l -> List.append l (List.Extra.last s |> Maybe.map List.singleton |> Maybe.withDefault [] ))
+                    |> (\l ->
+                            List.append l
+                                (List.Extra.last s
+                                    |> Maybe.map (\cr -> [ ColoredRange (Range cr.range.high r.high) Pallete.fg_c ])
+                                    |> Maybe.withDefault []
+                                )
+                       )
+                    -- last colored section to end
+                    |> List.filter (\cr -> non_empty_range cr.range)
+
+            Nothing ->
+                [ ColoredRange r Pallete.fg_c ]
 
 
 code_line : EditorStyle -> String -> ( Range, List ColoredRange ) -> Element.Element msg
@@ -52,16 +100,15 @@ code_line style source ( line_range, colors ) =
                 |> List.map
                     (\cr ->
                         Element.el
-                            [ Font.color cr.color]
+                            [ Font.color cr.color ]
                             (Element.text (slice_of_str source cr.range))
                     )
     in
-    if line_range.high > line_range.low + 1 then
+    if line_range.high > line_range.low then
         Element.row
             [ Element.width Element.fill
             , Element.spacing 0
             , Element.padding 0
-            -- , Element.height (px style.line_height)
             ]
             spans
         -- [ Element.text <| slice_of_str source line_range ]
@@ -70,6 +117,7 @@ code_line style source ( line_range, colors ) =
         Element.el [ Element.width Element.fill, Element.height (px style.line_height) ] Element.none
 
 
+zip : List a -> List b -> List ( a, b )
 zip =
     List.map2 Tuple.pair
 
@@ -78,7 +126,7 @@ make_splits : List Int -> List Range
 make_splits l =
     case List.head l of
         Just _ ->
-            zip l (Util.always_tail l) |> List.map (\( lo, hi ) -> Range (lo+1) hi)
+            zip l (Util.always_tail l) |> List.map (\( lo, hi ) -> Range (lo + 1) hi)
 
         Nothing ->
             []
@@ -98,11 +146,9 @@ split_colors rs crs =
     rs |> List.map (\r -> List.filter (in_range r) crs)
 
 
-code_editor : EditorState -> (EditorState -> msg) -> Element.Element msg
-code_editor state onchange =
+code_editor : List ColoredRange -> EditorState -> (EditorState -> msg) -> Element.Element msg
+code_editor colored_ranges state onchange =
     let
-        colored_ranges =[]
-            -- [ ColoredRange (Range 0 10) Pallete.red_c, ColoredRange (Range 10 20) Pallete.green_c ]
 
         style =
             { line_height = 20 }

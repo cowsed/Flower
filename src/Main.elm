@@ -15,10 +15,12 @@ import Html.Attributes exposing (style)
 import Pallete
 import Parser.AST as AST
 import Parser.ParserExplanations
+import Parser.Lexer
 import Task
 import Time
 import Ui exposing (code_rep)
 import Element exposing (scrollbarY)
+import Parser.Lexer as Lexer
 
 
 
@@ -62,16 +64,6 @@ fn sqrt(v: bool ) -> f64{
 
 
 
-
-
-
-
-
-
-
-
-
-
 fn main() -> u8{
     a: u8 = 1
     b: u8 = 2
@@ -81,7 +73,7 @@ fn main() -> u8{
 """
 
 
-htmlify_output : Result CompilerError ( AST.Program, Analyzer.GoodProgram ) -> Html.Html msg
+htmlify_output : Result CompilerError Analyzer.GoodProgram -> Html.Html msg
 htmlify_output res =
     Html.div []
         [ case res of
@@ -89,10 +81,19 @@ htmlify_output res =
                 Html.div [] []
 
             Ok prog ->
-                Html.div [ style "padding-left" "20px" ] [ Analysis.Explanations.explain_program (Tuple.second prog), Parser.ParserExplanations.explain_program (Tuple.first prog) ]
+                Html.div [ style "padding-left" "20px" ] [ Analysis.Explanations.explain_program prog, Parser.ParserExplanations.explain_program prog.ast ]
         ]
 
-
+color_tok_type: Lexer.TokenType -> Element.Color
+color_tok_type tt = 
+    case tt of 
+        Lexer.Symbol _ -> Pallete.orange_c
+        Lexer.Keyword _ -> Pallete.red_c   
+        Lexer.CommentToken _ -> Pallete.gray_c
+        Lexer.Literal _ _ -> Pallete.aqua_c
+        _ -> Pallete.fg_c 
+range_from_toks: List Parser.Lexer.Token -> List CodeEditor.ColoredRange 
+range_from_toks toks = toks |> List.map (\t -> CodeEditor.ColoredRange (CodeEditor.Range t.loc.start t.loc.end) (color_tok_type t.typ))
 make_output : Model -> Element Msg
 make_output mod =
     let
@@ -112,6 +113,8 @@ make_output mod =
                 [ Element.text ("Compiled in " ++ millis_elapsed mod.last_run_start mod.last_run_end ++ " ms")
                 ]
 
+        colored_ranges = mod.output |> Result.map (\gp -> range_from_toks gp.ast.src_tokens) |> Result.withDefault []
+
         left_pane =
             Element.el
                 [ Element.width fill
@@ -122,7 +125,7 @@ make_output mod =
                 , Element.Border.width 2
                 ]
             <|
-                CodeEditor.code_editor mod.editor_state (\s -> EditorAction s)
+                CodeEditor.code_editor colored_ranges mod.editor_state (\s -> EditorAction s)
 
         -- Element.html (Ui.code_editor mod.source_code (\s -> Compile s))
         right_pane =
@@ -131,7 +134,7 @@ make_output mod =
                     el [ Element.width fill, Element.height fill ] <| Element.html (explain_error e)
 
                 Ok prog ->
-                    code_rep (Tuple.first prog)
+                    code_rep (prog.ast)
     in
     Element.column
         [ Element.width fill
@@ -204,7 +207,7 @@ update msg mmod =
 
         Just mod ->
             case msg of
-                WindowSizeChanged s -> (Just mod, Cmd.none)
+                WindowSizeChanged s -> (Just {mod | window_size = s}, Cmd.none)
                 EditorAction es -> 
                     ( Just { mod | editor_state = es }, Task.perform GotTimeToStart Time.now )
 
@@ -234,7 +237,7 @@ type alias Model =
     { editor_state : CodeEditor.EditorState
     , last_run_start : Time.Posix
     , last_run_end : Time.Posix
-    , output : Result Compiler.CompilerError ( AST.Program, Analyzer.GoodProgram )
+    , output : Result Compiler.CompilerError  Analyzer.GoodProgram
     , window_size : (Int, Int)
     }
 

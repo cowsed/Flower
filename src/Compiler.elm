@@ -44,7 +44,7 @@ explain_error e =
                 ]
 
 
-compile : String -> Result CompilerError ( AST.Program, GoodProgram )
+compile : String -> Result CompilerError GoodProgram
 compile src =
     let
         lex_result : Result CompilerError (List Token)
@@ -53,4 +53,4 @@ compile src =
     in
     lex_result
         |> Result.andThen (\toks -> Parser.parse toks |> Result.mapError (\e -> Parse e toks))
-        |> Result.andThen (\prog -> Analysis.Analyzer.analyze prog |> Result.map (\gp -> ( prog, gp )) |> Result.mapError (\e -> Analysis e))
+        |> Result.andThen (\prog -> Analysis.Analyzer.analyze prog |> Result.map (\gp -> gp ) |> Result.mapError (\e -> Analysis e))

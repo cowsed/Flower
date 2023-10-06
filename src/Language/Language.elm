@@ -89,7 +89,7 @@ type TypeType -- analagous to c++ concepts. constrain on type
 
 
 is_generic_instantiable_with : TypeOfTypeDefinition -> List TypeType -> List Type -> Maybe ReasonForUninstantiable
-is_generic_instantiable_with tot gen_args used_args =
+is_generic_instantiable_with _ gen_args used_args =
     if Debug.log "gen args len" (List.length gen_args) /= Debug.log "used args len" (List.length used_args) then
         Just WrongNumber
 
@@ -239,7 +239,7 @@ builtin_types =
 
 extract_builtins : Type -> Type
 extract_builtins t =
-    case Debug.log "extracting " t of
+    case t of
         NamedType id tot ->
             if tot == AliasDefinitionType then
                 case id of
