@@ -211,7 +211,7 @@ update msg mmod =
     case mmod of
         Nothing ->
             ( Just
-                { editor_state = Editor.EditorState initial_input 0 False [] Nothing
+                { editor_state = Editor.EditorState initial_input 0 False [] Nothing False
                 , last_run_start = Time.millisToPosix 0
                 , last_run_end = Time.millisToPosix 0
                 , output = compile initial_input

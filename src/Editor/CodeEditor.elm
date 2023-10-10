@@ -23,7 +23,8 @@ type alias EditorState =
     , cursor_pos : Int
     , focused : Bool
     , info_ranges : List InfoRange
-    , selection: Maybe Range 
+    , selection : Maybe Range
+    , building_selection : Bool
     }
 
 
@@ -82,13 +83,54 @@ intersperse_normal_text r s =
 build_colored_range : (EditorState -> msg) -> EditorState -> InfoRange -> Element.Element msg
 build_colored_range onchange state ir =
     let
-        am_selected: Int -> Bool
-        am_selected i = 
-            state.selection |> Maybe.map (\r -> if r.high /= 99999999999 then  in_range r i else False) |> Maybe.withDefault False
+        am_selected : Int -> Bool
+        am_selected i =
+            state.selection
+                |> Maybe.map
+                    (\r ->
+                        if r.high /= 99999999999 then
+                            in_range r i
+
+                        else
+                            False
+                    )
+                |> Maybe.withDefault False
+
         onclick index =
             Element.Events.onClick (onchange { state | cursor_pos = index, focused = True, selection = Nothing })
-        onmousedown index = Element.Events.onMouseDown (onchange {state | selection = Just (Range index 99999999999)})
-        onmouseup index = Element.Events.onMouseUp (onchange {state | cursor_pos = index, selection = state.selection |> Maybe.map (\r -> Range r.low index)})
+
+        onmousedown index =
+            Element.Events.onMouseDown (onchange { state | selection = Just (Range index index), building_selection = True })
+
+        onmouseup index =
+            Element.Events.onMouseUp
+                (onchange
+                    { state
+                        | building_selection = False
+                        , cursor_pos = index
+                        , selection =
+                            state.selection
+                                |> Maybe.andThen
+                                    (\r ->
+                                        if range_len r == 0 then
+                                            Nothing
+
+                                        else
+                                            Just r
+                                    )
+                    }
+                )
+
+        onmousemove index =
+            Element.Events.onMouseEnter
+                (onchange
+                    (if state.building_selection then
+                        { state | cursor_pos = index, selection = state.selection |> Maybe.map (\r -> expand_range r index) }
+
+                     else
+                        state
+                    )
+                )
     in
     Element.row
         [ Font.color ir.color
@@ -100,9 +142,10 @@ build_colored_range onchange state ir =
             |> List.map
                 (\( i, s ) ->
                     [ Element.el
-                        [-- onclick (ir.range.low + i)
-                        onmousedown (ir.range.low + i)
+                        [ -- onclick (ir.range.low + i)
+                          onmousedown (ir.range.low + i)
                         , onmouseup (ir.range.low + i)
+                        , onmousemove (ir.range.low + i)
                         , Border.widthEach { left = 1, right = 0, top = 0, bottom = 0 }
                         , if ir.range.low + i == state.cursor_pos then
                             Border.color Pallete.fg_c
@@ -111,7 +154,8 @@ build_colored_range onchange state ir =
                             Border.color Pallete.bg_c
                         , if am_selected (ir.range.low + i) then
                             Background.color Pallete.bg1_c
-                        else 
+
+                          else
                             Background.color Pallete.bg_c
                         ]
                         (Element.text s)
@@ -221,7 +265,7 @@ code_editor state onchange =
 
         decoder : Decode.Decoder ( msg, Bool )
         decoder =
-            Decode.map (\ke -> ( update_editor state ke |> Tuple.mapFirst onchange)) Keyboard.Event.decodeKeyboardEvent
+            Decode.map (\ke -> update_editor state ke |> Tuple.mapFirst onchange) Keyboard.Event.decodeKeyboardEvent
 
         key_override : Html.Attribute msg
         key_override =
@@ -250,7 +294,7 @@ code_editor state onchange =
         )
 
 
-update_editor : EditorState -> Keyboard.Event.KeyboardEvent -> (EditorState, Bool)
+update_editor : EditorState -> Keyboard.Event.KeyboardEvent -> ( EditorState, Bool )
 update_editor state ke =
     let
         action =
@@ -261,10 +305,29 @@ update_editor state ke =
             (\act ->
                 case act of
                     Backspace ->
-                        { state | text = remove state.text (Range (state.cursor_pos - 1) state.cursor_pos), cursor_pos = state.cursor_pos - 1 }
+                        case state.selection of
+                            Nothing ->
+                                { state | text = remove state.text (Range (state.cursor_pos - 1) state.cursor_pos), cursor_pos = state.cursor_pos - 1 }
+
+                            Just r ->
+                                { state | text = remove state.text r, cursor_pos = r.low } |> clear_selection
 
                     InsertAtCursor s ->
-                        { state | text = insert (state.text) state.cursor_pos s, cursor_pos = state.cursor_pos + String.length s }
+                        let
+                            sel_len =
+                                state.selection |> Maybe.map range_len |> Maybe.withDefault 0
+                        in
+                        { state
+                            | text =
+                                case state.selection of
+                                    Nothing ->
+                                        insert state.text state.cursor_pos s
+
+                                    Just r ->
+                                        insert (remove state.text r) r.low s
+                            , cursor_pos = String.length s + (state.selection |> Maybe.map (\r -> Debug.log "had selection" r.low) |> Maybe.withDefault state.cursor_pos)
+                        }
+                            |> clear_selection
 
                     MoveCursorLeft ->
                         { state | cursor_pos = max 0 (state.cursor_pos - 1) } |> clear_selection
@@ -279,12 +342,18 @@ update_editor state ke =
                         { state | cursor_pos = calc_cursor_move_down state.text state.cursor_pos } |> clear_selection
             )
         |> Maybe.map used_keypress
-        |> Maybe.withDefault (state, False)
-clear_selection: EditorState -> EditorState
-clear_selection es = {es | selection = Nothing}
+        |> Maybe.withDefault ( state, False )
 
-used_keypress: EditorState -> (EditorState, Bool)
-used_keypress es = (es, True)
+
+clear_selection : EditorState -> EditorState
+clear_selection es =
+    { es | selection = Nothing }
+
+
+used_keypress : EditorState -> ( EditorState, Bool )
+used_keypress es =
+    ( es, True )
+
 
 calc_cursor_move_up : String -> Int -> Int
 calc_cursor_move_up src i =

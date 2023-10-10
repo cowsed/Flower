@@ -4,12 +4,27 @@ import Element
 import Html.Attributes
 import List.Extra
 
+
 type alias Range =
     { low : Int, high : Int }
+
+
+expand_range : Range -> Int -> Range
+expand_range r i =
+    { low = min r.low i
+    , high = max r.high i
+    }
+
 
 in_range : Range -> Int -> Bool
 in_range r i =
     i >= r.low && i < r.high
+
+
+range_len : Range -> Int
+range_len r =
+    r.high - r.low
+
 
 flatten_2d : List (List a) -> List a
 flatten_2d list =
@@ -28,6 +43,7 @@ range_isnt_empty r =
 type alias InfoRange =
     { range : Range, color : Element.Color, on_hover : Maybe String }
 
+
 insert : String -> Int -> String -> String
 insert initial ind new =
     String.slice 0 ind initial ++ new ++ String.slice ind (String.length initial) initial
@@ -41,7 +57,6 @@ remove s r =
 zip : List a -> List b -> List ( a, b )
 zip =
     List.map2 Tuple.pair
-
 
 
 tooltip : (Element.Element msg -> Element.Attribute msg) -> Element.Element Never -> Element.Attribute msg
@@ -60,6 +75,6 @@ tooltip usher tooltip_ =
             Element.none
 
 
-find_first_before: String -> Int -> String -> Maybe Int
-find_first_before text ind what = 
+find_first_before : String -> Int -> String -> Maybe Int
+find_first_before text ind what =
     String.indexes what text |> List.filter (\n -> n < ind) |> List.Extra.last
