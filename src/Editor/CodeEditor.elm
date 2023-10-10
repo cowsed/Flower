@@ -23,6 +23,7 @@ type alias EditorState =
     , cursor_pos : Int
     , focused : Bool
     , info_ranges : List InfoRange
+    , selection: Maybe Range 
     }
 
 
@@ -81,11 +82,17 @@ intersperse_normal_text r s =
 build_colored_range : (EditorState -> msg) -> EditorState -> InfoRange -> Element.Element msg
 build_colored_range onchange state ir =
     let
+        am_selected: Int -> Bool
+        am_selected i = 
+            state.selection |> Maybe.map (\r -> if r.high /= 99999999999 then  in_range r i else False) |> Maybe.withDefault False
         onclick index =
-            Element.Events.onMouseDown (onchange { state | cursor_pos = index, focused = True })
+            Element.Events.onClick (onchange { state | cursor_pos = index, focused = True, selection = Nothing })
+        onmousedown index = Element.Events.onMouseDown (onchange {state | selection = Just (Range index 99999999999)})
+        onmouseup index = Element.Events.onMouseUp (onchange {state | cursor_pos = index, selection = state.selection |> Maybe.map (\r -> Range r.low index)})
     in
     Element.row
-        [ Font.color ir.color ]
+        [ Font.color ir.color
+        ]
         (range_of_str state.text ir.range
             |> String.toList
             |> List.map String.fromChar
@@ -93,13 +100,19 @@ build_colored_range onchange state ir =
             |> List.map
                 (\( i, s ) ->
                     [ Element.el
-                        [ onclick (ir.range.low + i)
+                        [-- onclick (ir.range.low + i)
+                        onmousedown (ir.range.low + i)
+                        , onmouseup (ir.range.low + i)
                         , Border.widthEach { left = 1, right = 0, top = 0, bottom = 0 }
                         , if ir.range.low + i == state.cursor_pos then
                             Border.color Pallete.fg_c
 
                           else
                             Border.color Pallete.bg_c
+                        , if am_selected (ir.range.low + i) then
+                            Background.color Pallete.bg1_c
+                        else 
+                            Background.color Pallete.bg_c
                         ]
                         (Element.text s)
                     ]
@@ -135,9 +148,6 @@ split_colors_per_row rs crs =
 code_line : (EditorState -> msg) -> EditorStyle -> EditorState -> ( Range, List InfoRange ) -> Element.Element msg
 code_line onchange style state ( line_range, colors ) =
     let
-        focus_handler =
-            Element.Events.onClick (onchange { state | focused = True })
-
         ranges =
             colors
                 |> intersperse_normal_text line_range
@@ -211,7 +221,7 @@ code_editor state onchange =
 
         decoder : Decode.Decoder ( msg, Bool )
         decoder =
-            Decode.map (\ke -> ( update_editor state ke |> onchange, True )) Keyboard.Event.decodeKeyboardEvent
+            Decode.map (\ke -> ( update_editor state ke |> Tuple.mapFirst onchange)) Keyboard.Event.decodeKeyboardEvent
 
         key_override : Html.Attribute msg
         key_override =
@@ -226,6 +236,7 @@ code_editor state onchange =
         , Element.Events.onFocus (onchange { state | focused = True })
         , Html.Attributes.tabindex 0 |> Element.htmlAttribute
         , key_override |> Element.htmlAttribute
+        , Html.Attributes.style "user-select" "none" |> Element.htmlAttribute
         ]
         (Element.row
             [ Element.spacingXY 0 2
@@ -239,7 +250,7 @@ code_editor state onchange =
         )
 
 
-update_editor : EditorState -> Keyboard.Event.KeyboardEvent -> EditorState
+update_editor : EditorState -> Keyboard.Event.KeyboardEvent -> (EditorState, Bool)
 update_editor state ke =
     let
         action =
@@ -253,22 +264,27 @@ update_editor state ke =
                         { state | text = remove state.text (Range (state.cursor_pos - 1) state.cursor_pos), cursor_pos = state.cursor_pos - 1 }
 
                     InsertAtCursor s ->
-                        { state | text = insert state.text state.cursor_pos s, cursor_pos = state.cursor_pos + String.length s }
+                        { state | text = insert (state.text) state.cursor_pos s, cursor_pos = state.cursor_pos + String.length s }
 
                     MoveCursorLeft ->
-                        { state | cursor_pos = max 0 (state.cursor_pos - 1) }
+                        { state | cursor_pos = max 0 (state.cursor_pos - 1) } |> clear_selection
 
                     MoveCursorRight ->
-                        { state | cursor_pos = min (String.length state.text - 1) (state.cursor_pos + 1) }
+                        { state | cursor_pos = min (String.length state.text - 1) (state.cursor_pos + 1) } |> clear_selection
 
                     MoveCursorUp ->
-                        { state | cursor_pos = calc_cursor_move_up state.text state.cursor_pos }
+                        { state | cursor_pos = calc_cursor_move_up state.text state.cursor_pos } |> clear_selection
 
                     MoveCursorDown ->
-                        { state | cursor_pos = calc_cursor_move_down state.text state.cursor_pos }
+                        { state | cursor_pos = calc_cursor_move_down state.text state.cursor_pos } |> clear_selection
             )
-        |> Maybe.withDefault state
+        |> Maybe.map used_keypress
+        |> Maybe.withDefault (state, False)
+clear_selection: EditorState -> EditorState
+clear_selection es = {es | selection = Nothing}
 
+used_keypress: EditorState -> (EditorState, Bool)
+used_keypress es = (es, True)
 
 calc_cursor_move_up : String -> Int -> Int
 calc_cursor_move_up src i =
@@ -279,17 +295,24 @@ calc_cursor_move_up src i =
         before =
             List.filter (\n -> n <= i) newlines |> Debug.log "newline split"
 
-        prevl = List.Extra.getAt ((List.length before) - 2) before
-        thisl = List.Extra.getAt ((List.length before) - 1) before
-        
-        calc_prev prevline thisline  = 
-            let
-                ll = thisline - prevline |> Debug.log "prev line length"
-                pos_on_line = i - thisline |> Debug.log "pos on line"
-            in
-                (min ll pos_on_line) + prevline
+        prevl =
+            List.Extra.getAt (List.length before - 2) before
 
-        pos = Maybe.map2 calc_prev prevl thisl |> Maybe.withDefault (prevl |> Maybe.withDefault 0)
+        thisl =
+            List.Extra.getAt (List.length before - 1) before
+
+        calc_prev prevline thisline =
+            let
+                ll =
+                    thisline - prevline |> Debug.log "prev line length"
+
+                pos_on_line =
+                    i - thisline |> Debug.log "pos on line"
+            in
+            min ll pos_on_line + prevline
+
+        pos =
+            Maybe.map2 calc_prev prevl thisl |> Maybe.withDefault (prevl |> Maybe.withDefault 0)
     in
     pos
 
@@ -301,23 +324,28 @@ calc_cursor_move_down src i =
             List.append [ 0 ] (String.indexes "\n" src)
 
         after =
-            List.Extra.find (\n -> n > i) newlines 
+            List.Extra.find (\n -> n > i) newlines
+
         after2 =
             after |> Maybe.andThen (\v -> List.Extra.find (\n -> n > v) newlines)
-        
-        before = newlines |> List.filter (\n -> n <= i) |> List.Extra.last
 
-        
-        calc_prev thislinestart thislineend nextlineend  = 
+        before =
+            newlines |> List.filter (\n -> n <= i) |> List.Extra.last
+
+        calc_prev thislinestart thislineend nextlineend =
             let
-                ll = nextlineend - thislineend |> Debug.log "next line length"
-                pos_on_line = i - thislinestart |> Debug.log "pos on line"
-            in
-                (min ll pos_on_line) + thislineend
+                ll =
+                    nextlineend - thislineend |> Debug.log "next line length"
 
-        pos = Maybe.map3 calc_prev before after after2 |> Maybe.withDefault ((String.length src)-1)
+                pos_on_line =
+                    i - thislinestart |> Debug.log "pos on line"
+            in
+            min ll pos_on_line + thislineend
+
+        pos =
+            Maybe.map3 calc_prev before after after2 |> Maybe.withDefault (String.length src - 1)
     in
-    pos 
+    pos
 
 
 type KeyAction

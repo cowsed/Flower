@@ -211,13 +211,13 @@ update msg mmod =
     case mmod of
         Nothing ->
             ( Just
-                { editor_state = Editor.EditorState initial_input 0 False []
+                { editor_state = Editor.EditorState initial_input 0 False [] Nothing
                 , last_run_start = Time.millisToPosix 0
                 , last_run_end = Time.millisToPosix 0
                 , output = compile initial_input
                 , window_size = ( 100, 100 )
                 , db_console = [ "Message 1" ]
-                }
+                } 
             , Task.perform CompileStartedAtTime Time.now
             )
 
@@ -230,7 +230,7 @@ update msg mmod =
                     let
                         newes =
                             if mod.editor_state.focused then
-                                Editor.update_editor mod.editor_state ke
+                                Editor.update_editor mod.editor_state ke  |> Tuple.first
 
                             else
                                 mod.editor_state
@@ -241,7 +241,7 @@ update msg mmod =
                     update (EditorAction newes) (Just m)
 
                 EditorAction es ->
-                    ( Just { mod | editor_state = es, db_console = List.append mod.db_console [ "editor action: cursor = " ++ String.fromInt es.cursor_pos ] }, Task.perform CompileStartedAtTime Time.now )
+                    ( Just { mod | editor_state = es, db_console = List.append mod.db_console [ "editor action: selection = " ++ (Debug.toString es.selection) ] }, Task.perform CompileStartedAtTime Time.now )
 
                 Recompile ->
                     ( Just mod, Task.perform CompileStartedAtTime Time.now )
