@@ -196,11 +196,48 @@ code_line onchange style state ( line_range, colors ) =
             colors
                 |> intersperse_normal_text line_range
 
+        onmousedown index =
+            Element.Events.onMouseDown (onchange { state | selection = Just (Range index index), building_selection = True })
+
+        onmouseup index =
+            Element.Events.onMouseUp
+                (onchange
+                    { state
+                        | building_selection = False
+                        , cursor_pos = index
+                        , selection =
+                            state.selection
+                                |> Maybe.andThen
+                                    (\r ->
+                                        if range_len r == 0 then
+                                            Nothing
+
+                                        else
+                                            Just r
+                                    )
+                    }
+                )
+
+        onmousemove index =
+            Element.Events.onMouseEnter
+                (onchange
+                    (if state.building_selection then
+                        { state | cursor_pos = index, selection = state.selection |> Maybe.map (\r -> expand_range r index) }
+
+                     else
+                        state
+                    )
+                )
+
         restofline =
             Element.el
                 [ Element.width Element.fill
                 , Element.height (px style.line_height)
-                , Element.Events.onClick (onchange { state | cursor_pos = line_range.high })
+
+                -- , Element.Events.onClick (onchange { state | cursor_pos = line_range.high })
+                , onmousemove line_range.high
+                , onmouseup line_range.high
+                , onmousedown line_range.high
                 , alignRight
                 , Border.widthEach { left = 1, right = 0, top = 0, bottom = 0 }
                 , Border.color
@@ -276,7 +313,7 @@ code_editor state onchange =
     Element.el
         [ Element.scrollbarY
         , Element.width Element.fill
-        , Element.Events.onLoseFocus (onchange { state | focused = False })
+        , Element.Events.onLoseFocus (onchange { state | focused = False, selection = Nothing, building_selection = False })
         , Element.Events.onFocus (onchange { state | focused = True })
         , Html.Attributes.tabindex 0 |> Element.htmlAttribute
         , key_override |> Element.htmlAttribute
