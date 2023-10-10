@@ -30,6 +30,7 @@ type alias EditorState =
 
 type alias EditorStyle =
     { line_height : Int
+    , line_spacing: Int
     }
 
 
@@ -233,8 +234,6 @@ code_line onchange style state ( line_range, colors ) =
             Element.el
                 [ Element.width Element.fill
                 , Element.height (px style.line_height)
-
-                -- , Element.Events.onClick (onchange { state | cursor_pos = line_range.high })
                 , onmousemove line_range.high
                 , onmouseup line_range.high
                 , onmousedown line_range.high
@@ -266,7 +265,7 @@ code_line onchange style state ( line_range, colors ) =
         [ Element.row
             [ Element.width Element.fill
             , Element.spacing 0
-            , Element.padding 0
+            , Element.paddingXY 0 style.line_spacing
             ]
             spans
         ]
@@ -276,7 +275,7 @@ code_editor : EditorState -> (EditorState -> msg) -> Element.Element msg
 code_editor state onchange =
     let
         style =
-            { line_height = 20 }
+            { line_height = 20, line_spacing = 2 }
 
         newlines =
             String.indexes "\n" state.text
@@ -320,8 +319,7 @@ code_editor state onchange =
         , Html.Attributes.style "user-select" "none" |> Element.htmlAttribute
         ]
         (Element.row
-            [ Element.spacingXY 0 2
-            , Font.size style.line_height
+            [ Font.size style.line_height
             , Font.family [ Font.monospace ]
             , Element.width Element.fill
             ]
@@ -350,10 +348,6 @@ update_editor state ke =
                                 { state | text = remove state.text r, cursor_pos = r.low } |> clear_selection
 
                     InsertAtCursor s ->
-                        let
-                            sel_len =
-                                state.selection |> Maybe.map range_len |> Maybe.withDefault 0
-                        in
                         { state
                             | text =
                                 case state.selection of
@@ -377,9 +371,49 @@ update_editor state ke =
 
                     MoveCursorDown ->
                         { state | cursor_pos = calc_cursor_move_down state.text state.cursor_pos } |> clear_selection
+
+                    SelectLeft ->
+                        let
+                             new_cursor = max 0 (state.cursor_pos - 1) 
+                        in
+                        { state
+                            | cursor_pos = new_cursor
+                            , selection = expand_maybe_range state.selection (Range new_cursor state.cursor_pos)
+                        }
+
+                    SelectRight ->
+                        let
+                            new_cursor =
+                                min (String.length state.text - 1) (state.cursor_pos + 1)
+                        in
+                        { state | cursor_pos = new_cursor, selection = expand_maybe_range state.selection (Range state.cursor_pos new_cursor) }
+
+                    SelectUp ->
+                        let
+                            new_cursor =
+                                calc_cursor_move_up state.text state.cursor_pos
+                        in
+                        { state | cursor_pos = new_cursor, selection = expand_maybe_range state.selection (Range state.cursor_pos new_cursor) }
+
+                    SelectDown ->
+                        let
+                            new_cursor =
+                                calc_cursor_move_down state.text state.cursor_pos
+                        in
+                        { state | cursor_pos = new_cursor, selection = expand_maybe_range state.selection (Range state.cursor_pos new_cursor)}
             )
         |> Maybe.map used_keypress
         |> Maybe.withDefault ( state, False )
+
+
+expand_maybe_range : Maybe Range -> Range -> Maybe Range
+expand_maybe_range mr toadd =
+    case mr of
+        Nothing ->
+            Just toadd
+
+        Just r ->
+            Just { low = min r.low toadd.low, high = max r.high toadd.high }
 
 
 clear_selection : EditorState -> EditorState
@@ -399,7 +433,7 @@ calc_cursor_move_up src i =
             List.append [ 0 ] (String.indexes "\n" src)
 
         before =
-            List.filter (\n -> n <= i) newlines |> Debug.log "newline split"
+            List.filter (\n -> n <= i) newlines 
 
         prevl =
             List.Extra.getAt (List.length before - 2) before
@@ -410,10 +444,10 @@ calc_cursor_move_up src i =
         calc_prev prevline thisline =
             let
                 ll =
-                    thisline - prevline |> Debug.log "prev line length"
+                    thisline - prevline 
 
                 pos_on_line =
-                    i - thisline |> Debug.log "pos on line"
+                    i - thisline
             in
             min ll pos_on_line + prevline
 
@@ -441,10 +475,10 @@ calc_cursor_move_down src i =
         calc_prev thislinestart thislineend nextlineend =
             let
                 ll =
-                    nextlineend - thislineend |> Debug.log "next line length"
+                    nextlineend - thislineend 
 
                 pos_on_line =
-                    i - thislinestart |> Debug.log "pos on line"
+                    i - thislinestart
             in
             min ll pos_on_line + thislineend
 
@@ -461,6 +495,10 @@ type KeyAction
     | MoveCursorRight
     | MoveCursorUp
     | MoveCursorDown
+    | SelectLeft
+    | SelectRight
+    | SelectUp
+    | SelectDown
 
 
 action_from_key : Keyboard.Event.KeyboardEvent -> Maybe KeyAction
@@ -481,20 +519,33 @@ action_from_key ke =
                     Just (InsertAtCursor "    ")
 
                 Keyboard.Key.Left ->
-                    MoveCursorLeft |> Just
+                    (if ke.shiftKey then
+                        SelectLeft
+
+                     else
+                        MoveCursorLeft
+                    )
+                        |> Just
 
                 Keyboard.Key.Right ->
-                    MoveCursorRight |> Just
+                    tern ke.shiftKey SelectRight MoveCursorRight |> Just
 
                 Keyboard.Key.Up ->
-                    MoveCursorUp |> Just
+                    tern ke.shiftKey SelectUp MoveCursorUp |> Just
+
 
                 Keyboard.Key.Down ->
-                    MoveCursorDown |> Just
+                    tern ke.shiftKey SelectDown MoveCursorDown |> Just
 
                 _ ->
                     Nothing
 
+tern: Bool -> a -> a -> a
+tern cond iftrue iffalse = 
+    if cond then
+        iftrue
+    else 
+        iffalse
 
 is_text_keye : Keyboard.Event.KeyboardEvent -> Maybe String
 is_text_keye ke =
@@ -514,12 +565,13 @@ is_text_keye ke =
 
 
 make_line_nums : EditorStyle -> Int -> Element.Element msg
-make_line_nums style len =
+make_line_nums style num_lines =
     Element.column
         [ Background.color Pallete.bg1_c
         , Element.paddingEach { left = 4, right = 4, top = 0, bottom = 0 }
         , Font.size style.line_height
         , Element.alignTop
         , Element.htmlAttribute <| Html.Attributes.style "user-select" "none"
+        , Element.spacingXY 0 (style.line_spacing*2)
         ]
-        (List.range 1 len |> List.map (\i -> Element.text (String.fromInt i)))
+        (List.range 1 num_lines |> List.map (\i -> Element.text (String.fromInt i)))
