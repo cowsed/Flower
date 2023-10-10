@@ -195,7 +195,6 @@ parse_enum ps =
 
 parse_type_declaration_after_first_name : FullNameAndLocation -> FullNameAndLocation -> ParseStep -> ParseRes
 parse_type_declaration_after_first_name typname n ps =
-    -- or token
     let
         prog =
             ps.prog
@@ -272,8 +271,6 @@ parse_outer_scope ps =
 
 
 
--- no gen arg list
-
 
 parse_typename : FullNameParseTodo -> ParseStep -> ParseRes
 parse_typename outer_todo ps =
@@ -320,17 +317,11 @@ parse_named_type_type valname todo ps =
 
 
 
--- case ps.tok.typ of
---     Symbol typename ->
---         TypeWithName (BaseName valname) (Basic (BaseName typename) |> VariableTypename) |> Ok |> todo
---     _ ->
---         Error (Unimplemented ps.prog "When parsing name: Type if Type is not a symbol")
 
-
-parse_consume_this : TokenType -> ParseFn -> ParseStep -> ParseRes
-parse_consume_this what todo ps =
+parse_consume_next : TokenType -> ParseFn -> ParseStep -> ParseRes
+parse_consume_next what todo ps =
     if ps.tok.typ == what then
-        parse_consume_this what todo |> next_pfn
+        parse_consume_next what todo |> next_pfn
 
     else
         extract_fn todo ps
@@ -360,29 +351,6 @@ parse_until typ after ps =
         Next ps.prog (ParseFn (parse_until typ after))
 
 
-parse_global_fn_fn_call_args : FuncCallExprTodo -> FunctionCallAndLocation -> StatementParseTodo -> ParseStep -> ParseRes
-parse_global_fn_fn_call_args todo fcall_and_name statement_todo ps =
-    let
-        fcall =
-            fcall_and_name.thing
-
-        what_to_do_with_expr : ExprParseTodo
-        what_to_do_with_expr res =
-            case res of
-                Err e ->
-                    Error (FailedExprParse e)
-
-                Ok expr ->
-                    ExpressionParser.parse_func_call_continue_or_end todo ({ fcall | args = List.append fcall.args [ expr ] } |> AST.with_location (Util.merge_svs expr.loc (List.map (\a -> a.loc) fcall.args)))
-                        |> ParseFn
-                        |> Next ps.prog
-    in
-    case ps.tok.typ of
-        CloseParen ->
-            statement_todo (Ok (FunctionCallStatement fcall_and_name))
-
-        _ ->
-            reapply_token (parse_expr what_to_do_with_expr |> ParseFn) ps
 
 
 parse_global_fn_return_statement : StatementParseTodo -> ParseStep -> ParseRes
@@ -488,7 +456,7 @@ parse_statement_assignment_or_fn_call id_loc name statement_todo ps =
             parse_global_fn_assignment_or_fn_call_qualified_name (Util.merge_sv id_loc ps.tok.loc) name statement_todo |> next_pfn
 
         OpenParen ->
-            parse_global_fn_fn_call_args todo_with_funccall (AST.FunctionCall (NameWithoutArgs name |> AST.with_location ps.tok.loc) [] |> AST.with_location id_loc) statement_todo
+            ExpressionParser.parse_function_call (NameWithoutArgs name |> AST.with_location ps.tok.loc) todo_with_funccall  
                 |> ParseFn
                 |> Next ps.prog
 
@@ -522,7 +490,7 @@ parse_while_statement what_todo_with_statement ps =
                 |> Result.andThen
                     (\expr ->
                         Ok
-                            ((parse_block_statements [] (what_todo_after_block expr) |> next_pfn)
+                            ((parse_statements [] (what_todo_after_block expr) |> next_pfn)
                                 |> parse_expected_token "Expected a `{` to start the body of an if statement." OpenCurly
                                 |> ParseFn
                                 |> Next ps.prog
@@ -554,7 +522,7 @@ parse_if_statement what_todo_with_statement ps =
                 |> Result.andThen
                     (\expr ->
                         Ok
-                            ((parse_block_statements [] (what_todo_after_block expr) |> next_pfn)
+                            ((parse_statements [] (what_todo_after_block expr) |> next_pfn)
                                 |> parse_expected_token "Expected a `{` to start the body of an if statement." OpenCurly
                                 |> ParseFn
                                 |> Next ps.prog
@@ -566,8 +534,8 @@ parse_if_statement what_todo_with_statement ps =
     parse_expr what_todo_with_expr ps
 
 
-parse_block_statements : List Statement -> StatementBlockParseTodo -> ParseStep -> ParseRes
-parse_block_statements statements todo_with_block ps =
+parse_statements : List Statement -> StatementBlockParseTodo -> ParseStep -> ParseRes
+parse_statements statements todo_with_block ps =
     let
         what_todo_with_statement : Result StatementParseError Statement -> ParseRes
         what_todo_with_statement res =
@@ -576,7 +544,7 @@ parse_block_statements statements todo_with_block ps =
                     Error (FailedBlockParse e)
 
                 Ok s ->
-                    parse_block_statements (List.append statements [ s ]) todo_with_block |> next_pfn
+                    parse_statements (List.append statements [ s ]) todo_with_block |> next_pfn
 
         todo_if_var : NamedTypeParseTodo
         todo_if_var res =
@@ -606,7 +574,7 @@ parse_block_statements statements todo_with_block ps =
                     Error (KeywordNotAllowedHere ps.tok.loc)
 
         CommentToken c ->
-            parse_block_statements (List.append statements [ CommentStatement c ]) todo_with_block |> next_pfn
+            parse_statements (List.append statements [ CommentStatement c ]) todo_with_block |> next_pfn
 
         Symbol s ->
             parse_statement_assignment_or_fn_call ps.tok.loc (SingleIdentifier s) what_todo_with_statement |> next_pfn
@@ -615,7 +583,7 @@ parse_block_statements statements todo_with_block ps =
             todo_with_block (Ok statements)
 
         NewlineToken ->
-            parse_block_statements statements todo_with_block |> next_pfn
+            parse_statements statements todo_with_block |> next_pfn
 
         _ ->
             Error (Unimplemented ps.prog ("parsing global function statements like this one:\n" ++ Util.show_source_view ps.tok.loc))
@@ -638,14 +606,14 @@ parse_global_function_body fname header ps =
     in
     case ps.tok.typ of
         OpenCurly ->
-            parse_block_statements [] what_todo_with_block |> next_pfn
+            parse_statements [] what_todo_with_block |> next_pfn
 
         _ ->
             Error (ExpectedOpenCurlyForFunction ps.tok.loc)
 
 
-parse_global_fn_return : FullNameAndLocation -> FunctionHeader -> ParseStep -> ParseRes
-parse_global_fn_return fname header_so_far ps =
+parse_global_fn_return_specifier : FullNameAndLocation -> FunctionHeader -> ParseStep -> ParseRes
+parse_global_fn_return_specifier fname header_so_far ps =
     let
         what_to_do_with_ret_type : FullNameParseTodo
         what_to_do_with_ret_type typ_res =
@@ -676,7 +644,7 @@ parse_fn_def_arg_list_comma_or_close args fname ps =
             parse_fn_definition_arg_list_or_close args fname |> next_pfn
 
         CloseParen ->
-            parse_global_fn_return fname { args = args, return_type = Nothing } |> next_pfn
+            parse_global_fn_return_specifier fname { args = args, return_type = Nothing } |> next_pfn
 
         _ ->
             Error (ExpectedEndOfArgListOrComma ps.tok.loc)
@@ -699,7 +667,7 @@ parse_fn_definition_arg_list_or_close args_sofar fname ps =
             reapply_token (parse_named_type todo |> ParseFn) ps
 
         CloseParen ->
-            parse_global_fn_return fname { args = args_sofar, return_type = Nothing } |> next_pfn
+            parse_global_fn_return_specifier fname { args = args_sofar, return_type = Nothing } |> next_pfn
 
         _ ->
             Error (Unimplemented ps.prog ("Failing to close func param list: name = " ++ stringify_fullname fname.thing))
@@ -735,22 +703,26 @@ parse_global_fn ps =
             Error (ExpectedNameAfterFn ps.tok.loc)
 
 
-parse_get_import_name : ParseStep -> ParseRes
-parse_get_import_name ps =
-    let
-        prog =
-            ps.prog
-    in
-    case ps.tok.typ of
-        Lexer.Literal Language.StringLiteral s ->
-            Next { prog | imports = List.append prog.imports [ AST.ThingAndLocation s ps.tok.loc ] } (ParseFn parse_find_imports)
-
-        _ ->
-            Error (NonStringImport ps.tok.loc)
 
 
 parse_find_imports : ParseStep -> ParseRes
 parse_find_imports ps =
+    let
+        parse_get_import_name : ParseStep -> ParseRes
+        parse_get_import_name pss =
+            let
+                prog =
+                    pss.prog
+            in
+            case pss.tok.typ of
+                Lexer.Literal Language.StringLiteral s ->
+                    Next { prog | imports = List.append prog.imports [ AST.ThingAndLocation s pss.tok.loc ] } (ParseFn parse_find_imports)
+
+                _ ->
+                    Error (NonStringImport pss.tok.loc)
+
+    in
+    
     case ps.tok.typ of
         Keyword kt ->
             case kt of

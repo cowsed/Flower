@@ -1,4 +1,4 @@
-module Parser.ExpressionParser exposing (..)
+module Parser.ExpressionParser exposing (parse_expr, parse_function_call)
 
 import Language.Language exposing (InfixOpType, precedence)
 import Parser.AST as AST exposing (Expression(..), ExpressionAndLocation, FullName, FunctionCall, with_location)
@@ -7,6 +7,7 @@ import Parser.ParserCommon exposing (..)
 import Util
 import Parser.AST exposing (FullNameAndLocation)
 import Parser.AST exposing (FunctionCallAndLocation)
+import Parser.Lexer exposing (token_to_str)
 
 
 merge_infix : ExpressionAndLocation -> ExpressionAndLocation -> InfixOpType -> ExpressionAndLocation
@@ -103,7 +104,7 @@ parse_function_call name todo ps =
                     Error (FailedExprParse e)
 
                 Ok expr ->
-                    parse_func_call_continue_or_end todo (AST.FunctionCall name [ expr ] |> AST.with_location (Util.merge_sv name.loc expr.loc)) |> ParseFn |> Next ps.prog
+                    parse_func_call_expr_continue todo (AST.FunctionCall name [ expr ] |> AST.with_location (Util.merge_sv name.loc expr.loc)) |> ParseFn |> Next ps.prog
     in
     case ps.tok.typ of
         CloseParen ->
@@ -112,8 +113,8 @@ parse_function_call name todo ps =
             reapply_token (ParseFn (parse_expr what_to_do)) ps
 
 
-parse_func_call_continue_or_end : FuncCallExprTodo -> FunctionCallAndLocation -> ParseStep -> ParseRes
-parse_func_call_continue_or_end todo fcall_and_loc ps =
+parse_func_call_expr_continue : FuncCallExprTodo -> FunctionCallAndLocation -> ParseStep -> ParseRes
+parse_func_call_expr_continue todo fcall_and_loc ps =
     let
         add_to_fcall: FunctionCallAndLocation -> ExpressionAndLocation -> FunctionCallAndLocation
         add_to_fcall f_and_loc e_and_loc = 
@@ -136,7 +137,7 @@ parse_func_call_continue_or_end todo fcall_and_loc ps =
 
                 Ok expr ->
                     ParseFn
-                        (parse_func_call_continue_or_end
+                        (parse_func_call_expr_continue
                             todo
                             (add_to_fcall fcall_and_loc expr)
                         )
@@ -150,4 +151,4 @@ parse_func_call_continue_or_end todo fcall_and_loc ps =
             todo (Ok fcall_and_loc)
 
         _ ->
-            Error (Unimplemented ps.prog "What to do if not comma or ) in arg list (in func_call_continue_or_end)")
+            Error (Unimplemented ps.prog ("What to do if not comma or ) in arg list (in func_call_continue_or_end): "++(token_to_str ps.tok)))

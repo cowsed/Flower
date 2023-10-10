@@ -317,7 +317,7 @@ calc_cursor_move_down src i =
 
         pos = Maybe.map3 calc_prev before after after2 |> Maybe.withDefault ((String.length src)-1)
     in
-    pos
+    pos 
 
 
 type KeyAction
