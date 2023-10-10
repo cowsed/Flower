@@ -30,7 +30,7 @@ type alias EditorState =
 
 type alias EditorStyle =
     { line_height : Int
-    , line_spacing: Int
+    , line_spacing : Int
     }
 
 
@@ -148,7 +148,10 @@ build_colored_range onchange state ir =
                         , onmouseup (ir.range.low + i)
                         , onmousemove (ir.range.low + i)
                         , Border.widthEach { left = 1, right = 0, top = 0, bottom = 0 }
-                        , if ir.range.low + i == state.cursor_pos then
+                        , if am_selected (ir.range.low + i) then
+                            Border.color Pallete.bg1_c
+
+                          else if ir.range.low + i == state.cursor_pos then
                             Border.color Pallete.fg_c
 
                           else
@@ -374,7 +377,8 @@ update_editor state ke =
 
                     SelectLeft ->
                         let
-                             new_cursor = max 0 (state.cursor_pos - 1) 
+                            new_cursor =
+                                max 0 (state.cursor_pos - 1)
                         in
                         { state
                             | cursor_pos = new_cursor
@@ -400,7 +404,8 @@ update_editor state ke =
                             new_cursor =
                                 calc_cursor_move_down state.text state.cursor_pos
                         in
-                        { state | cursor_pos = new_cursor, selection = expand_maybe_range state.selection (Range state.cursor_pos new_cursor)}
+                        { state | cursor_pos = new_cursor, selection = expand_maybe_range state.selection (Range state.cursor_pos new_cursor) }
+                    SelectAll  -> {state | selection = Range 0 (String.length state.text) |> Just }
             )
         |> Maybe.map used_keypress
         |> Maybe.withDefault ( state, False )
@@ -433,7 +438,7 @@ calc_cursor_move_up src i =
             List.append [ 0 ] (String.indexes "\n" src)
 
         before =
-            List.filter (\n -> n <= i) newlines 
+            List.filter (\n -> n <= i) newlines
 
         prevl =
             List.Extra.getAt (List.length before - 2) before
@@ -444,7 +449,7 @@ calc_cursor_move_up src i =
         calc_prev prevline thisline =
             let
                 ll =
-                    thisline - prevline 
+                    thisline - prevline
 
                 pos_on_line =
                     i - thisline
@@ -475,7 +480,7 @@ calc_cursor_move_down src i =
         calc_prev thislinestart thislineend nextlineend =
             let
                 ll =
-                    nextlineend - thislineend 
+                    nextlineend - thislineend
 
                 pos_on_line =
                     i - thislinestart
@@ -499,6 +504,7 @@ type KeyAction
     | SelectRight
     | SelectUp
     | SelectDown
+    | SelectAll
 
 
 action_from_key : Keyboard.Event.KeyboardEvent -> Maybe KeyAction
@@ -519,13 +525,7 @@ action_from_key ke =
                     Just (InsertAtCursor "    ")
 
                 Keyboard.Key.Left ->
-                    (if ke.shiftKey then
-                        SelectLeft
-
-                     else
-                        MoveCursorLeft
-                    )
-                        |> Just
+                    tern ke.shiftKey SelectLeft MoveCursorLeft|> Just
 
                 Keyboard.Key.Right ->
                     tern ke.shiftKey SelectRight MoveCursorRight |> Just
@@ -533,19 +533,23 @@ action_from_key ke =
                 Keyboard.Key.Up ->
                     tern ke.shiftKey SelectUp MoveCursorUp |> Just
 
-
                 Keyboard.Key.Down ->
                     tern ke.shiftKey SelectDown MoveCursorDown |> Just
+
+                Keyboard.Key.A -> tern ke.ctrlKey (Just SelectAll) Nothing
 
                 _ ->
                     Nothing
 
-tern: Bool -> a -> a -> a
-tern cond iftrue iffalse = 
+
+tern : Bool -> a -> a -> a
+tern cond iftrue iffalse =
     if cond then
         iftrue
-    else 
+
+    else
         iffalse
+
 
 is_text_keye : Keyboard.Event.KeyboardEvent -> Maybe String
 is_text_keye ke =
@@ -572,6 +576,6 @@ make_line_nums style num_lines =
         , Font.size style.line_height
         , Element.alignTop
         , Element.htmlAttribute <| Html.Attributes.style "user-select" "none"
-        , Element.spacingXY 0 (style.line_spacing*2)
+        , Element.spacingXY 0 (style.line_spacing * 2)
         ]
         (List.range 1 num_lines |> List.map (\i -> Element.text (String.fromInt i)))
