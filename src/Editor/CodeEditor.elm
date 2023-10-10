@@ -260,8 +260,64 @@ update_editor state ke =
 
                     MoveCursorRight ->
                         { state | cursor_pos = min (String.length state.text - 1) (state.cursor_pos + 1) }
+
+                    MoveCursorUp ->
+                        { state | cursor_pos = calc_cursor_move_up state.text state.cursor_pos }
+
+                    MoveCursorDown ->
+                        { state | cursor_pos = calc_cursor_move_down state.text state.cursor_pos }
             )
         |> Maybe.withDefault state
+
+
+calc_cursor_move_up : String -> Int -> Int
+calc_cursor_move_up src i =
+    let
+        newlines =
+            List.append [ 0 ] (String.indexes "\n" src)
+
+        before =
+            List.filter (\n -> n <= i) newlines |> Debug.log "newline split"
+
+        prevl = List.Extra.getAt ((List.length before) - 2) before
+        thisl = List.Extra.getAt ((List.length before) - 1) before
+        
+        calc_prev prevline thisline  = 
+            let
+                ll = thisline - prevline |> Debug.log "prev line length"
+                pos_on_line = i - thisline |> Debug.log "pos on line"
+            in
+                (min ll pos_on_line) + prevline
+
+        pos = Maybe.map2 calc_prev prevl thisl |> Maybe.withDefault (prevl |> Maybe.withDefault 0)
+    in
+    pos
+
+
+calc_cursor_move_down : String -> Int -> Int
+calc_cursor_move_down src i =
+    let
+        newlines =
+            List.append [ 0 ] (String.indexes "\n" src)
+
+        after =
+            List.Extra.find (\n -> n > i) newlines 
+        after2 =
+            after |> Maybe.andThen (\v -> List.Extra.find (\n -> n > v) newlines)
+        
+        before = newlines |> List.filter (\n -> n <= i) |> List.Extra.last
+
+        
+        calc_prev thislinestart thislineend nextlineend  = 
+            let
+                ll = nextlineend - thislineend |> Debug.log "next line length"
+                pos_on_line = i - thislinestart |> Debug.log "pos on line"
+            in
+                (min ll pos_on_line) + thislineend
+
+        pos = Maybe.map3 calc_prev before after after2 |> Maybe.withDefault ((String.length src)-1)
+    in
+    pos
 
 
 type KeyAction
@@ -269,6 +325,8 @@ type KeyAction
     | InsertAtCursor String
     | MoveCursorLeft
     | MoveCursorRight
+    | MoveCursorUp
+    | MoveCursorDown
 
 
 action_from_key : Keyboard.Event.KeyboardEvent -> Maybe KeyAction
@@ -294,6 +352,12 @@ action_from_key ke =
                 Keyboard.Key.Right ->
                     MoveCursorRight |> Just
 
+                Keyboard.Key.Up ->
+                    MoveCursorUp |> Just
+
+                Keyboard.Key.Down ->
+                    MoveCursorDown |> Just
+
                 _ ->
                     Nothing
 
@@ -311,7 +375,7 @@ is_text_keye ke =
                         Just s
 
                     else
-                        Debug.log s Nothing
+                        Nothing
                 )
 
 
