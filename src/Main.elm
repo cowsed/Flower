@@ -88,7 +88,7 @@ htmlify_output res =
     Element.el []
         (case res of
             Err e ->
-                explain_error e |> Element.html
+                explain_error e
 
             Ok prog ->
                 Element.column [ Element.padding 10 ] [ Analysis.Explanations.explain_program prog, Parser.ParserExplanations.explain_program prog.ast ]

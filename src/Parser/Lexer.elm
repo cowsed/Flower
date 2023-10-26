@@ -1,7 +1,7 @@
 module Parser.Lexer exposing (..)
 
-import Html exposing (pre, text)
-import Html.Attributes exposing (style)
+import Element
+import Element.Font as Font
 import Language.Language as Language
 import Language.Syntax
 import Pallete
@@ -13,7 +13,7 @@ type alias Token =
     , typ : TokenType
     }
 
- 
+
 type TokenType
     = Keyword Language.Syntax.KeywordType
     | Symbol String
@@ -115,20 +115,20 @@ infix_op_from_token tok =
             Nothing
 
 
-explain_error : Error -> Html.Html msg
+explain_error : Error -> Element.Element msg
 explain_error e =
-    Html.div []
-        [ pre [ style "color" Pallete.red ]
-            [ case e of
+    Element.column []
+        [ Element.el [ Font.color Pallete.red_c, Font.family [ Font.monospace ] ]
+            (case e of
                 UnknownCharacter sv c ->
-                    text (Util.addchar "Unknown character: " c ++ "\n" ++ Util.show_source_view sv)
+                    Element.text (Util.addchar "Unknown character: " c ++ "\n" ++ Util.show_source_view sv)
 
                 UnclosedStringLiteral sv ->
-                    text ("Unclosed String Literal here: \n" ++ Util.show_source_view sv)
+                    Element.text ("Unclosed String Literal here: \n" ++ Util.show_source_view sv)
 
                 UnknownCharacterInIntegerLiteral sv ->
-                    text ("Unknown character in Integer Literal\n" ++ Util.show_source_view sv)
-            ]
+                    Element.text ("Unknown character in Integer Literal\n" ++ Util.show_source_view sv)
+            )
         ]
 
 
@@ -159,7 +159,7 @@ rec_lex lf iv pos cs =
             let
                 lsi =
                     { input_view = iv
-                    , view_from_start = \s -> iv s (pos)
+                    , view_from_start = \s -> iv s pos
                     , view_this = iv pos (pos + 1)
                     , pos = pos
                     , char = c
@@ -325,7 +325,7 @@ lex_divide_or_comment lsi =
 lex_string_literal : Int -> String -> LexStepInfo -> LexRes
 lex_string_literal start sofar lsi =
     if lsi.char == '"' then
-        Tokens [ Token (lsi.input_view start (lsi.pos+1)) (Literal Language.StringLiteral sofar) ] begin_lex
+        Tokens [ Token (lsi.input_view start (lsi.pos + 1)) (Literal Language.StringLiteral sofar) ] begin_lex
 
     else if lsi.char == '\n' then
         Error (UnclosedStringLiteral (lsi.view_from_start start))
