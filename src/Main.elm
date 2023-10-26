@@ -33,49 +33,66 @@ import Time
 initial_input : String
 initial_input =
     """module main
+import "std"
+
+
+fn main() -> i32{
+    std.puts("Hello" )
+
+}
+"""
+
+
+
+{--"""module main
 
 // importing the standard library
 import "std"
 
 
-type Positive[N] = N | n >= 0
-
-struct a{
-    val: u8
-}
-
-enum Result[E, T]{
-    Err(E, T)
-    Res(T)
-}
-
-fn sqrt(v: bool ) -> f64{
-    return v/2
+fn add(a: u8, b: u8) {
+    return a + b
 }
 
 
-
-
-
-fn main() -> u8{
+fn main() -> i32{
     a: u8 = 1
     b: u8 = 2
     var res: u8 = add(a, b)
     std.println("{a} + {b} = {res}")
+    return 0
 }
 """
+-}
+{-
+   type Positive[N] = N | n >= 0
+
+   struct a{
+       val: u8
+   }
+
+   enum Result[E, T]{
+       Err(E)
+       Res(T)
+   }
+
+   fn sqrt(v: bool ) -> f64{
+       return v/2
+   }
+
+-}
 
 
-htmlify_output : Result CompilerError Analyzer.GoodProgram -> Html.Html msg
+htmlify_output : Result CompilerError Analyzer.GoodProgram -> Element.Element msg
 htmlify_output res =
-    Html.div []
-        [ case res of
+    Element.el []
+        (case res of
             Err e ->
-                explain_error e
+                explain_error e |> Element.html
 
             Ok prog ->
-                Html.div [ style "padding-left" "20px" ] [ Analysis.Explanations.explain_program prog, Parser.ParserExplanations.explain_program prog.ast ]
-        ]
+                Element.column [ Element.padding 10 ] [ Analysis.Explanations.explain_program prog, Parser.ParserExplanations.explain_program prog.ast ]
+        )
 
 
 color_tok_type : Lexer.TokenType -> Element.Color
@@ -122,9 +139,6 @@ make_output mod =
                 [ Element.text ("Compiled in " ++ millis_elapsed mod.last_run_start mod.last_run_end ++ " ms")
                 ]
 
-        
-
-
         left_pane =
             Element.el
                 [ Element.width fill
@@ -143,7 +157,7 @@ make_output mod =
                     [ Element.width fill
                     , Element.height Element.fill
                     ]
-                    (Element.html (htmlify_output mod.output))
+                    (htmlify_output mod.output)
                 , Element.column
                     [ Element.width fill
                     , Element.height Element.fill
@@ -217,7 +231,7 @@ update msg mmod =
                 , output = compile initial_input
                 , window_size = ( 100, 100 )
                 , db_console = [ "Message 1" ]
-                } 
+                }
             , Task.perform CompileStartedAtTime Time.now
             )
 
@@ -230,7 +244,7 @@ update msg mmod =
                     let
                         newes =
                             if mod.editor_state.focused then
-                                Editor.update_editor mod.editor_state ke  |> Tuple.first
+                                Editor.update_editor mod.editor_state ke |> Tuple.first
 
                             else
                                 mod.editor_state
@@ -241,7 +255,7 @@ update msg mmod =
                     update (EditorAction newes) (Just m)
 
                 EditorAction es ->
-                    ( Just { mod | editor_state = es, db_console = List.append mod.db_console [ "editor action: selection = " ++ (Debug.toString es.selection) ] }, Task.perform CompileStartedAtTime Time.now )
+                    ( Just { mod | editor_state = es, db_console = List.append mod.db_console [ "editor action: selection = " ++ Debug.toString es.selection ] }, Task.perform CompileStartedAtTime Time.now )
 
                 Recompile ->
                     ( Just mod, Task.perform CompileStartedAtTime Time.now )
@@ -251,13 +265,16 @@ update msg mmod =
 
                 CompileFinishedAtTime t ->
                     let
-                        es = mod.editor_state
+                        es =
+                            mod.editor_state
+
                         colored_ranges =
                             mod.output |> Result.map (\gp -> range_from_toks gp.ast.src_tokens) |> Result.withDefault []
-                        new_es = {es | info_ranges = colored_ranges}
+
+                        new_es =
+                            { es | info_ranges = colored_ranges }
                     in
-                    
-                    ( { mod | last_run_end = t, editor_state =  new_es}
+                    ( { mod | last_run_end = t, editor_state = new_es }
                         |> Just
                     , Cmd.none
                     )

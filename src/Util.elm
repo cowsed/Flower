@@ -4,6 +4,7 @@ import Html
 import Html.Attributes
 import Language.Language as Language
 
+import Element exposing (Element)
 
 escape_result : Result er er -> er
 escape_result res =
@@ -26,6 +27,38 @@ collapsable title internals =
         , Html.Attributes.style "width" "fit-content"
         ]
         [ Html.summary [] [ title ], internals ]
+
+
+
+
+type Bullet
+    = Bullet String (List Bullet)
+
+
+bullet : Bullet
+bullet =
+    Bullet "UPSC"
+        [ Bullet "Essay"
+            [ Bullet "If progress is not engendered it will be" []
+            , Bullet "Poverty is worst form of violence" []
+            , Bullet "blockchain and corruption"
+                [ Bullet "beneficiary verified public registries to" []
+                , Bullet "corruption is often related to delayed or" []
+                ]
+            , Bullet "you can learn anything from anywhere"
+                [ Bullet "history" []
+                , Bullet "Israel - water scarce - learn importance" []
+                ]
+            ]
+        ]
+
+
+viewBullet : Bullet -> Element msg
+viewBullet (Bullet text children) =
+    Element.row [ Element.spacing 12 ]
+        [ Element.el [ Element.alignTop ] (Element.text "•")
+        , Element.column [ Element.spacing 6 ] (Element.text text :: List.map viewBullet children)
+        ]
 
 
 type alias SourceView =

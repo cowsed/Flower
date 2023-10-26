@@ -9,6 +9,7 @@ import Parser.Parser as Parser
 import Parser.ParserCommon as ParserCommon
 import Parser.ParserExplanations as ParserExplanations
 import Analysis.Util exposing (AnalysisError)
+import Element
 
 type CompilerError
     = Lex Lexer.Error
@@ -33,14 +34,14 @@ explain_error e =
         Parse pe toks ->
             Html.div []
                 [ Html.h1 [] [ Html.text "Parser error" ]
-                , ParserExplanations.explain_error pe
+                , ParserExplanations.explain_error pe |> Element.layout []
                 , explain_toks toks
                 ]
 
         Analysis ae ->
             Html.div []
                 [ Html.h1 [] [ Html.text "Analysis error" ]
-                , Analysis.Explanations.explain_error ae
+                , Analysis.Explanations.explain_error ae |> Element.layout []
                 ]
 
 

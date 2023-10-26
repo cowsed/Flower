@@ -299,6 +299,7 @@ code_editor state onchange =
         code_line_col =
             Element.column
                 [ Element.width Element.fill
+                , Element.paddingXY 4 0
                 ]
                 code_lines
 
@@ -330,7 +331,6 @@ code_editor state onchange =
             , code_line_col
             ]
         )
-
 
 update_editor : EditorState -> Keyboard.Event.KeyboardEvent -> ( EditorState, Bool )
 update_editor state ke =
@@ -577,5 +577,8 @@ make_line_nums style num_lines =
         , Element.alignTop
         , Element.htmlAttribute <| Html.Attributes.style "user-select" "none"
         , Element.spacingXY 0 (style.line_spacing * 2)
+        , Border.color Pallete.fg_c
+        , Border.widthEach {left = 0, right = 2, top = 0, bottom = 0}
+        , Font.family [ Font.monospace ]
         ]
         (List.range 1 num_lines |> List.map (\i -> Element.text (String.fromInt i)))

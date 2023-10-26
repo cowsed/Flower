@@ -2,30 +2,61 @@ module Analysis.Analyzer exposing (..)
 
 import Analysis.BuiltinScopes as BuiltinScopes
 import Analysis.Scope as Scope
+import Analysis.Util exposing (..)
 import Language.Language as Language exposing (FunctionHeader, Identifier(..), IntegerSize(..), LiteralType(..), OuterType(..), QualifiedType, Type(..), TypeOfTypeDefinition(..), ValueNameAndType, builtin_types, type_of_non_generic_outer_type)
 import Parser.AST as AST
 import Parser.ParserCommon exposing (Error(..))
 import Util
-import Analysis.Util exposing (..)
 
 
 type alias GoodProgram =
-    { module_name : String, outer_scope : Scope.OverviewScope, ast: AST.Program }
+    { ast : AST.Program
+    , module_name : String
+    , outer_scope : Scope.OverviewScope
+    , definitions: List FunctionDefinition
+    }
+
+
+type alias TypedIdentifier =
+    { id : Language.Identifier
+    , typ : Language.Type
+    }
+
+
+type TypedExpression
+    = FunctionCall Identifier FunctionDefinition (List TypedExpression) (Maybe Type)
+    | ScopeLookup Identifier Type
+    | Instantiation
+
+
+-- | StructConstruction
+
+
+type Statement
+    = Assignment TypedIdentifier TypedExpression
+    | BareExpression TypedExpression
+
+
+type alias FunctionDefinition =
+    { typ : Language.FunctionHeader
+    , statements : List Statement
+    }
 
 
 analyze : AST.Program -> Result AnalysisError GoodProgram
-analyze prog =
+analyze ast =
     let
+        outer_scopes : Result AnalysisError Scope.OverviewScope
         outer_scopes =
-            make_outer_scope prog
+            make_outer_scope ast
 
-        assemble_gp scope name =
-            GoodProgram name scope prog
+
+        definitions = Ok []
 
         module_name =
-            Result.fromMaybe NoModuleName prog.module_name
+            Result.fromMaybe NoModuleName ast.module_name
     in
-    Result.map2 assemble_gp outer_scopes module_name
+    Result.map3 (GoodProgram ast) module_name outer_scopes  definitions
 
 
 make_outer_scope : AST.Program -> Result AnalysisError Scope.OverviewScope
@@ -43,17 +74,19 @@ make_outer_scope prog =
         local_module_type_scope =
             analyze_this_module_declarations prog.global_typedefs
 
-        pre_fn_scopes = merge_scopes
+        pre_fn_scopes =
+            merge_scopes
                 [ builtin_scope
                 , import_scope
                 , local_module_type_scope
                 ]
+
         full_scopes =
             pre_fn_scopes
                 |> Result.andThen (build_this_module_values prog.global_functions)
                 |> Result.map (\vals -> Scope.OverviewScope vals [])
     in
-    merge_scopes [full_scopes, pre_fn_scopes]
+    merge_scopes [ full_scopes, pre_fn_scopes ]
 
 
 build_this_module_values : List AST.FunctionDefinition -> Scope.OverviewScope -> AnalysisRes (List ValueNameAndType)
@@ -137,7 +170,6 @@ analyze_type os fn =
             case ot of
                 _ ->
                     type_of_non_generic_outer_type ot
-
     in
     (case fn.thing of
         AST.NameWithoutArgs name ->
@@ -167,6 +199,7 @@ analyze_generic_instantiation_type os fn name_and_args =
 
                 _ ->
                     Nothing
+
         validated_name =
             name_and_args.base
                 |> Scope.overview_has_outer_type os
@@ -194,8 +227,6 @@ analyze_generic_instantiation_type os fn name_and_args =
                             Language.is_generic_instantiable_with tot gen_args val_args |> wrap_can_instantiate_err gen_id tot val_args
                         )
             )
-
-
 
 
 analyze_generic_arg : AST.ThingAndLocation AST.FullName -> AnalysisRes Language.TypeType
@@ -298,7 +329,6 @@ analyze_this_module_declarations l =
     scope
 
 
-
 analyze_imports : List AST.ImportAndLocation -> Result AnalysisError Scope.OverviewScope
 analyze_imports strs =
     strs
@@ -307,4 +337,3 @@ analyze_imports strs =
                 BuiltinScopes.import_scope sl |> Result.fromMaybe (UnknownImport sl)
             )
         |> merge_scopes
-

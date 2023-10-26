@@ -1,10 +1,12 @@
 module Parser.ParserExplanations exposing (..)
 
+import Element
+import Element.Font as Font
 import Html
 import Html.Attributes exposing (style)
-import Pallete as Pallete
-import Parser.AST as AST exposing (AliasDefinition, Expression(..), FullName,  TypeDefinitionType(..), make_qualified_typewithname, stringify_fullname)
 import Language.Language as Language exposing (Identifier(..))
+import Pallete as Pallete
+import Parser.AST as AST exposing (AliasDefinition, Expression(..), FullName, TypeDefinitionType(..), make_qualified_typewithname, stringify_fullname)
 import Parser.Lexer as Lexer
 import Parser.ParserCommon as ParserCommon
 import Util
@@ -434,21 +436,20 @@ details[open] > summary {
 -- Explanations ==============================================
 
 
-explain_error : ParserCommon.Error -> Html.Html msg
+explain_error : ParserCommon.Error -> Element.Element msg
 explain_error e =
     case e of
         ParserCommon.Unimplemented p reason ->
-            Html.div [ style "color" Pallete.red ]
-                [ Html.h2 [] [ Html.text "!!!Unimplemented!!!" ]
-                , Html.pre [] [ Html.text (reason ++ "\n") ]
-                , Html.text "Program so far"
+            Element.column [ Font.color Pallete.red_c ]
+                [ Element.text "!!!Unimplemented!!!"
+                , Element.text (reason ++ "\n")
+                , Element.text "Program so far"
                 , explain_program p
                 ]
 
         _ ->
-            Html.div []
-                [ Html.pre [ Html.Attributes.style "color" Pallete.red ] [ Html.text (stringify_error e) ]
-                ]
+            Element.el [ Font.color Pallete.red_c, Font.family [Font.monospace] ] <|
+                Element.text (stringify_error e)
 
 
 explain_struct : AST.StructDefnition -> Html.Html msg
@@ -478,7 +479,7 @@ explain_enum_field field =
             [ Html.text field.name
             , Html.text " with args "
             , Html.ul []
-                (field.args |> List.map (\f -> stringify_fullname f.thing)|> List.map Html.text |> List.map (\s -> Html.li [] [ s ]))
+                (field.args |> List.map (\f -> stringify_fullname f.thing) |> List.map Html.text |> List.map (\s -> Html.li [] [ s ]))
             ]
 
     else
@@ -495,7 +496,7 @@ explain_enum enum =
         ]
 
 
-explain_program : AST.Program -> Html.Html msg
+explain_program : AST.Program -> Element.Element msg
 explain_program prog =
     let
         imports =
@@ -532,6 +533,7 @@ explain_program prog =
         , funcs
         , typedefs
         ]
+        |> Element.html
 
 
 explain_typedef : TypeDefinitionType -> Html.Html msg
