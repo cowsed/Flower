@@ -2,7 +2,6 @@ module Parser.ParserExplanations exposing (..)
 
 import Element
 import Element.Font as Font
-import Html.Attributes exposing (style)
 import Language.Language as Language exposing (Identifier(..))
 import Pallete as Pallete
 import Parser.AST as AST exposing (AliasDefinition, Expression(..), FullName, TypeDefinitionType(..), make_qualified_typewithname, stringify_fullname)

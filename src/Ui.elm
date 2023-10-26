@@ -1,14 +1,8 @@
 module Ui exposing (..)
 
-import Element exposing (Element)
-import Element.Font as Font
-import Html
-import Html.Attributes exposing (spellcheck, style)
-import Html.Events exposing (onInput)
-import Pallete
-import Parser.AST as AST
+
 import Time exposing (..)
-import Parser.ParserExplanations
+
 
 
 

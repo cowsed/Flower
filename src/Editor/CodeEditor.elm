@@ -97,8 +97,6 @@ build_colored_range onchange state ir =
                     )
                 |> Maybe.withDefault False
 
-        onclick index =
-            Element.Events.onClick (onchange { state | cursor_pos = index, focused = True, selection = Nothing })
 
         onmousedown index =
             Element.Events.onMouseDown (onchange { state | selection = Just (Range index index), building_selection = True })

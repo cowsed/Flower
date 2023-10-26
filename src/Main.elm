@@ -10,8 +10,7 @@ import Element exposing (Element, alignBottom, alignRight, alignTop, el, fill, s
 import Element.Background as Background
 import Element.Border
 import Element.Font as Font
-import Html exposing (..)
-import Html.Attributes exposing (style)
+import Html 
 import Keyboard.Event
 import Pallete
 import Parser.Lexer as Lexer
@@ -192,7 +191,7 @@ view : Maybe Model -> Html.Html Msg
 view mmod =
     case mmod of
         Nothing ->
-            text "Not Loaded Yet"
+            Html.text "Not Loaded Yet"
 
         Just mod ->
             Element.row [ Element.height Element.fill, Element.width fill ] [ make_output mod ]
