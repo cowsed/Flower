@@ -18,6 +18,7 @@ import Parser.Lexer as Lexer
 import Parser.ParserExplanations
 import Task
 import Time
+import Util exposing (escape_result)
 
 
 
@@ -269,7 +270,19 @@ update msg mmod =
                             mod.editor_state
 
                         colored_ranges =
-                            mod.output |> Result.map (\gp -> range_from_toks gp.ast.src_tokens) |> Result.withDefault []
+                            mod.output
+                                |> Result.map (\gp -> range_from_toks gp.ast.src_tokens)
+                                |> Result.mapError
+                                    (\e ->
+                                        case e of
+                                            Compiler.Parse _ toks ->
+                                                range_from_toks toks
+
+                                            Compiler.Analysis _ ast -> range_from_toks ast.src_tokens
+                                            _ ->
+                                                []
+                                    )
+                                |> escape_result
 
                         new_es =
                             { es | info_ranges = colored_ranges }

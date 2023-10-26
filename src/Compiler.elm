@@ -12,12 +12,13 @@ import Parser.ParserCommon as ParserCommon
 import Parser.ParserExplanations as ParserExplanations
 import Element.Background as Background
 import Pallete
+import Parser.AST
 
 
 type CompilerError
     = Lex Lexer.Error
     | Parse ParserCommon.Error (List Token)
-    | Analysis AnalysisError
+    | Analysis AnalysisError Parser.AST.Program
 
 
 explain_toks : List Token -> Element.Element msg
@@ -41,7 +42,7 @@ explain_error e =
                 , explain_toks toks
                 ]
 
-        Analysis ae ->
+        Analysis ae _ ->
             Element.column []
                 [ Element.el [ Font.size 30 ] (Element.text "Analysis error")
                 , Analysis.Explanations.explain_error ae
@@ -57,4 +58,4 @@ compile src =
     in
     lex_result
         |> Result.andThen (\toks -> Parser.parse toks |> Result.mapError (\e -> Parse e toks))
-        |> Result.andThen (\prog -> Analysis.Analyzer.analyze prog |> Result.map (\gp -> gp) |> Result.mapError (\e -> Analysis e))
+        |> Result.andThen (\prog -> Analysis.Analyzer.analyze prog |> Result.mapError (\e -> Analysis e prog))

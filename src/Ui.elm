@@ -11,33 +11,6 @@ import Time exposing (..)
 import Parser.ParserExplanations
 
 
-code_rep : AST.Program -> Element msg
-code_rep prog =
-    Element.column
-        [ Element.width Element.fill
-        , Element.height Element.fill
-        , Font.family [ Font.monospace ]
-        ]
-        [ Element.html (Parser.ParserExplanations.syntaxify_program prog)
-        ]
-
-
-code_editor : String -> (String -> msg) -> Html.Html msg
-code_editor src onedit =
-    Html.textarea
-        [ style "font-size" "15px"
-        , style "background-color" Pallete.bg
-        , style "overflow" "none"
-        , style "border-color" Pallete.fg
-        , style "width" "50%"
-        , style "height" "99%"
-                -- , style "padding" "5px"
-        , style "resize" "none"
-        , spellcheck False
-        , onInput onedit
-        ]
-        [ Html.text src
-        ]
 
 
 stringify_time : Time.Zone -> Time.Posix -> String
