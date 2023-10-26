@@ -2,7 +2,6 @@ module Parser.ParserExplanations exposing (..)
 
 import Element
 import Element.Font as Font
-import Html
 import Html.Attributes exposing (style)
 import Language.Language as Language exposing (Identifier(..))
 import Pallete as Pallete
@@ -16,423 +15,361 @@ import Util
 -- Syntaxifications ==========================================
 
 
-syntaxify_namedarg : AST.QualifiedTypeWithName -> List (Html.Html msg)
+syntaxify_namedarg : AST.QualifiedTypeWithName -> List (Element.Element msg)
 syntaxify_namedarg na =
     [ symbol_highlight (Language.stringify_identifier na.name)
-    , Html.text ": "
-    , Html.span [] [ syntaxify_fullname na.typename.thing ]
+    , Element.text ": "
+    , syntaxify_fullname na.typename.thing
     ]
 
 
-syntaxify_keyword : String -> Html.Html msg
+syntaxify_keyword : String -> Element.Element msg
 syntaxify_keyword s =
-    Html.span [ style "color" Pallete.red ] [ Html.text s ]
+    Element.row [ Font.color Pallete.red_c ] [ Element.text s ]
 
 
-symbol_highlight : String -> Html.Html msg
+symbol_highlight : String -> Element.Element msg
 symbol_highlight s =
-    Html.span [ style "color" Pallete.orange ] [ Html.text s ]
+    Element.el [ Font.color Pallete.orange_c ] (Element.text s)
 
 
-syntaxify_string_literal : String -> Html.Html msg
+syntaxify_string_literal : String -> Element.Element msg
 syntaxify_string_literal s =
-    Html.span [ style "color" "DarkSlateBlue" ] [ Html.text ("\"" ++ s ++ "\"") ]
+    Element.el [ Font.color Pallete.blue_c ] (Element.text ("\"" ++ s ++ "\""))
 
 
-syntaxify_number_literal : String -> Html.Html msg
+syntaxify_number_literal : String -> Element.Element msg
 syntaxify_number_literal s =
-    Html.span [ style "color" Pallete.aqua ] [ Html.text s ]
+    color_text Pallete.aqua_c s 
 
 
-syntaxify_identifier : Identifier -> Html.Html msg
+syntaxify_identifier : Identifier -> Element.Element msg
 syntaxify_identifier id =
     case id of
         SingleIdentifier s ->
             symbol_highlight s
 
         QualifiedIdentifiers ls ->
-            ls |> List.map symbol_highlight |> List.intersperse (Html.text ".") |> Html.span []
+            ls |> List.map symbol_highlight |> List.intersperse (Element.text ".") |> Element.row []
 
 
-syntaxify_literal : Language.LiteralType -> String -> Html.Html msg
+syntaxify_literal : Language.LiteralType -> String -> Element.Element msg
 syntaxify_literal l s =
     case l of
         Language.StringLiteral ->
             syntaxify_string_literal ("\"" ++ s ++ "\"")
 
         Language.BooleanLiteral ->
-            Html.text s
+            Element.text s
 
         Language.NumberLiteral ->
             syntaxify_number_literal s
 
 
-syntaxify_fullname : FullName -> Html.Html msg
+syntaxify_fullname : FullName -> Element.Element msg
 syntaxify_fullname fn =
     case fn of
         AST.Literal l s ->
-            syntaxify_literal l s |> (\t -> Html.span [] [ t ])
+            syntaxify_literal l s |> (\t -> Element.row [] [ t ])
 
         AST.NameWithoutArgs id ->
             syntaxify_identifier id
 
         AST.NameWithArgs nl ->
-            Html.span []
+            Element.row []
                 [ syntaxify_identifier nl.base
-                , Html.text "["
-                , Html.span [] (nl.args |> List.map (\f -> syntaxify_fullname f.thing) |> List.intersperse (Html.text ", "))
-                , Html.text "]"
+                , Element.text "["
+                , Element.row [] (nl.args |> List.map (\f -> syntaxify_fullname f.thing) |> List.intersperse (Element.text ", "))
+                , Element.text "]"
                 ]
 
         AST.ReferenceToFullName fn2 ->
-            Html.span [] [ Html.text "&", syntaxify_fullname fn2.thing ]
+            Element.row [] [ Element.text "&", syntaxify_fullname fn2.thing ]
 
         AST.Constrained name constraint ->
-            Html.span [] [ syntaxify_fullname name.thing, Html.text " | ", syntaxify_expression constraint.thing ]
+            Element.row [] [ syntaxify_fullname name.thing, Element.text " | ", syntaxify_expression constraint.thing ]
 
 
-syntaxify_expression : AST.Expression -> Html.Html msg
+syntaxify_expression : AST.Expression -> Element.Element msg
 syntaxify_expression expr =
     case expr of
         AST.NameLookup n ->
             syntaxify_fullname n.thing
 
         AST.FunctionCallExpr fcall ->
-            Html.span []
+            Element.row []
                 [ syntaxify_fullname fcall.thing.fname.thing
-                , Html.text "("
-                , Html.span [] (fcall.thing.args |> List.map (\arg -> syntaxify_expression arg.thing) |> List.intersperse (Html.text ", "))
-                , Html.text ")"
+                , Element.text "("
+                , Element.row [] (fcall.thing.args |> List.map (\arg -> syntaxify_expression arg.thing) |> List.intersperse (Element.text ", "))
+                , Element.text ")"
                 ]
 
         AST.Parenthesized e ->
-            Html.span [] [ Html.text "(", syntaxify_expression e.thing, Html.text ")" ]
+            Element.row [] [ Element.text "(", syntaxify_expression e.thing, Element.text ")" ]
 
         AST.LiteralExpr lt s ->
             case lt of
                 Language.StringLiteral ->
-                    Html.span [] [ syntaxify_string_literal s ]
+                    syntaxify_string_literal s
 
                 Language.NumberLiteral ->
-                    Html.span [] [ syntaxify_number_literal s ]
+                    syntaxify_number_literal s
 
                 Language.BooleanLiteral ->
-                    Html.span [] [ syntaxify_number_literal s ]
+                    syntaxify_number_literal s
 
         AST.InfixExpr lhs rhs op ->
-            Html.span [] [ syntaxify_expression lhs.thing, Html.text (" " ++ Language.stringify_infix_op op ++ " "), syntaxify_expression rhs.thing ]
+            Element.row [] [ syntaxify_expression lhs.thing, Element.text (" " ++ Language.stringify_infix_op op ++ " "), syntaxify_expression rhs.thing ]
 
 
-syntaxify_fheader : AST.FunctionHeader -> Html.Html msg
+syntaxify_fheader : AST.FunctionHeader -> Element.Element msg
 syntaxify_fheader header =
     let
-        pretty_arg_lst : List (Html.Html msg)
+        pretty_arg_lst : List (Element.Element msg)
         pretty_arg_lst =
-            List.concat (List.intersperse [ Html.text ", " ] (List.map syntaxify_namedarg header.args))
+            List.concat (List.intersperse [ Element.text ", " ] (List.map syntaxify_namedarg header.args))
 
         lis =
-            List.concat [ [ Html.text "(" ], pretty_arg_lst, [ Html.text ")" ] ]
+            List.concat [ [ Element.text "(" ], pretty_arg_lst, [ Element.text ")" ] ]
 
-        ret : Html.Html msg
+        ret : Element.Element msg
         ret =
-            Html.span []
+            Element.row []
                 (case header.return_type of
                     Just typ ->
-                        [ Html.span [] [ Html.text " 🡒 ", Html.span [] [ syntaxify_fullname typ.thing ] ] ]
+                        [ Element.row [] [ Element.text " 🡒 ", Element.row [] [ syntaxify_fullname typ.thing ] ] ]
 
                     Nothing ->
-                        [ Html.text " " ]
+                        [ Element.text " " ]
                 )
     in
-    Html.span [] (List.append lis [ ret ])
-
-
-syntaxify_statement : Int -> AST.Statement -> Html.Html msg
-syntaxify_statement indentation_level s =
-    let
-        indent =
-            tabs indentation_level
-    in
-    case s of
-        AST.ReturnStatement expr ->
-            Html.span []
-                [ tabs indentation_level
-                , syntaxify_keyword "return "
-                , case expr of
-                    Just e ->
-                        syntaxify_expression e.thing
-
-                    Nothing ->
-                        Html.text ""
-                , Html.text "\n"
-                ]
-
-        AST.InitilizationStatement taname expr ->
-            let
-                qual =
-                    case taname.qualifiedness of
-                        Language.Constant ->
-                            ""
-
-                        Language.Variable ->
-                            "var "
-            in
-            Html.span [] (List.concat [ [ indent, syntaxify_keyword qual ], syntaxify_namedarg taname, [ Html.text " = ", syntaxify_expression expr.thing, Html.text "\n" ] ])
-
-        AST.CommentStatement src ->
-            Html.span [ style "color" Pallete.gray ] [ indent, Html.text ("// " ++ src), Html.text "\n" ]
-
-        AST.AssignmentStatement name expr ->
-            Html.span [] [ tab, symbol_highlight (Language.stringify_identifier name), Html.text " = ", syntaxify_expression expr.thing, Html.text "\n" ]
-
-        AST.FunctionCallStatement fcal ->
-            Html.span []
-                [ indent
-                , symbol_highlight (AST.stringify_fullname fcal.thing.fname.thing)
-                , Html.text "("
-                , Html.span [] (fcal.thing.args |> List.map (\e -> syntaxify_expression e.thing) |> List.intersperse (Html.span [] [ Html.text ", " ]))
-                , Html.text ")"
-                , Html.text "\n"
-                ]
-
-        AST.IfStatement expr block ->
-            collapsing_block indentation_level (Html.span [] [ syntaxify_keyword "if ", syntaxify_expression expr.thing ]) block
-
-        AST.WhileStatement expr block ->
-            collapsing_block indentation_level (Html.span [] [ syntaxify_keyword "while ", syntaxify_expression expr.thing ]) block
-
-
-syntaxify_function : Int -> AST.FunctionDefinition -> List (Html.Html msg)
-syntaxify_function indentation fdef =
-    let
-        header =
-            Html.span []
-                [ syntaxify_keyword "fn "
-                , syntaxify_fullname fdef.name.thing
-                , syntaxify_fheader fdef.header
-                ]
-    in
-    [ collapsing_block indentation header fdef.statements, Html.text "\n" ]
-
-
-syntaxify_program : AST.Program -> Html.Html msg
-syntaxify_program prog =
-    Html.code
-        [ style "font-size" "15px"
-        , style "background-color" Pallete.bg
-        , style "overflow" "none"
-        , style "border-color" Pallete.fg
-        , style "width" "100%"
-        , style "height" "100%"
-        , style "border-style" "solid solid solid none"
-        , style "border-width" "2px"
-        , style "padding" "5px"
-        ]
-        [ Html.pre []
-            (List.concat
-                [ [ syntaxify_keyword "module ", symbol_highlight (Maybe.withDefault "module_name" prog.module_name), Html.text "\n\n" ]
-                , prog.imports |> List.map (\name -> [ syntaxify_keyword "import ", syntaxify_string_literal name.thing, Html.text "\n" ]) |> List.concat
-                , List.repeat 2 (Html.text "\n")
-                , prog.global_typedefs |> List.map (syntaxify_typedef 0)
-                , prog.global_functions |> List.map (\f -> syntaxify_function 0 f) |> List.concat
-                ]
-            )
-        ]
-
-
-syntaxify_typedef : Int -> AST.TypeDefinitionType -> Html.Html msg
-syntaxify_typedef indent typ =
-    case typ of
-        StructDefType s ->
-            syntaxify_struct indent s
-
-        EnumDefType s ->
-            syntaxify_enum indent s
-
-        AliasDefType s ->
-            syntaxify_alias_type indent s
-
-
-syntaxify_alias_type : Int -> AliasDefinition -> Html.Html msg
-syntaxify_alias_type indent ad =
-    Html.div []
-        [ Html.span []
-            [ tabs indent
-            , syntaxify_keyword "type "
-            , syntaxify_fullname ad.name.thing
-            , Html.text " = "
-            , syntaxify_fullname ad.alias_to.thing
-            , Html.text "\n"
-            ]
-        , Html.text "\n"
-        ]
-
-
-syntaxify_enum_field : Int -> AST.EnumField -> Html.Html msg
-syntaxify_enum_field indents ef =
-    let
-        my_tabs =
-            tabs indents
-    in
-    if List.length ef.args == 0 then
-        Html.div [] [ my_tabs, symbol_highlight ef.name ]
-
-    else
-        Html.div []
-            [ my_tabs
-            , symbol_highlight ef.name
-            , Html.text "("
-            , Html.span [] (ef.args |> List.map (\f -> syntaxify_fullname f.thing) |> List.intersperse (Html.text ", "))
-            , Html.text ")"
-            ]
-
-
-syntaxify_enum : Int -> AST.EnumDefinition -> Html.Html msg
-syntaxify_enum indent enum =
-    let
-        indents =
-            tabs indent
-
-        fields =
-            enum.fields |> List.map (syntaxify_enum_field (indent + 1)) |> Html.div []
-    in
-    Html.div []
-        [ Html.details
-            [ style "background" Pallete.bg1
-            , style "width" "fit-content"
-            , style "padding-left" "0px"
-            , style "padding-right" "5px"
-            , style "border-radius" "10px"
-            , Html.Attributes.attribute "open" "true"
-            ]
-            [ collapsing_block_style
-            , Html.summary
-                [ style "border" "none"
-                , style "cursor" "pointer"
-                ]
-                [ indents
-                , syntaxify_keyword "enum "
-                , syntaxify_fullname enum.name.thing
-                , Html.text " {\n"
-                ]
-            , fields
-
-            -- , indents
-            , Html.text "}\n"
-            ]
-        , Html.text "\n"
-        ]
-
-
-syntaxify_struct : Int -> AST.StructDefnition -> Html.Html msg
-syntaxify_struct indent struct =
-    let
-        header =
-            syntaxify_fullname struct.name.thing
-
-        names =
-            struct.fields
-                |> List.map (\f -> make_qualified_typewithname f Language.Constant)
-                |> List.map syntaxify_namedarg
-                |> List.map (\f -> Html.span [] [ tabs (indent + 1), Html.span [] f, Html.text "\n" ])
-                |> Html.div []
-
-        indents =
-            tabs indent
-    in
-    Html.div []
-        [ Html.details
-            [ style "background" Pallete.bg1
-            , style "width" "fit-content"
-            , style "padding-left" "0px"
-            , style "padding-right" "5px"
-            , style "border-radius" "10px"
-            , Html.Attributes.attribute "open" "true"
-            ]
-            [ collapsing_block_style
-            , Html.summary
-                [ style "border" "none"
-                , style "cursor" "pointer"
-                ]
-                [ indents
-                , syntaxify_keyword "struct "
-                , header
-                , Html.text " {\n"
-                ]
-            , names
-            , indents
-            , Html.text "}\n"
-            ]
-        , Html.text "\n"
-        ]
-
-
-syntaxify_block : Int -> List AST.Statement -> Html.Html msg
-syntaxify_block indentation_level states =
-    let
-        outer_indent =
-            tabs indentation_level
-    in
-    Html.div []
-        (List.concat
-            [ [ Html.text " {\n" ]
-            , states |> List.map (syntaxify_statement (indentation_level + 1))
-            , [ outer_indent, Html.text "}\n" ]
-            ]
-        )
-
-
-collapsing_block : Int -> Html.Html msg -> List AST.Statement -> Html.Html msg
-collapsing_block indentation header block =
-    let
-        indent =
-            if indentation == 0 then
-                Html.span [] []
-
-            else
-                Html.span [ style "padding-left" ".25em" ]
-                    [ Html.text (String.repeat (indentation - 1) "    " ++ "  ")
-                    ]
-    in
-    if List.length block == 0 then
-        Html.div [] [ tabs indentation, header, Html.text "{}\n" ]
-
-    else
-        Html.details
-            [ style "background" Pallete.bg1
-            , style "width" "fit-content"
-            , style "padding-left" "0px"
-            , style "padding-right" "5px"
-            , style "border-radius" "10px"
-            , Html.Attributes.attribute "open" "true"
-            ]
-            (List.concat
-                [ [ collapsing_block_style
-                  , Html.summary
-                        [ style "border" "none"
-                        , style "cursor" "pointer"
-                        ]
-                        [ indent
-                        , header
-                        , Html.text " {\n"
-                        ]
-                  ]
-                , block
-                    |> List.map (\s -> syntaxify_statement (indentation + 1) s)
-                , [ tabs indentation, Html.text "}\n" ]
-                ]
-            )
-
-
-collapsing_block_style : Html.Html msg
-collapsing_block_style =
-    Html.node "style" [] [ Html.text """
-details[open] > summary {
-}
-""" ]
+    Element.row [] (List.append lis [ ret ])
 
 
 
+-- syntaxify_statement : Int -> AST.Statement -> Element.Element msg
+-- syntaxify_statement indentation_level s =
+--     let
+--         indent =
+--             tabs indentation_level
+--     in
+--     case s of
+--         AST.ReturnStatement expr ->
+--             Element.row []
+--                 [ tabs indentation_level
+--                 , syntaxify_keyword "return "
+--                 , case expr of
+--                     Just e ->
+--                         syntaxify_expression e.thing
+--                     Nothing ->
+--                         Element.text ""
+--                 , Element.text "\n"
+--                 ]
+--         AST.InitilizationStatement taname expr ->
+--             let
+--                 qual =
+--                     case taname.qualifiedness of
+--                         Language.Constant ->
+--                             ""
+--                         Language.Variable ->
+--                             "var "
+--             in
+--             Element.row [] (List.concat [ [ indent, syntaxify_keyword qual ], syntaxify_namedarg taname, [ Element.text " = ", syntaxify_expression expr.thing, Element.text "\n" ] ])
+--         AST.CommentStatement src ->
+--             Element.row [ Font.color Pallete.gray_c ] [ indent, Element.text ("// " ++ src), Element.text "\n" ]
+--         AST.AssignmentStatement name expr ->
+--             Element.row [] [ tab, symbol_highlight (Language.stringify_identifier name), Element.text " = ", syntaxify_expression expr.thing, Element.text "\n" ]
+--         AST.FunctionCallStatement fcal ->
+--             Element.row []
+--                 [ indent
+--                 , symbol_highlight (AST.stringify_fullname fcal.thing.fname.thing)
+--                 , Element.text "("
+--                 , Element.row [] (fcal.thing.args |> List.map (\e -> syntaxify_expression e.thing) |> List.intersperse (Element.row [] [ Element.text ", " ]))
+--                 , Element.text ")"
+--                 , Element.text "\n"
+--                 ]
+--         AST.IfStatement expr block ->
+--             collapsing_block indentation_level (Element.row [] [ syntaxify_keyword "if ", syntaxify_expression expr.thing ]) block
+--         AST.WhileStatement expr block ->
+--             collapsing_block indentation_level (Element.row [] [ syntaxify_keyword "while ", syntaxify_expression expr.thing ]) block
+-- syntaxify_function : Int -> AST.FunctionDefinition -> List (Element.Element msg)
+-- syntaxify_function indentation fdef =
+--     let
+--         header =
+--             Element.row []
+--                 [ syntaxify_keyword "fn "
+--                 , syntaxify_fullname fdef.name.thing
+--                 , syntaxify_fheader fdef.header
+--                 ]
+--     in
+--     [ collapsing_block indentation header fdef.statements, Element.text "\n" ]
+-- syntaxify_typedef : Int -> AST.TypeDefinitionType -> Element.Element msg
+-- syntaxify_typedef indent typ =
+--     case typ of
+--         StructDefType s ->
+--             syntaxify_struct indent s
+--         EnumDefType s ->
+--             syntaxify_enum indent s
+--         AliasDefType s ->
+--             syntaxify_alias_type indent s
+-- syntaxify_alias_type : Int -> AliasDefinition -> Element.Element msg
+-- syntaxify_alias_type indent ad =
+--     Html.div []
+--         [ Element.row []
+--             [ tabs indent
+--             , syntaxify_keyword "type "
+--             , syntaxify_fullname ad.name.thing
+--             , Element.text " = "
+--             , syntaxify_fullname ad.alias_to.thing
+--             , Element.text "\n"
+--             ]
+--         , Element.text "\n"
+--         ]
+-- syntaxify_enum_field : Int -> AST.EnumField -> Element.Element msg
+-- syntaxify_enum_field indents ef =
+--     let
+--         my_tabs =
+--             tabs indents
+--     in
+--     if List.length ef.args == 0 then
+--         Html.div [] [ my_tabs, symbol_highlight ef.name ]
+--     else
+--         Html.div []
+--             [ my_tabs
+--             , symbol_highlight ef.name
+--             , Element.text "("
+--             , Element.row [] (ef.args |> List.map (\f -> syntaxify_fullname f.thing) |> List.intersperse (Element.text ", "))
+--             , Element.text ")"
+--             ]
+-- syntaxify_enum : Int -> AST.EnumDefinition -> Element.Element msg
+-- syntaxify_enum indent enum =
+--     let
+--         indents =
+--             tabs indent
+--         fields =
+--             enum.fields |> List.map (syntaxify_enum_field (indent + 1)) |> Html.div []
+--     in
+--     Html.div []
+--         [ Html.details
+--             [ style "background" Pallete.bg1
+--             , style "width" "fit-content"
+--             , style "padding-left" "0px"
+--             , style "padding-right" "5px"
+--             , style "border-radius" "10px"
+--             , Html.Attributes.attribute "open" "true"
+--             ]
+--             [ collapsing_block_style
+--             , Html.summary
+--                 [ style "border" "none"
+--                 , style "cursor" "pointer"
+--                 ]
+--                 [ indents
+--                 , syntaxify_keyword "enum "
+--                 , syntaxify_fullname enum.name.thing
+--                 , Element.text " {\n"
+--                 ]
+--             , fields
+--             -- , indents
+--             , Element.text "}\n"
+--             ]
+--         , Element.text "\n"
+--         ]
+-- syntaxify_struct : Int -> AST.StructDefnition -> Element.Element msg
+-- syntaxify_struct indent struct =
+--     let
+--         header =
+--             syntaxify_fullname struct.name.thing
+--         names =
+--             struct.fields
+--                 |> List.map (\f -> make_qualified_typewithname f Language.Constant)
+--                 |> List.map syntaxify_namedarg
+--                 |> List.map (\f -> Element.row [] [ tabs (indent + 1), Element.row [] f, Element.text "\n" ])
+--                 |> Html.div []
+--         indents =
+--             tabs indent
+--     in
+--     Html.div []
+--         [ Html.details
+--             [ style "background" Pallete.bg1
+--             , style "width" "fit-content"
+--             , style "padding-left" "0px"
+--             , style "padding-right" "5px"
+--             , style "border-radius" "10px"
+--             , Html.Attributes.attribute "open" "true"
+--             ]
+--             [ collapsing_block_style
+--             , Html.summary
+--                 [ style "border" "none"
+--                 , style "cursor" "pointer"
+--                 ]
+--                 [ indents
+--                 , syntaxify_keyword "struct "
+--                 , header
+--                 , Element.text " {\n"
+--                 ]
+--             , names
+--             , indents
+--             , Element.text "}\n"
+--             ]
+--         , Element.text "\n"
+--         ]
+-- syntaxify_block : Int -> List AST.Statement -> Element.Element msg
+-- syntaxify_block indentation_level states =
+--     let
+--         outer_indent =
+--             tabs indentation_level
+--     in
+--     Html.div []
+--         (List.concat
+--             [ [ Element.text " {\n" ]
+--             , states |> List.map (syntaxify_statement (indentation_level + 1))
+--             , [ outer_indent, Element.text "}\n" ]
+--             ]
+--         )
+-- collapsing_block : Int -> Element.Element msg -> List AST.Statement -> Element.Element msg
+-- collapsing_block indentation header block =
+--     let
+--         indent =
+--             if indentation == 0 then
+--                 Element.row [] []
+--             else
+--                 Element.row [ style "padding-left" ".25em" ]
+--                     [ Element.text (String.repeat (indentation - 1) "    " ++ "  ")
+--                     ]
+--     in
+--     if List.length block == 0 then
+--         Html.div [] [ tabs indentation, header, Element.text "{}\n" ]
+--     else
+--         Html.details
+--             [ style "background" Pallete.bg1
+--             , style "width" "fit-content"
+--             , style "padding-left" "0px"
+--             , style "padding-right" "5px"
+--             , style "border-radius" "10px"
+--             , Html.Attributes.attribute "open" "true"
+--             ]
+--             (List.concat
+--                 [ [ collapsing_block_style
+--                   , Html.summary
+--                         [ style "border" "none"
+--                         , style "cursor" "pointer"
+--                         ]
+--                         [ indent
+--                         , header
+--                         , Element.text " {\n"
+--                         ]
+--                   ]
+--                 , block
+--                     |> List.map (\s -> syntaxify_statement (indentation + 1) s)
+--                 , [ tabs indentation, Element.text "}\n" ]
+--                 ]
+--             )
+-- collapsing_block_style : Element.Element msg
+-- collapsing_block_style =
+--     Html.node "style" [] [ Element.text """
+-- details[open] > summary {
+-- }
+-- """ ]
 -- Explanations ==============================================
 
 
@@ -448,51 +385,51 @@ explain_error e =
                 ]
 
         _ ->
-            Element.el [ Font.color Pallete.red_c, Font.family [Font.monospace] ] <|
+            Element.el [ Font.color Pallete.red_c, Font.family [ Font.monospace ] ] <|
                 Element.text (stringify_error e)
 
 
-explain_struct : AST.StructDefnition -> Html.Html msg
+explain_struct : AST.StructDefnition -> Element.Element msg
 explain_struct str =
-    Html.span []
-        [ Html.text "Structure with name "
-        , Html.text (AST.stringify_fullname str.name.thing)
-        , Html.ul []
+    Element.row []
+        [ Element.text "Structure with name "
+        , Element.text (AST.stringify_fullname str.name.thing)
+        , Element.column []
             (str.fields
                 |> List.map
                     (\f ->
-                        Html.li []
-                            [ Html.text "field "
-                            , Html.text (Language.stringify_identifier f.name)
-                            , Html.text " of type "
-                            , Html.text (AST.stringify_fullname f.typename.thing)
+                        Element.row []
+                            [ Element.text "field "
+                            , Element.text (Language.stringify_identifier f.name)
+                            , Element.text " of type "
+                            , Element.text (AST.stringify_fullname f.typename.thing)
                             ]
                     )
             )
         ]
 
 
-explain_enum_field : AST.EnumField -> Html.Html msg
+explain_enum_field : AST.EnumField -> Element.Element msg
 explain_enum_field field =
     if List.length field.args > 0 then
-        Html.span []
-            [ Html.text field.name
-            , Html.text " with args "
-            , Html.ul []
-                (field.args |> List.map (\f -> stringify_fullname f.thing) |> List.map Html.text |> List.map (\s -> Html.li [] [ s ]))
+        Element.row []
+            [ Element.text field.name
+            , Element.text " with args "
+            , Element.column []
+                (field.args |> List.map (\f -> stringify_fullname f.thing) |> List.map Element.text )
             ]
 
     else
-        Html.text field.name
+        Element.text field.name
 
 
-explain_enum : AST.EnumDefinition -> Html.Html msg
+explain_enum : AST.EnumDefinition -> Element.Element msg
 explain_enum enum =
-    Html.span []
-        [ Html.text ("Enum with name " ++ stringify_fullname enum.name.thing ++ " and fields")
-        , Html.ul
+    Element.row []
+        [ Element.text ("Enum with name " ++ stringify_fullname enum.name.thing ++ " and fields")
+        , Element.column
             []
-            (enum.fields |> List.map explain_enum_field |> List.map (\el -> Html.li [] [ el ]))
+            (enum.fields |> List.map explain_enum_field )
         ]
 
 
@@ -500,83 +437,79 @@ explain_program : AST.Program -> Element.Element msg
 explain_program prog =
     let
         imports =
-            Util.collapsable (Html.text "Imports") (Html.ul [] (List.map (\s -> Html.li [] [ Html.text s.thing ]) prog.imports))
+            Util.collapsable_el (Element.text "Imports") (Element.column [] (List.map (\s -> Element.text s.thing) prog.imports))
 
         funcs =
-            Util.collapsable (Html.text "Global Functions")
-                (Html.ul []
+            Util.collapsable_el (Element.text "Global Functions")
+                (Element.column []
                     (List.map
                         (\f ->
-                            Html.li []
-                                [ Util.collapsable (Html.code [] [ Html.text (stringify_fullname f.name.thing), syntaxify_fheader f.header ]) (explain_statments f.statements)
-                                ]
+                            Util.collapsable_el
+                                (Element.row []
+                                    [ Element.text (stringify_fullname f.name.thing)
+                                    , syntaxify_fheader f.header
+                                    ]
+                                )
+                                (explain_statments f.statements)
                         )
                         prog.global_functions
                     )
                 )
 
         typedefs =
-            Util.collapsable (Html.text "Global typedefs")
-                (Html.ul []
+            Util.collapsable_el (Element.text "Global typedefs")
+                (Element.column []
                     (List.map
                         (\f ->
-                            Html.li []
-                                [ explain_typedef f ]
+                            explain_typedef f
                         )
                         prog.global_typedefs
                     )
                 )
     in
-    Html.div [ style "font-size" "14px" ]
-        [ Html.h4 [] [ Html.text ("Module: " ++ Maybe.withDefault "[No name]" prog.module_name) ]
+    Element.column [ Font.size 14 ]
+        [ Element.text ("Module: " ++ Maybe.withDefault "[No name]" prog.module_name)
         , imports
         , funcs
         , typedefs
         ]
-        |> Element.html
 
 
-explain_typedef : TypeDefinitionType -> Html.Html msg
+explain_typedef : TypeDefinitionType -> Element.Element msg
 explain_typedef tt =
     case tt of
         StructDefType s ->
-            Util.collapsable
-                (Html.code []
-                    [ Html.text (AST.stringify_fullname s.name.thing)
-                    ]
-                )
+            Util.collapsable_el
+                (Element.text (AST.stringify_fullname s.name.thing))
                 (explain_struct s)
 
         EnumDefType s ->
-            Util.collapsable
-                (Html.code []
-                    [ Html.text (AST.stringify_fullname s.name.thing)
-                    ]
-                )
+            Util.collapsable_el
+                (Element.text (AST.stringify_fullname s.name.thing))
                 (explain_enum s)
 
         AliasDefType s ->
             explain_alias s
 
 
-explain_alias : AliasDefinition -> Html.Html msg
+explain_alias : AliasDefinition -> Element.Element msg
 explain_alias ad =
-    Html.pre []
-        [ Html.text "Type alias of "
-        , Html.text (AST.stringify_fullname ad.name.thing)
-        , Html.text " to "
-        , Html.text (AST.stringify_fullname ad.alias_to.thing)
+    Element.column []
+        [ Element.text "Type alias of "
+        , Element.text (AST.stringify_fullname ad.name.thing)
+        , Element.text " to "
+        , Element.text (AST.stringify_fullname ad.alias_to.thing)
         ]
 
 
-tab : Html.Html msg
+tab : Element.Element msg
 tab =
-    Html.text "    "
+    Element.text "    "
 
 
-tabs : Int -> Html.Html msg
+tabs : Int -> Element.Element msg
 tabs number =
-    Html.text (String.repeat number "    ")
+    Element.text (String.repeat number "    ")
 
 
 stringify_error : ParserCommon.Error -> String
@@ -683,77 +616,88 @@ stringify_error e =
             "I expected an = like `type Name =` \n" ++ Util.show_source_view loc
 
 
-explain_expression : AST.Expression -> Html.Html msg
+explain_expression : AST.Expression -> Element.Element msg
 explain_expression expr =
     case expr of
         AST.NameLookup nwargs ->
-            Html.span [] [ Html.text ("name look up of `" ++ stringify_fullname nwargs.thing ++ "`") ]
+            Element.row [] [ Element.text ("name look up of `" ++ stringify_fullname nwargs.thing ++ "`") ]
 
         AST.FunctionCallExpr fcall ->
-            Html.span []
-                [ Html.text "Calling function: "
-                , Html.text (AST.stringify_fullname fcall.thing.fname.thing)
-                , Html.text " with args "
-                , Html.ul [] (fcall.thing.args |> List.map (\a -> Html.li [] [ explain_expression a.thing ]))
+            Element.row []
+                [ Element.text "Calling function: "
+                , Element.text (AST.stringify_fullname fcall.thing.fname.thing)
+                , Element.text " with args "
+                , Element.column [] (fcall.thing.args |> List.map (\a -> explain_expression a.thing))
                 ]
 
         AST.LiteralExpr lt s ->
             case lt of
                 Language.StringLiteral ->
-                    Html.span [] [ Html.text ("String Literal: " ++ s) ]
+                    Element.row [] [ Element.text ("String Literal: " ++ s) ]
 
                 Language.BooleanLiteral ->
-                    Html.span [] [ Html.text ("Boolean Literal: " ++ s) ]
+                    Element.row [] [ Element.text ("Boolean Literal: " ++ s) ]
 
                 Language.NumberLiteral ->
-                    Html.span [] [ Html.text ("Number Literal: " ++ s) ]
+                    Element.row [] [ Element.text ("Number Literal: " ++ s) ]
 
         AST.Parenthesized e ->
-            Html.span [] [ Html.text "(", explain_expression e.thing, Html.text ")" ]
+            Element.row [] [ Element.text "(", explain_expression e.thing, Element.text ")" ]
 
         AST.InfixExpr lhs rhs op ->
-            Html.span [] [ Html.text ("Infix op: " ++ Language.stringify_infix_op op), Html.ul [] [ Html.li [] [ explain_expression lhs.thing ], Html.li [] [ explain_expression rhs.thing ] ] ]
+            Element.row []
+                [ Element.text ("Infix op: " ++ Language.stringify_infix_op op)
+                , Element.column []
+                    [ explain_expression lhs.thing
+                    , explain_expression rhs.thing
+                    ]
+                ]
 
 
-explain_statement : AST.Statement -> Html.Html msg
+explain_statement : AST.Statement -> Element.Element msg
 explain_statement s =
     case s of
         AST.ReturnStatement expr ->
-            Html.span []
-                [ Html.text "return: "
+            Element.row []
+                [ Element.text "return: "
                 , case expr of
                     Just e ->
                         explain_expression e.thing
 
                     Nothing ->
-                        Html.text "Nothing"
+                        Element.text "Nothing"
                 ]
 
         AST.CommentStatement src ->
-            Html.span [] [ Html.text "// ", Html.text src ]
+            Element.row [] [ Element.text "// ", Element.text src ]
 
         AST.InitilizationStatement name expr ->
-            Html.span [] [ Html.text ("Initialize `" ++ Language.stringify_identifier name.name ++ "` of type " ++ AST.stringify_fullname name.typename.thing ++ " to "), explain_expression expr.thing ]
+            Element.row [] [ Element.text ("Initialize `" ++ Language.stringify_identifier name.name ++ "` of type " ++ AST.stringify_fullname name.typename.thing ++ " to "), explain_expression expr.thing ]
 
         AST.AssignmentStatement name expr ->
-            Html.span [] [ Html.text ("assigning " ++ Language.stringify_identifier name ++ " with "), explain_expression expr.thing ]
+            Element.row [] [ Element.text ("assigning " ++ Language.stringify_identifier name ++ " with "), explain_expression expr.thing ]
 
         AST.FunctionCallStatement fcal ->
-            Html.span []
-                [ Html.text ("call the function " ++ AST.stringify_fullname fcal.thing.fname.thing ++ " with args:")
-                , Html.ul []
+            Element.row []
+                [ Element.text ("call the function " ++ AST.stringify_fullname fcal.thing.fname.thing ++ " with args:")
+                , Element.column []
                     (fcal.thing.args
-                        |> List.map (\n -> Html.li [] [ explain_expression n.thing ])
+                        |> List.map (\n -> explain_expression n.thing)
                     )
                 ]
 
         AST.IfStatement expr block ->
-            Html.span [] [ Html.text "If statement, checks (", explain_expression expr.thing, Html.text ") then does", explain_statments block ]
+            Element.row [] [ Element.text "If statement, checks (", explain_expression expr.thing, Element.text ") then does", explain_statments block ]
 
         AST.WhileStatement expr block ->
-            Html.span [] [ Html.text "While statement, checks (", explain_expression expr.thing, Html.text ") then does", explain_statments block ]
+            Element.row [] [ Element.text "While statement, checks (", explain_expression expr.thing, Element.text ") then does", explain_statments block ]
 
 
-explain_statments : List AST.Statement -> Html.Html msg
+explain_statments : List AST.Statement -> Element.Element msg
 explain_statments statements =
-    Html.ul [] (List.map (\s -> explain_statement s) statements |> List.map (\s -> Html.li [] [ Html.pre [] [ s ] ]))
+    Element.column [] (List.map (\s -> explain_statement s) statements)
+
+
+color_text : Element.Color -> String -> Element.Element msg
+color_text col str =
+    Element.el [ Font.color col ] (Element.text str)

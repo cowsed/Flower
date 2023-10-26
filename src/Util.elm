@@ -16,6 +16,10 @@ escape_result res =
             v 
 
 
+collapsable_el: Element.Element msg -> Element.Element msg -> Element.Element msg
+collapsable_el header body = 
+    Element.column [] [header, body]
+
 collapsable : Html.Html msg -> Html.Html msg -> Html.Html msg
 collapsable title internals =
     Html.details
