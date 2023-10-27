@@ -17,7 +17,7 @@ type alias Token =
 type TokenType
     = Keyword Language.Syntax.KeywordType
     | Symbol String
-    | Literal Language.LiteralType String
+    | Literal Language.Syntax.LiteralType String
     | NewlineToken
     | TypeSpecifier -- :
     | CommaToken -- ,
@@ -264,7 +264,7 @@ lex_integer start sofar lsi =
         LexFn (lex_integer start (Util.addchar sofar lsi.char)) |> Tokens []
 
     else if is_integer_ender lsi.char then
-        apply_again [ Token (lsi.view_from_start start) (Literal Language.NumberLiteral sofar) ] begin_lex lsi
+        apply_again [ Token (lsi.view_from_start start) (Literal Language.Syntax.NumberLiteral sofar) ] begin_lex lsi
 
     else
         Error (UnknownCharacterInIntegerLiteral lsi.view_this)
@@ -325,7 +325,7 @@ lex_divide_or_comment lsi =
 lex_string_literal : Int -> String -> LexStepInfo -> LexRes
 lex_string_literal start sofar lsi =
     if lsi.char == '"' then
-        Tokens [ Token (lsi.input_view start (lsi.pos + 1)) (Literal Language.StringLiteral sofar) ] begin_lex
+        Tokens [ Token (lsi.input_view start (lsi.pos + 1)) (Literal Language.Syntax.StringLiteral sofar) ] begin_lex
 
     else if lsi.char == '\n' then
         Error (UnclosedStringLiteral (lsi.view_from_start start))
@@ -429,10 +429,10 @@ lex_unknown lsi =
 is_special_or_symbol : String -> TokenType
 is_special_or_symbol s =
     if s == "true" then
-        Literal Language.BooleanLiteral s
+        Literal Language.Syntax.BooleanLiteral s
 
     else if s == "false" then
-        Literal Language.BooleanLiteral s
+        Literal Language.Syntax.BooleanLiteral s
 
     else if s == "xor" then
         XorToken
@@ -650,13 +650,13 @@ token_to_str tok =
             "[Literal: "
                 ++ str
                 ++ (case lt of
-                        Language.StringLiteral ->
+                        Language.Syntax.StringLiteral ->
                             "_str"
 
-                        Language.BooleanLiteral ->
+                        Language.Syntax.BooleanLiteral ->
                             "_bool"
 
-                        Language.NumberLiteral ->
+                        Language.Syntax.NumberLiteral ->
                             "_int"
                    )
                 ++ "]"

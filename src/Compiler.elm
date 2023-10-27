@@ -5,6 +5,7 @@ import Analysis.Explanations
 import Analysis.Util exposing (AnalysisError)
 import Element
 import Element.Font as Font
+import Element.Border as Border
 
 import Parser.Lexer as Lexer exposing (Token, token_to_str)
 import Parser.Parser as Parser
@@ -30,20 +31,20 @@ explain_error : CompilerError -> Element.Element msg
 explain_error e =
     case e of
         Lex le ->
-            Element.column []
+            Element.column [Border.solid, Border.rounded 8, Border.color Pallete.fg_c]
                 [ Element.el [ Font.size 30 ] (Element.text "Lexer error")
                 , Lexer.explain_error le
                 ]
 
         Parse pe toks ->
-            Element.column []
+            Element.column [Border.solid, Border.rounded 8, Border.color Pallete.fg_c]
                 [ Element.el [ Font.size 30 ] (Element.text "Parser error")
                 , ParserExplanations.explain_error pe
                 , explain_toks toks
                 ]
 
         Analysis ae _ ->
-            Element.column []
+            Element.column [Border.solid, Border.rounded 8, Border.color Pallete.fg_c]
                 [ Element.el [ Font.size 30 ] (Element.text "Analysis error")
                 , Analysis.Explanations.explain_error ae
                 ]

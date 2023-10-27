@@ -2,48 +2,42 @@ module Analysis.Scope exposing (..)
 
 import Language.Language as Language
 
--- Scope that only has 
---   names and types of values
---   Type definitions
--- Does not have the actual definitions of the values
-type alias OverviewScope =
-    { values : List Language.ValueNameAndType
-    , types : List Language.OuterType
+
+type alias TypeDefs =
+    List (Language.Named Language.TypeDefinition)
+
+
+type alias GenericTypeDefs =
+    List Language.GenericTypeDefinition
+
+
+type alias ValueDefs =
+    List (Language.Named Language.Value)
+
+
+type alias FullScope =
+    { types : TypeDefs
+    , values : ValueDefs
+    , generic_types : GenericTypeDefs
     }
- 
-overview_has_outer_type: OverviewScope -> Language.Identifier -> Maybe Language.OuterType
-overview_has_outer_type os id = 
-    let
-        matches = List.filter (\ot -> (Language.get_id ot) == id) os.types
-    in
-    
-    if (matches |> List.length) > 0 then
-        List.head matches
-    else 
-    Nothing
 
-qualify_all_names : String -> OverviewScope -> OverviewScope
-qualify_all_names q s =
-    { s | values = s.values |> List.map (Language.qualify_vnt_name q), types = s.types |> List.map (Language.qualify_type_name q) }
+-- type alias DeclarationScope = {
+--     values
+-- }
+
+merge_two_scopes : FullScope -> FullScope -> FullScope
+merge_two_scopes a b =
+    { types = List.append a.types b.types
+    , values = List.append a.values b.values
+    , generic_types = List.append a.generic_types b.generic_types
+    }
 
 
-empty_scope : OverviewScope
+merge_scopes : List FullScope -> FullScope
+merge_scopes ls =
+    List.foldl merge_two_scopes empty_scope ls
+
+
+empty_scope : FullScope
 empty_scope =
-    OverviewScope [] []
-
-
-add_val_to_scope : OverviewScope -> Language.ValueNameAndType -> OverviewScope
-add_val_to_scope scope val =
-    { scope | values = List.append scope.values [ val ] }
-
-
-add_type_to_scope : OverviewScope -> Language.OuterType -> OverviewScope
-add_type_to_scope scope val =
-    { scope | types = List.append scope.types [ val ] }
-
-
-merge_2_scopes : OverviewScope -> OverviewScope -> OverviewScope
-merge_2_scopes s1 s2 =
-    { values = List.append s1.values s2.values
-    , types = List.append s1.types s2.types
-    }
+    { types = [], values = [], generic_types = [] }

@@ -1,9 +1,10 @@
 module Analysis.Util exposing (..)
 
-import Parser.AST as AST
-import Language.Language exposing (..)
-import Util
 import Analysis.Scope as Scope
+import Language.Language exposing (..)
+import Parser.AST as AST
+import Util
+
 
 type alias AnalysisRes a =
     Result AnalysisError a
@@ -23,9 +24,6 @@ type AnalysisError
     | GenericTypeNameNotValidWithoutSquareBrackets Util.SourceView
     | Unimplemented String
     | Multiple (List AnalysisError)
-
-
-
 
 
 res_join_2 : (a -> a -> b) -> AnalysisRes a -> AnalysisRes a -> AnalysisRes b
@@ -68,8 +66,6 @@ res_join_n resl res2 =
                     List.append s1 [ s2 ] |> Ok
 
 
-
-
 add_error : AnalysisError -> AnalysisError -> AnalysisError
 add_error e1 e2 =
     Multiple (List.append (flatten e1) (flatten e2))
@@ -84,12 +80,3 @@ flatten ae =
         _ ->
             [ ae ]
 
-
-merge_scopes : List (Result AnalysisError Scope.OverviewScope) -> Result AnalysisError Scope.OverviewScope
-merge_scopes scopes =
-    let
-        merge_2 : AnalysisRes Scope.OverviewScope -> AnalysisRes Scope.OverviewScope -> AnalysisRes Scope.OverviewScope
-        merge_2 res1 res2 =
-            res_join_2 Scope.merge_2_scopes res1 res2
-    in
-    List.foldl merge_2 (Ok Scope.empty_scope) scopes

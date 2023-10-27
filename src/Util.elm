@@ -3,6 +3,7 @@ module Util exposing (..)
 import Html
 import Html.Attributes
 import Language.Language as Language
+import Language.Syntax as Syntax
 
 import Element exposing (Element)
 
@@ -161,14 +162,14 @@ addchar s c =
     s ++ String.fromChar c
 
 
-syntaxify_literal : Language.LiteralType -> String -> String
+syntaxify_literal : Syntax.LiteralType -> String -> String
 syntaxify_literal lt str =
     case lt of
-        Language.StringLiteral ->
+        Syntax.StringLiteral ->
             "\"" ++ str ++ "\""
 
-        Language.BooleanLiteral ->
+        Syntax.BooleanLiteral ->
             str
 
-        Language.NumberLiteral ->
+        Syntax.NumberLiteral ->
             str

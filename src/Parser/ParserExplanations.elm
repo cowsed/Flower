@@ -3,13 +3,13 @@ module Parser.ParserExplanations exposing (..)
 import Element
 import Element.Font as Font
 import Language.Language as Language exposing (Identifier(..))
+import Language.Syntax
 import Pallete as Pallete
 import Parser.AST as AST exposing (AliasDefinition, Expression(..), FullName, TypeDefinitionType(..), make_qualified_typewithname, stringify_fullname)
 import Parser.Lexer as Lexer
 import Parser.ParserCommon as ParserCommon
 import Util
-
-
+import Ui exposing (color_text)
 
 -- Syntaxifications ==========================================
 
@@ -52,16 +52,16 @@ syntaxify_identifier id =
             ls |> List.map symbol_highlight |> List.intersperse (Element.text ".") |> Element.row []
 
 
-syntaxify_literal : Language.LiteralType -> String -> Element.Element msg
+syntaxify_literal : Language.Syntax.LiteralType -> String -> Element.Element msg
 syntaxify_literal l s =
     case l of
-        Language.StringLiteral ->
+        Language.Syntax.StringLiteral ->
             syntaxify_string_literal ("\"" ++ s ++ "\"")
 
-        Language.BooleanLiteral ->
+        Language.Syntax.BooleanLiteral ->
             Element.text s
 
-        Language.NumberLiteral ->
+        Language.Syntax.NumberLiteral ->
             syntaxify_number_literal s
 
 
@@ -108,13 +108,13 @@ syntaxify_expression expr =
 
         AST.LiteralExpr lt s ->
             case lt of
-                Language.StringLiteral ->
+                Language.Syntax.StringLiteral ->
                     syntaxify_string_literal s
 
-                Language.NumberLiteral ->
+                Language.Syntax.NumberLiteral ->
                     syntaxify_number_literal s
 
-                Language.BooleanLiteral ->
+                Language.Syntax.BooleanLiteral ->
                     syntaxify_number_literal s
 
         AST.InfixExpr lhs rhs op ->
@@ -145,230 +145,6 @@ syntaxify_fheader header =
     Element.row [] (List.append lis [ ret ])
 
 
-
--- syntaxify_statement : Int -> AST.Statement -> Element.Element msg
--- syntaxify_statement indentation_level s =
---     let
---         indent =
---             tabs indentation_level
---     in
---     case s of
---         AST.ReturnStatement expr ->
---             Element.row []
---                 [ tabs indentation_level
---                 , syntaxify_keyword "return "
---                 , case expr of
---                     Just e ->
---                         syntaxify_expression e.thing
---                     Nothing ->
---                         Element.text ""
---                 , Element.text "\n"
---                 ]
---         AST.InitilizationStatement taname expr ->
---             let
---                 qual =
---                     case taname.qualifiedness of
---                         Language.Constant ->
---                             ""
---                         Language.Variable ->
---                             "var "
---             in
---             Element.row [] (List.concat [ [ indent, syntaxify_keyword qual ], syntaxify_namedarg taname, [ Element.text " = ", syntaxify_expression expr.thing, Element.text "\n" ] ])
---         AST.CommentStatement src ->
---             Element.row [ Font.color Pallete.gray_c ] [ indent, Element.text ("// " ++ src), Element.text "\n" ]
---         AST.AssignmentStatement name expr ->
---             Element.row [] [ tab, symbol_highlight (Language.stringify_identifier name), Element.text " = ", syntaxify_expression expr.thing, Element.text "\n" ]
---         AST.FunctionCallStatement fcal ->
---             Element.row []
---                 [ indent
---                 , symbol_highlight (AST.stringify_fullname fcal.thing.fname.thing)
---                 , Element.text "("
---                 , Element.row [] (fcal.thing.args |> List.map (\e -> syntaxify_expression e.thing) |> List.intersperse (Element.row [] [ Element.text ", " ]))
---                 , Element.text ")"
---                 , Element.text "\n"
---                 ]
---         AST.IfStatement expr block ->
---             collapsing_block indentation_level (Element.row [] [ syntaxify_keyword "if ", syntaxify_expression expr.thing ]) block
---         AST.WhileStatement expr block ->
---             collapsing_block indentation_level (Element.row [] [ syntaxify_keyword "while ", syntaxify_expression expr.thing ]) block
--- syntaxify_function : Int -> AST.FunctionDefinition -> List (Element.Element msg)
--- syntaxify_function indentation fdef =
---     let
---         header =
---             Element.row []
---                 [ syntaxify_keyword "fn "
---                 , syntaxify_fullname fdef.name.thing
---                 , syntaxify_fheader fdef.header
---                 ]
---     in
---     [ collapsing_block indentation header fdef.statements, Element.text "\n" ]
--- syntaxify_typedef : Int -> AST.TypeDefinitionType -> Element.Element msg
--- syntaxify_typedef indent typ =
---     case typ of
---         StructDefType s ->
---             syntaxify_struct indent s
---         EnumDefType s ->
---             syntaxify_enum indent s
---         AliasDefType s ->
---             syntaxify_alias_type indent s
--- syntaxify_alias_type : Int -> AliasDefinition -> Element.Element msg
--- syntaxify_alias_type indent ad =
---     Html.div []
---         [ Element.row []
---             [ tabs indent
---             , syntaxify_keyword "type "
---             , syntaxify_fullname ad.name.thing
---             , Element.text " = "
---             , syntaxify_fullname ad.alias_to.thing
---             , Element.text "\n"
---             ]
---         , Element.text "\n"
---         ]
--- syntaxify_enum_field : Int -> AST.EnumField -> Element.Element msg
--- syntaxify_enum_field indents ef =
---     let
---         my_tabs =
---             tabs indents
---     in
---     if List.length ef.args == 0 then
---         Html.div [] [ my_tabs, symbol_highlight ef.name ]
---     else
---         Html.div []
---             [ my_tabs
---             , symbol_highlight ef.name
---             , Element.text "("
---             , Element.row [] (ef.args |> List.map (\f -> syntaxify_fullname f.thing) |> List.intersperse (Element.text ", "))
---             , Element.text ")"
---             ]
--- syntaxify_enum : Int -> AST.EnumDefinition -> Element.Element msg
--- syntaxify_enum indent enum =
---     let
---         indents =
---             tabs indent
---         fields =
---             enum.fields |> List.map (syntaxify_enum_field (indent + 1)) |> Html.div []
---     in
---     Html.div []
---         [ Html.details
---             [ style "background" Pallete.bg1
---             , style "width" "fit-content"
---             , style "padding-left" "0px"
---             , style "padding-right" "5px"
---             , style "border-radius" "10px"
---             , Html.Attributes.attribute "open" "true"
---             ]
---             [ collapsing_block_style
---             , Html.summary
---                 [ style "border" "none"
---                 , style "cursor" "pointer"
---                 ]
---                 [ indents
---                 , syntaxify_keyword "enum "
---                 , syntaxify_fullname enum.name.thing
---                 , Element.text " {\n"
---                 ]
---             , fields
---             -- , indents
---             , Element.text "}\n"
---             ]
---         , Element.text "\n"
---         ]
--- syntaxify_struct : Int -> AST.StructDefnition -> Element.Element msg
--- syntaxify_struct indent struct =
---     let
---         header =
---             syntaxify_fullname struct.name.thing
---         names =
---             struct.fields
---                 |> List.map (\f -> make_qualified_typewithname f Language.Constant)
---                 |> List.map syntaxify_namedarg
---                 |> List.map (\f -> Element.row [] [ tabs (indent + 1), Element.row [] f, Element.text "\n" ])
---                 |> Html.div []
---         indents =
---             tabs indent
---     in
---     Html.div []
---         [ Html.details
---             [ style "background" Pallete.bg1
---             , style "width" "fit-content"
---             , style "padding-left" "0px"
---             , style "padding-right" "5px"
---             , style "border-radius" "10px"
---             , Html.Attributes.attribute "open" "true"
---             ]
---             [ collapsing_block_style
---             , Html.summary
---                 [ style "border" "none"
---                 , style "cursor" "pointer"
---                 ]
---                 [ indents
---                 , syntaxify_keyword "struct "
---                 , header
---                 , Element.text " {\n"
---                 ]
---             , names
---             , indents
---             , Element.text "}\n"
---             ]
---         , Element.text "\n"
---         ]
--- syntaxify_block : Int -> List AST.Statement -> Element.Element msg
--- syntaxify_block indentation_level states =
---     let
---         outer_indent =
---             tabs indentation_level
---     in
---     Html.div []
---         (List.concat
---             [ [ Element.text " {\n" ]
---             , states |> List.map (syntaxify_statement (indentation_level + 1))
---             , [ outer_indent, Element.text "}\n" ]
---             ]
---         )
--- collapsing_block : Int -> Element.Element msg -> List AST.Statement -> Element.Element msg
--- collapsing_block indentation header block =
---     let
---         indent =
---             if indentation == 0 then
---                 Element.row [] []
---             else
---                 Element.row [ style "padding-left" ".25em" ]
---                     [ Element.text (String.repeat (indentation - 1) "    " ++ "  ")
---                     ]
---     in
---     if List.length block == 0 then
---         Html.div [] [ tabs indentation, header, Element.text "{}\n" ]
---     else
---         Html.details
---             [ style "background" Pallete.bg1
---             , style "width" "fit-content"
---             , style "padding-left" "0px"
---             , style "padding-right" "5px"
---             , style "border-radius" "10px"
---             , Html.Attributes.attribute "open" "true"
---             ]
---             (List.concat
---                 [ [ collapsing_block_style
---                   , Html.summary
---                         [ style "border" "none"
---                         , style "cursor" "pointer"
---                         ]
---                         [ indent
---                         , header
---                         , Element.text " {\n"
---                         ]
---                   ]
---                 , block
---                     |> List.map (\s -> syntaxify_statement (indentation + 1) s)
---                 , [ tabs indentation, Element.text "}\n" ]
---                 ]
---             )
--- collapsing_block_style : Element.Element msg
--- collapsing_block_style =
---     Html.node "style" [] [ Element.text """
--- details[open] > summary {
--- }
--- """ ]
 -- Explanations ==============================================
 
 
@@ -631,13 +407,13 @@ explain_expression expr =
 
         AST.LiteralExpr lt s ->
             case lt of
-                Language.StringLiteral ->
+                Language.Syntax.StringLiteral ->
                     Element.row [] [ Element.text ("String Literal: " ++ s) ]
 
-                Language.BooleanLiteral ->
+                Language.Syntax.BooleanLiteral ->
                     Element.row [] [ Element.text ("Boolean Literal: " ++ s) ]
 
-                Language.NumberLiteral ->
+                Language.Syntax.NumberLiteral ->
                     Element.row [] [ Element.text ("Number Literal: " ++ s) ]
 
         AST.Parenthesized e ->
@@ -695,8 +471,3 @@ explain_statement s =
 explain_statments : List AST.Statement -> Element.Element msg
 explain_statments statements =
     Element.column [] (List.map (\s -> explain_statement s) statements)
-
-
-color_text : Element.Color -> String -> Element.Element msg
-color_text col str =
-    Element.el [ Font.color col ] (Element.text str)

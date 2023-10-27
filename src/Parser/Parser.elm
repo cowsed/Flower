@@ -715,7 +715,7 @@ parse_find_imports ps =
                     pss.prog
             in
             case pss.tok.typ of
-                Lexer.Literal Language.StringLiteral s ->
+                Lexer.Literal Language.Syntax.StringLiteral s ->
                     Next { prog | imports = List.append prog.imports [ AST.ThingAndLocation s pss.tok.loc ] } (ParseFn parse_find_imports)
 
                 _ ->

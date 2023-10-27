@@ -7,12 +7,13 @@ import Element
 import Element.Font as Font
 import Language.Language as Language exposing (..)
 import Pallete
+import Ui exposing (color_text, comma_space, space)
 import Util
 
 
 header : String -> Element.Element msg
 header str =
-    Element.el [ Font.size 30, Font.bold ] (Element.text str)
+    Element.el [ Font.size 25, Font.semiBold ] (Element.text str)
 
 
 explain_error : AnalysisError -> Element.Element msg
@@ -71,20 +72,24 @@ explain_program : GoodProgram -> Element.Element msg
 explain_program gp =
     Element.column [ Font.size 15 ]
         [ Element.el [] (Element.text ("module: " ++ gp.module_name))
-        , header "Values"
-        , header "Declarations"
-        , Element.el [ Element.padding 10 ] (explain_global_scope gp.outer_scope)
+        , Element.el [ Element.padding 10 ] (explain_global_scope gp.global_scope)
         ]
 
 
-explain_global_scope : Scope.OverviewScope -> Element.Element msg
+explain_global_scope : Scope.FullScope -> Element.Element msg
 explain_global_scope scope =
-    Element.column []
-        (scope.values |> List.map explain_name_and_type)
+    Element.column [ Element.spacing 6 ]
+        (List.concat
+            [ [ header "Values" ]
+            , scope.values |> List.map explain_name_and_type
+            , [ header "Types" ]
+            , scope.types |> List.map explain_outer_type
+            ]
+        )
 
 
 
---,--Element.html <| Util.collapsable (Html.text "Types") (Element.layout [] <| (scope.types |> List.map explain_outer_type |> List.map (\h -> Html.li [] [ h ]) |> Html.ul []))
+--,--Element.html <| Util.collapsable (Html.text "Types") (Element.layout [] <| ( |> List.map (\h -> Html.li [] [ h ]) |> Html.ul []))
 
 
 explain_type_type : Language.TypeType -> String
@@ -94,47 +99,43 @@ explain_type_type tt =
             s ++ ": Any"
 
 
-explain_outer_type : Language.OuterType -> Element.Element msg
-explain_outer_type ot =
-    case ot of
-        Generic id gt args ->
-            Element.row []
-                [ Element.text (stringify_typeoftypedef gt)
-                , Element.text (stringify_identifier id)
-                , Element.text " with args "
-                , Element.text (String.join ", " (args |> List.map explain_type_type))
-                ]
+explain_outer_type : Named Language.TypeDefinition -> Element.Element msg
+explain_outer_type nt =
+    case named_get nt of
+        StructDefinitionType _ ->
+            Element.el [] <| Element.text ("struct with name " ++ stringify_identifier nt.name)
 
-        StructOuterType st ->
-            Element.el [] <| Element.text ("struct with name " ++ stringify_identifier st)
+        EnumDefinitionType _ ->
+            Element.el [] <| Element.text ("enum with name " ++ stringify_identifier nt.name)
 
-        EnumOuterType et ->
-            Element.el [] <| Element.text ("enum with name " ++ stringify_identifier et)
-
-        AliasOuterType at _ ->
-            Element.el [] <| Element.text ("alias with name " ++ stringify_identifier at)
+        AliasDefinitionType _ ->
+            Element.row [] [ Element.text "alias with name ", Ui.code (Element.text <| stringify_identifier nt.name) ]
 
 
-stringify_typeoftypedef : TypeOfTypeDefinition -> String
+stringify_typeoftypedef : TypeDefinition -> String
 stringify_typeoftypedef gt =
     case gt of
-        Language.StructDefinitionType ->
+        Language.StructDefinitionType _ ->
             "struct "
 
-        Language.EnumDefinitionType ->
+        Language.EnumDefinitionType _ ->
             "enum "
 
-        Language.AliasDefinitionType ->
+        Language.AliasDefinitionType _ ->
             "alias "
 
 
-explain_name_and_type : Language.ValueNameAndType -> Element.Element msg
+explain_name_and_type : Named Value -> Element.Element msg
 explain_name_and_type vnt =
-    Element.row [] [ Element.text (Language.stringify_identifier vnt.name), Element.text " of type ", explain_type vnt.typ ]
+    Element.row []
+        [ Element.text (Language.stringify_identifier vnt.name) |> Ui.code
+        , Element.text " of type "
+        , explain_typename (values_type vnt.value) |> Ui.code
+        ]
 
 
-explain_type : Language.Type -> Element.Element msg
-explain_type t =
+explain_typename : Language.TypeName -> Element.Element msg
+explain_typename t =
     case t of
         IntegerType isize ->
             stringify_integer_size isize |> color_text Pallete.orange_c
@@ -142,33 +143,24 @@ explain_type t =
         FloatingPointType fsize ->
             stringify_floating_size fsize |> color_text Pallete.orange_c
 
-        StringType ->
-            "str" |> color_text Pallete.orange_c
-
-        BooleanType ->
-            "bool" |> color_text Pallete.orange_c
-
         FunctionType f ->
             Element.row [] <|
                 [ color_text Pallete.red_c "fn "
                 , explain_fheader f
                 ]
 
-        NamedType n td ->
-            Element.text <| stringify_typeoftypedef td ++ " with name " ++ stringify_identifier n
+        CustomTypeName _ ->
+            Debug.todo "branch 'CustomTypeName _' not implemented"
 
-        GenericInstantiation id tot args ->
-            Element.column []
-                [ Element.text ("generic " ++ stringify_typeoftypedef tot ++ " instantiation of " ++ stringify_identifier id ++ " with args")
-                , Element.column [] (args |> List.map explain_type)
-                ]
+        GenericInstantiation _ _ ->
+            Debug.todo "branch 'GenericInstantiation _ _' not implemented"
 
 
 explain_fheader : FunctionHeader -> Element.Element msg
 explain_fheader fh =
     let
         ret =
-            fh.rtype |> Maybe.map explain_type |> Maybe.map List.singleton |> Maybe.map (\l -> Element.text " -> " :: l) |> Maybe.withDefault []
+            fh.rtype |> Maybe.map explain_typename |> Maybe.map List.singleton |> Maybe.map (\l -> Element.text " -> " :: l) |> Maybe.withDefault []
 
         args =
             fh.args |> List.map explain_qualified_name_andtype
@@ -181,9 +173,9 @@ explain_fheader fh =
         ]
 
 
-explain_qualified_name_andtype : Language.QualifiedType -> Element.Element msg
+explain_qualified_name_andtype : Language.QualifiedTypeName -> Element.Element msg
 explain_qualified_name_andtype qnt =
-    Element.row [] [ color_quallifier qnt.qual, space, explain_type qnt.typ ]
+    Element.row [] [ color_quallifier qnt.qual, space, explain_typename qnt.typ ]
 
 
 stringify_qualifier : Qualifier -> String
@@ -237,17 +229,3 @@ stringify_floating_size size =
 color_quallifier : Language.Qualifier -> Element.Element msg
 color_quallifier qual =
     color_text Pallete.red_c (stringify_qualifier qual)
-
-
-space : Element.Element msg
-space =
-    Element.text " "
-
-comma_space : Element.Element msg
-comma_space =
-    Element.text ", "
-
-
-color_text : Element.Color -> String -> Element.Element msg
-color_text col str =
-    Element.el [ Font.color col ] (Element.text str)

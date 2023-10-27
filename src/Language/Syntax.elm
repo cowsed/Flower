@@ -11,3 +11,8 @@ type KeywordType
     | WhileKeyword
     | EnumKeyword
     | TypeKeyword
+
+type LiteralType
+    = BooleanLiteral
+    | NumberLiteral
+    | StringLiteral

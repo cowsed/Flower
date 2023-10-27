@@ -3,9 +3,28 @@ module Ui exposing (..)
 
 import Time exposing (..)
 
+import Element
+import Element.Font as Font
+import Element.Background as Background
+import Element.Border as Border
+import Pallete
+
+space : Element.Element msg
+space =
+    Element.text " "
+
+comma_space : Element.Element msg
+comma_space =
+    Element.text ", "
 
 
+color_text : Element.Color -> String -> Element.Element msg
+color_text col str =
+    Element.el [ Font.color col ] (Element.text str)
 
+code: Element.Element msg -> Element.Element msg
+code el = 
+    Element.el [Border.rounded 4, Font.family [Font.monospace], Background.color Pallete.bg1_c] el
 
 stringify_time : Time.Zone -> Time.Posix -> String
 stringify_time zone p =

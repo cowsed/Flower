@@ -8,15 +8,17 @@ import Editor.CodeEditor as Editor
 import Editor.Util
 import Element exposing (Element, alignBottom, alignRight, alignTop, el, fill, scrollbarY)
 import Element.Background as Background
-import Element.Border
+import Element.Border as Border
 import Element.Font as Font
-import Html 
+import Generating.Generator exposing (generate)
+import Html
 import Keyboard.Event
 import Pallete
 import Parser.Lexer as Lexer
 import Parser.ParserExplanations
 import Task
 import Time
+import Ui
 import Util exposing (escape_result)
 
 
@@ -83,15 +85,24 @@ fn main() -> i32{
 -}
 
 
-htmlify_output : Result CompilerError Analyzer.GoodProgram -> Element.Element msg
-htmlify_output res =
+header str =
+    Element.el [ Font.size 25, Font.semiBold ] (Element.text str)
+
+
+output_ui : Result CompilerError Analyzer.GoodProgram -> Element.Element msg
+output_ui res =
     Element.el []
         (case res of
             Err e ->
                 explain_error e
 
             Ok prog ->
-                Element.column [ Element.padding 10 ] [ Analysis.Explanations.explain_program prog, Parser.ParserExplanations.explain_program prog.ast ]
+                Element.column [ Element.padding 10 ]
+                    [ Analysis.Explanations.explain_program prog |> Element.el [ Border.solid, Border.width 2, Border.rounded 8, Element.padding 4 ]
+                    , Parser.ParserExplanations.explain_program prog.ast
+                    , header "LLVM IR"
+                    , generate prog |> .src |> Element.text |> Ui.code |> Element.el [ Border.solid, Border.width 2, Border.rounded 8, Element.padding 4 ]
+                    ]
         )
 
 
@@ -144,9 +155,9 @@ make_output mod =
                 [ Element.width fill
                 , Element.height fill
                 , Element.paddingEach { top = 0, bottom = 0, left = 0, right = 4 }
-                , Element.Border.color Pallete.fg_c
-                , Element.Border.solid
-                , Element.Border.width 2
+                , Border.color Pallete.fg_c
+                , Border.solid
+                , Border.width 2
                 ]
             <|
                 Editor.code_editor mod.editor_state (\s -> EditorAction s)
@@ -157,16 +168,7 @@ make_output mod =
                     [ Element.width fill
                     , Element.height Element.fill
                     ]
-                    (htmlify_output mod.output)
-                , Element.column
-                    [ Element.width fill
-                    , Element.height Element.fill
-                    , Element.Border.color Pallete.fg_c
-                    , Element.Border.widthEach { top = 2, bottom = 2, left = 0, right = 2 }
-                    , Element.scrollbarY
-                    , Element.padding 5
-                    ]
-                    (mod.db_console |> List.map Element.text)
+                    (output_ui mod.output)
                 ]
     in
     Element.column
@@ -277,7 +279,9 @@ update msg mmod =
                                             Compiler.Parse _ toks ->
                                                 range_from_toks toks
 
-                                            Compiler.Analysis _ ast -> range_from_toks ast.src_tokens
+                                            Compiler.Analysis _ ast ->
+                                                range_from_toks ast.src_tokens
+
                                             _ ->
                                                 []
                                     )

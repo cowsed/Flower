@@ -1,43 +1,59 @@
 module Analysis.BuiltinScopes exposing (..)
 
 import Analysis.Scope as Scope
-import Language.Language as Language exposing (Identifier(..), OuterType, QualifiedType, Qualifier(..), ValueNameAndType)
-import Parser.AST as AST
-import Language.Language exposing (OuterType(..))
+import Language.Language as Language exposing (Identifier(..), QualifiedTypeName, Qualifier(..), ReasonForUninstantiable(..), StructDefinition, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), ValueNameAndType)
 
 
-std_puts_v : ValueNameAndType
-std_puts_v =
-    ValueNameAndType (Language.SingleIdentifier "puts") (Language.FunctionType { args = [ QualifiedType Constant Language.StringType ], rtype = Nothing })
+
+-- std_pair_def: Language.TypeDefinition
+-- std_pair_def = Language.GenericDefin
 
 
-std_pair_t : OuterType
-std_pair_t =
-    Generic (SingleIdentifier "pair") Language.StructDefinitionType [Language.Any "T"]
+std_types : Scope.TypeDefs
+std_types =
+    []
 
 
-std_scope : Scope.OverviewScope
+si : String -> Identifier
+si s =
+    SingleIdentifier s
+
+
+std_pair_generic : Language.GenericTypeDefinition
+std_pair_generic types =
+    if List.length types /= 1 then
+        Err WrongNumber
+
+    else
+        case List.head types of
+            Nothing ->
+                Err WrongNumber
+
+            Just typ ->
+                { fields =
+                    [ ValueNameAndType (si "A") typ
+                    , ValueNameAndType (si "B") typ
+                    ]
+                }
+                    |> StructDefinitionType
+                    |> Ok
+
+
+std_generic_types : Scope.GenericTypeDefs
+std_generic_types =
+    []
+
+
+std_scope : Scope.FullScope
 std_scope =
-    Scope.OverviewScope [ std_puts_v ] [ std_pair_t ] |> Scope.qualify_all_names "std"
+    Scope.FullScope std_types [] std_generic_types
 
 
-math_scope : Scope.OverviewScope
-math_scope =
-    Scope.OverviewScope [ ValueNameAndType (SingleIdentifier "Pi") (Language.FloatingPointType Language.F64) ] [] |> Scope.qualify_all_names "math"
-
-
-import_scope : AST.ImportAndLocation -> Maybe Scope.OverviewScope
+import_scope : String -> Maybe Scope.FullScope
 import_scope im =
-    case im.thing of
+    case im of
         "std" ->
             std_scope |> Just
 
-        "math" ->
-            math_scope |> Just
-
         _ ->
             Nothing
-
-
-
-

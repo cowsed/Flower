@@ -3,7 +3,7 @@ module Analysis.Serialization exposing (..)
 import Analysis.Explanations exposing (stringify_floating_size, stringify_integer_size)
 import Json.Decode as JD
 import Json.Encode as JE
-import Language.Language as Language exposing (FloatingPointSize, IntegerSize(..), Type(..))
+import Language.Language as Language exposing (FloatingPointSize, IntegerSize(..), TypeName(..))
 
 
 encode_boolean : JE.Value
@@ -21,11 +21,9 @@ encode_floating_point s =
     JE.object [ ( "type_type", JE.string "floting_point" ), ( "width", JE.string (stringify_floating_size s) ) ]
 
 
-encode_type : Type -> JE.Value
+encode_type : TypeName -> JE.Value
 encode_type t =
     case t of
-        BooleanType ->
-            encode_boolean
 
         IntegerType s ->
             encode_integer s
@@ -37,7 +35,7 @@ encode_type t =
             Debug.todo "encode other types"
 
 
-integer_from_size : String -> JD.Decoder Type
+integer_from_size : String -> JD.Decoder TypeName
 integer_from_size s =
     case s of
         "u8" ->
@@ -68,34 +66,29 @@ integer_from_size s =
             JD.fail "invalid integer size"
 
 
-integer_type_decoder : JD.Decoder Language.Type
+integer_type_decoder : JD.Decoder Language.TypeName
 integer_type_decoder =
     JD.field "width" JD.string |> JD.andThen (\s -> integer_from_size s)
 
 
-type_from_descriminator : String -> JD.Decoder Type
+type_from_descriminator : String -> JD.Decoder TypeName
 type_from_descriminator s =
     case s of
         "integer" ->
             integer_type_decoder
 
-        "boolean" ->
-            JD.succeed BooleanType
-
-        "string" ->
-            JD.succeed StringType
 
         _ ->
             Debug.todo "Decode other types"
 
 
-type_decoder : JD.Decoder Type
+type_decoder : JD.Decoder TypeName
 type_decoder =
     JD.field "type_type" JD.string
         |> JD.andThen type_from_descriminator
 
 
-decode_type : String -> Result JD.Error Type
+decode_type : String -> Result JD.Error TypeName
 decode_type s =
     JD.decodeString type_decoder s
 

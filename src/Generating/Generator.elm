@@ -1,7 +1,10 @@
 module Generating.Generator exposing (..)
 
 import Analysis.Analyzer exposing (GoodProgram)
-import Language.Language as Language exposing (FunctionHeader, Identifier(..), QualifiedType, Type(..))
+import Language.Language as Language exposing (FunctionHeader, Identifier(..), TypeName(..))
+import Language.Language exposing (IntegerSize(..))
+import Language.Language exposing (QualifiedTypeName)
+import Language.Language exposing (values_type)
 
 
 type alias LLVM =
@@ -13,14 +16,14 @@ generate : GoodProgram -> LLVM
 generate gp =
     let
         forward_declarations_header =
-            "; Forward Declarations\n"
+            "; Forward Declarations\n\n"
 
         definitions_header =
-            "; Function Definitions\n"
+            "\n\n; Function Definitions\n"
 
-        add_if_func_def : Language.ValueNameAndType -> List { name : String, fheader : FunctionHeader } -> List { name : String, fheader : FunctionHeader }
+        add_if_func_def : Language.Named Language.Value -> List { name : String, fheader : FunctionHeader } -> List { name : String, fheader : FunctionHeader }
         add_if_func_def name_and_val l =
-            case name_and_val.typ of
+            case name_and_val.value |> values_type of
                 FunctionType fheader ->
                     List.append l [ { name = mangle_name name_and_val.name, fheader = fheader } ]
 
@@ -28,7 +31,7 @@ generate gp =
                     l
 
         func_headers =
-            List.foldl add_if_func_def [] gp.outer_scope.values
+            List.foldl add_if_func_def [] gp.global_scope.values
 
         forward_declarations =
             forward_declarations_header ++ (List.map llvm_forward_declaration func_headers |> String.join "\n")
@@ -43,7 +46,7 @@ mangle_name id =
             s
 
         QualifiedIdentifiers ls ->
-            Debug.todo "branch 'QualifiedIdentifiers _' not implemented"
+            String.join "_" ls 
 
 
 llvm_forward_declaration : { name : String, fheader : FunctionHeader } -> String
@@ -58,24 +61,30 @@ llvm_forward_declaration nf =
         args =
             nf.fheader.args |> List.map llvm_qualled_type |> String.join ","
     in
-    "declare " ++ llvm_ret_type fheader.rtype ++ " @" ++ name ++ "(" ++ args ++ ")"
+    "declare " ++ llvm_ret_type_name fheader.rtype ++ " @" ++ name ++ "(" ++ args ++ ")"
 
-
-llvm_ret_type : Maybe Type -> String
-llvm_ret_type mtyp =
+llvm_type_declaration: TypeName -> String
+llvm_type_declaration typ = 
+    case typ of 
+        Language.IntegerType _ -> Debug.log "Declaring builting type, shoudlnt happen" ""
+        Language.FloatingPointType _ -> Debug.log "Declaring builting type, shoudlnt happen" ""
+        
+        _ -> Debug.todo "Other Type Declarations"
+llvm_ret_type_name : Maybe TypeName -> String
+llvm_ret_type_name mtyp =
     case mtyp of
         Just typ ->
-            llvm_type typ
+            llvm_type_name typ
 
         Nothing ->
             "void"
 
 
-llvm_type : Type -> String
-llvm_type typ =
+llvm_type_name : TypeName -> String
+llvm_type_name typ =
     case typ of 
         IntegerType size -> llvm_integer_size size
-        _ -> Debug.todo "Implement this"
+        _ -> "SOME TYPE IDK MAN"
 
 
 
@@ -108,6 +117,6 @@ llvm_integer_size size =
 
 
 
-llvm_qualled_type : QualifiedType -> String
+llvm_qualled_type : QualifiedTypeName -> String
 llvm_qualled_type qt =
-    llvm_type qt.typ
+    llvm_type_name qt.typ

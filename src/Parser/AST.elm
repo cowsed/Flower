@@ -1,6 +1,7 @@
 module Parser.AST exposing (..)
 
-import Language.Language as Language exposing (Identifier(..), InfixOpType(..), LiteralType(..), stringify_identifier, stringify_infix_op)
+import Language.Language as Language exposing (Identifier(..), InfixOpType(..), stringify_identifier, stringify_infix_op)
+import Language.Syntax
 import Parser.Lexer as Lexer
 import Util
 
@@ -66,7 +67,7 @@ type FullName
     = NameWithoutArgs Identifier
     | NameWithArgs { base : Identifier, args : List FullNameAndLocation }
     | ReferenceToFullName FullNameAndLocation
-    | Literal Language.LiteralType String
+    | Literal Language.Syntax.LiteralType String
     | Constrained FullNameAndLocation ExpressionAndLocation
 
 
@@ -182,7 +183,7 @@ type Statement
 
 type Expression
     = FunctionCallExpr FunctionCallAndLocation
-    | LiteralExpr LiteralType String
+    | LiteralExpr Language.Syntax.LiteralType String
     | NameLookup FullNameAndLocation
     | Parenthesized ExpressionAndLocation
     | InfixExpr ExpressionAndLocation ExpressionAndLocation InfixOpType
