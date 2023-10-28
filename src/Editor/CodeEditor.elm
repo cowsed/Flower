@@ -97,7 +97,6 @@ build_colored_range onchange state ir =
                     )
                 |> Maybe.withDefault False
 
-
         onmousedown index =
             Element.Events.onMouseDown (onchange { state | selection = Just (Range index index), building_selection = True })
 
@@ -330,6 +329,7 @@ code_editor state onchange =
             ]
         )
 
+
 update_editor : EditorState -> Keyboard.Event.KeyboardEvent -> ( EditorState, Bool )
 update_editor state ke =
     let
@@ -403,7 +403,9 @@ update_editor state ke =
                                 calc_cursor_move_down state.text state.cursor_pos
                         in
                         { state | cursor_pos = new_cursor, selection = expand_maybe_range state.selection (Range state.cursor_pos new_cursor) }
-                    SelectAll  -> {state | selection = Range 0 (String.length state.text) |> Just }
+
+                    SelectAll ->
+                        { state | selection = Range 0 (String.length state.text) |> Just }
             )
         |> Maybe.map used_keypress
         |> Maybe.withDefault ( state, False )
@@ -507,7 +509,7 @@ type KeyAction
 
 action_from_key : Keyboard.Event.KeyboardEvent -> Maybe KeyAction
 action_from_key ke =
-    case is_text_keye (Debug.log "Key: " ke) of
+    case is_text_keye ke of
         Just s ->
             InsertAtCursor s |> Just
 
@@ -523,7 +525,7 @@ action_from_key ke =
                     Just (InsertAtCursor "    ")
 
                 Keyboard.Key.Left ->
-                    tern ke.shiftKey SelectLeft MoveCursorLeft|> Just
+                    tern ke.shiftKey SelectLeft MoveCursorLeft |> Just
 
                 Keyboard.Key.Right ->
                     tern ke.shiftKey SelectRight MoveCursorRight |> Just
@@ -534,7 +536,8 @@ action_from_key ke =
                 Keyboard.Key.Down ->
                     tern ke.shiftKey SelectDown MoveCursorDown |> Just
 
-                Keyboard.Key.A -> tern ke.ctrlKey (Just SelectAll) Nothing
+                Keyboard.Key.A ->
+                    tern ke.ctrlKey (Just SelectAll) Nothing
 
                 _ ->
                     Nothing
@@ -576,7 +579,7 @@ make_line_nums style num_lines =
         , Element.htmlAttribute <| Html.Attributes.style "user-select" "none"
         , Element.spacingXY 0 (style.line_spacing * 2)
         , Border.color Pallete.fg_c
-        , Border.widthEach {left = 0, right = 2, top = 0, bottom = 0}
+        , Border.widthEach { left = 0, right = 2, top = 0, bottom = 0 }
         , Font.family [ Font.monospace ]
         ]
         (List.range 1 num_lines |> List.map (\i -> Element.text (String.fromInt i)))

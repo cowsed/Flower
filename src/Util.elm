@@ -2,7 +2,6 @@ module Util exposing (..)
 
 import Html
 import Html.Attributes
-import Language.Language as Language
 import Language.Syntax as Syntax
 
 import Element exposing (Element)

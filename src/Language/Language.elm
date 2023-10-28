@@ -89,6 +89,8 @@ values_type v = case v of
                              Debug.todo "branch 'EnumValue' not implemented"
 
 
+builtin_typenames = []
+
 
 type TypeName
     = IntegerType IntegerSize

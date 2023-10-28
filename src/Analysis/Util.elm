@@ -1,6 +1,5 @@
 module Analysis.Util exposing (..)
 
-import Analysis.Scope as Scope
 import Language.Language exposing (..)
 import Parser.AST as AST
 import Util
@@ -17,6 +16,7 @@ type AnalysisError
     | ExpectedSymbolInGenericArg Util.SourceView
     | GenericArgIdentifierTooComplicated Util.SourceView
     | FunctionNameArgTooComplicated Util.SourceView
+    | TypeNameTooComplicated Util.SourceView
     | BadTypeParse Util.SourceView
     | TypeNameNotFound Identifier Util.SourceView
     | TypeNotInstantiable Identifier Util.SourceView
