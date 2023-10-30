@@ -13,6 +13,5 @@ type KeywordType
     | TypeKeyword
 
 type LiteralType
-    = BooleanLiteral
-    | NumberLiteral
+    = NumberLiteral
     | StringLiteral

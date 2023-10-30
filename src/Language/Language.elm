@@ -32,6 +32,8 @@ type IntegerSize
     | I16
     | I32
     | I64
+    | Uint -- crash on overflow/underflow
+    | Int -- crash on overflow/underflow
 
 
 type InfixOpType
@@ -62,12 +64,20 @@ type alias GenericTypeDefinition =
 
 -- like what you would use as a type of a function argument, type of a structure field, etc
 
-type alias Named a = {name: Identifier, value: a} 
-named_get: Named a -> a
-named_get nt = nt.value
 
-named_name: Named a -> Identifier
-named_name nt = nt.name
+type alias Named a =
+    { name : Identifier, value : a }
+
+
+named_get : Named a -> a
+named_get nt =
+    nt.value
+
+
+named_name : Named a -> Identifier
+named_name nt =
+    nt.name
+
 
 type Value
     = IntegerValue IntegerSize Int
@@ -75,21 +85,25 @@ type Value
     | StructValue { definition : TypeDefinition, fields : List (Named Value) }
     | EnumValue
 
-values_type: Value -> TypeName
-values_type v = case v of 
-        IntegerValue is _ -> IntegerType is
+
+values_type : Value -> TypeName
+values_type v =
+    case v of
+        IntegerValue is _ ->
+            IntegerType is
 
         FloatingPointValue _ _ ->
-                             Debug.todo "branch 'FloatingPointValue _ _' not implemented"
+            Debug.todo "branch 'FloatingPointValue _ _' not implemented"
 
         StructValue _ ->
-                             Debug.todo "branch 'StructValue _' not implemented"
+            Debug.todo "branch 'StructValue _' not implemented"
 
         EnumValue ->
-                             Debug.todo "branch 'EnumValue' not implemented"
+            Debug.todo "branch 'EnumValue' not implemented"
 
 
-builtin_typenames = []
+builtin_typenames =
+    []
 
 
 type TypeName

@@ -1,10 +1,7 @@
 module Generating.Generator exposing (..)
 
 import Analysis.Analyzer exposing (GoodProgram)
-import Language.Language as Language exposing (FunctionHeader, Identifier(..), TypeName(..))
-import Language.Language exposing (IntegerSize(..))
-import Language.Language exposing (QualifiedTypeName)
-import Language.Language exposing (values_type)
+import Language.Language as Language exposing (FunctionHeader, Identifier(..), IntegerSize(..), QualifiedTypeName, TypeName(..), values_type)
 
 
 type alias LLVM =
@@ -46,7 +43,7 @@ mangle_name id =
             s
 
         QualifiedIdentifiers ls ->
-            String.join "_" ls 
+            String.join "_" ls
 
 
 llvm_forward_declaration : { name : String, fheader : FunctionHeader } -> String
@@ -63,13 +60,20 @@ llvm_forward_declaration nf =
     in
     "declare " ++ llvm_ret_type_name fheader.rtype ++ " @" ++ name ++ "(" ++ args ++ ")"
 
-llvm_type_declaration: TypeName -> String
-llvm_type_declaration typ = 
-    case typ of 
-        Language.IntegerType _ -> Debug.log "Declaring builting type, shoudlnt happen" ""
-        Language.FloatingPointType _ -> Debug.log "Declaring builting type, shoudlnt happen" ""
-        
-        _ -> Debug.todo "Other Type Declarations"
+
+llvm_type_declaration : TypeName -> String
+llvm_type_declaration typ =
+    case typ of
+        Language.IntegerType _ ->
+            Debug.log "Declaring builting type, shoudlnt happen" ""
+
+        Language.FloatingPointType _ ->
+            Debug.log "Declaring builting type, shoudlnt happen" ""
+
+        _ ->
+            Debug.todo "Other Type Declarations"
+
+
 llvm_ret_type_name : Maybe TypeName -> String
 llvm_ret_type_name mtyp =
     case mtyp of
@@ -82,10 +86,12 @@ llvm_ret_type_name mtyp =
 
 llvm_type_name : TypeName -> String
 llvm_type_name typ =
-    case typ of 
-        IntegerType size -> llvm_integer_size size
-        _ -> "SOME TYPE IDK MAN"
+    case typ of
+        IntegerType size ->
+            llvm_integer_size size
 
+        _ ->
+            "SOME TYPE IDK MAN"
 
 
 llvm_integer_size : Language.IntegerSize -> String
@@ -115,6 +121,11 @@ llvm_integer_size size =
         Language.I64 ->
             "i64"
 
+        Language.Uint ->
+            "u64"
+
+        Language.Int ->
+            "i64"
 
 
 llvm_qualled_type : QualifiedTypeName -> String

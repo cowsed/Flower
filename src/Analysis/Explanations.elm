@@ -58,10 +58,10 @@ explain_error ae =
 
             CantInstantiateGenericWithTheseArgs reason loc ->
                 Element.text <| "Cant instantiate this generic type with these type arguments:" ++ stringify_reason_for_unsustantiable reason ++ "\n" ++ Util.show_source_view loc
-            TypeNameTooComplicated loc ->
-                Element.text <| "This name is too complicated for a struct. I expect something like `struct Name`" ++"\n" ++ Util.show_source_view loc
-        )
 
+            TypeNameTooComplicated loc ->
+                Element.text <| "This name is too complicated for a struct. I expect something like `struct Name`" ++ "\n" ++ Util.show_source_view loc
+        )
 
 
 stringify_reason_for_unsustantiable : ReasonForUninstantiable -> String
@@ -217,6 +217,12 @@ stringify_integer_size size =
 
         Language.I64 ->
             "i64"
+
+        Language.Uint ->
+            "uint"
+
+        Language.Int ->
+            "int"
 
 
 stringify_floating_size : FloatingPointSize -> String

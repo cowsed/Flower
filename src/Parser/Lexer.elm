@@ -428,13 +428,7 @@ lex_unknown lsi =
 
 is_special_or_symbol : String -> TokenType
 is_special_or_symbol s =
-    if s == "true" then
-        Literal Language.Syntax.BooleanLiteral s
-
-    else if s == "false" then
-        Literal Language.Syntax.BooleanLiteral s
-
-    else if s == "xor" then
+    if s == "xor" then
         XorToken
 
     else if s == "and" then
@@ -652,9 +646,6 @@ token_to_str tok =
                 ++ (case lt of
                         Language.Syntax.StringLiteral ->
                             "_str"
-
-                        Language.Syntax.BooleanLiteral ->
-                            "_bool"
 
                         Language.Syntax.NumberLiteral ->
                             "_int"

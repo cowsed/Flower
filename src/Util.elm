@@ -167,8 +167,5 @@ syntaxify_literal lt str =
         Syntax.StringLiteral ->
             "\"" ++ str ++ "\""
 
-        Syntax.BooleanLiteral ->
-            str
-
         Syntax.NumberLiteral ->
             str

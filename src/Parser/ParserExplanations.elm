@@ -58,8 +58,6 @@ syntaxify_literal l s =
         Language.Syntax.StringLiteral ->
             syntaxify_string_literal ("\"" ++ s ++ "\"")
 
-        Language.Syntax.BooleanLiteral ->
-            Element.text s
 
         Language.Syntax.NumberLiteral ->
             syntaxify_number_literal s
@@ -114,8 +112,6 @@ syntaxify_expression expr =
                 Language.Syntax.NumberLiteral ->
                     syntaxify_number_literal s
 
-                Language.Syntax.BooleanLiteral ->
-                    syntaxify_number_literal s
 
         AST.InfixExpr lhs rhs op ->
             Element.row [] [ syntaxify_expression lhs.thing, Element.text (" " ++ Language.stringify_infix_op op ++ " "), syntaxify_expression rhs.thing ]
@@ -410,8 +406,6 @@ explain_expression expr =
                 Language.Syntax.StringLiteral ->
                     Element.row [] [ Element.text ("String Literal: " ++ s) ]
 
-                Language.Syntax.BooleanLiteral ->
-                    Element.row [] [ Element.text ("Boolean Literal: " ++ s) ]
 
                 Language.Syntax.NumberLiteral ->
                     Element.row [] [ Element.text ("Number Literal: " ++ s) ]

@@ -26,7 +26,7 @@ type AnalysisError
     | Multiple (List AnalysisError)
 
 
-res_join_2 : (a -> a -> b) -> AnalysisRes a -> AnalysisRes a -> AnalysisRes b
+res_join_2 : (a -> b -> c) -> AnalysisRes a -> AnalysisRes b -> AnalysisRes c
 res_join_2 joiner res1 res2 =
     case res1 of
         Err e1 ->

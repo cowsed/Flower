@@ -270,8 +270,6 @@ parse_outer_scope ps =
             Error (Unimplemented ps.prog "Parsing outer non function things")
 
 
-
-
 parse_typename : FullNameParseTodo -> ParseStep -> ParseRes
 parse_typename outer_todo ps =
     let
@@ -316,8 +314,6 @@ parse_named_type_type valname todo ps =
     parse_possibly_constrained_fullname todo_with_type ps
 
 
-
-
 parse_consume_next : TokenType -> ParseFn -> ParseStep -> ParseRes
 parse_consume_next what todo ps =
     if ps.tok.typ == what then
@@ -349,8 +345,6 @@ parse_until typ after ps =
 
     else
         Next ps.prog (ParseFn (parse_until typ after))
-
-
 
 
 parse_global_fn_return_statement : StatementParseTodo -> ParseStep -> ParseRes
@@ -420,7 +414,7 @@ parse_global_fn_assignment name todo ps =
     parse_expr after_expr_parse ps
 
 
-parse_global_fn_assignment_or_fn_call_qualified_name : Util.SourceView  -> Identifier -> StatementParseTodo -> ParseStep -> ParseRes
+parse_global_fn_assignment_or_fn_call_qualified_name : Util.SourceView -> Identifier -> StatementParseTodo -> ParseStep -> ParseRes
 parse_global_fn_assignment_or_fn_call_qualified_name loc name fdef ps =
     case ps.tok.typ of
         Symbol s ->
@@ -456,7 +450,7 @@ parse_statement_assignment_or_fn_call id_loc name statement_todo ps =
             parse_global_fn_assignment_or_fn_call_qualified_name (Util.merge_sv id_loc ps.tok.loc) name statement_todo |> next_pfn
 
         OpenParen ->
-            ExpressionParser.parse_function_call (NameWithoutArgs name |> AST.with_location ps.tok.loc) todo_with_funccall  
+            ExpressionParser.parse_function_call (NameWithoutArgs name |> AST.with_location ps.tok.loc) todo_with_funccall
                 |> ParseFn
                 |> Next ps.prog
 
@@ -703,8 +697,6 @@ parse_global_fn ps =
             Error (ExpectedNameAfterFn ps.tok.loc)
 
 
-
-
 parse_find_imports : ParseStep -> ParseRes
 parse_find_imports ps =
     let
@@ -720,9 +712,7 @@ parse_find_imports ps =
 
                 _ ->
                     Error (NonStringImport pss.tok.loc)
-
     in
-    
     case ps.tok.typ of
         Keyword kt ->
             case kt of
@@ -737,6 +727,9 @@ parse_find_imports ps =
 
                 Language.Syntax.TypeKeyword ->
                     parse_type_declaration |> next_pfn
+
+                Language.Syntax.EnumKeyword ->
+                    parse_enum |> next_pfn
 
                 _ ->
                     Error (UnknownOuterLevelObject ps.tok.loc)
