@@ -3,13 +3,11 @@ module Analysis.Analyzer exposing (..)
 import Analysis.BuiltinScopes as BuiltinScopes
 import Analysis.Scope as Scope
 import Analysis.Util exposing (..)
-import Json.Decode exposing (bool)
 import Keyboard.Key exposing (Key(..))
-import Language.Language as Language exposing (FunctionHeader, Identifier(..), IntegerSize(..), Named, QualifiedTypeName, SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType, ValueNameAndType)
+import Language.Language as Language exposing (FunctionHeader, Identifier(..), IntegerSize(..), Named, QualifiedTypeName, SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType, extract_builtins)
 import Parser.AST as AST
 import Parser.ParserCommon exposing (Error(..))
 import String exposing (join)
-import Language.Language exposing (extract_builtins)
 
 
 type alias GoodProgram =
@@ -31,7 +29,7 @@ type TypedExpression
 
 
 type Statement
-    = Assignment ValueNameAndType TypedExpression
+    = Assignment (Named TypeName) TypedExpression
     | BareExpression TypedExpression
 
 
@@ -59,7 +57,7 @@ analyze ast =
 
 ensure_good_generic_args : List AST.FullNameAndLocation -> AnalysisRes (List String)
 ensure_good_generic_args ls =
-    Debug.todo " A"
+    Debug.todo " ensure good generic args"
 
 
 ensure_good_custom_type_name : AST.FullNameAndLocation -> AnalysisRes TypeDeclarationName
@@ -116,9 +114,34 @@ extract_type_declarations ls =
 analyze_typename : Scope.TypeDeclarationScope -> AST.FullNameAndLocation -> AnalysisRes Language.TypeName
 analyze_typename scope typename =
     let
+        -- todo give error saying that type exists it just needs generic arguments
         try_find_type : Language.TypeName -> AnalysisRes Language.TypeName
         try_find_type tn =
-            extract_builtins tn |> Result.fromMaybe (NoSuchTypeFound typename.loc)
+            let
+                from_builtin =
+                    extract_builtins tn
+
+                from_scope =
+                    if Scope.lookup_type_in_decl_scope scope tn then
+                        Just tn
+
+                    else
+                        Nothing
+
+                res =
+                    case from_builtin of
+                        Just t ->
+                            Ok t
+
+                        Nothing ->
+                            case from_scope of
+                                Just t ->
+                                    Ok t
+
+                                Nothing ->
+                                    NoSuchTypeFound typename.loc |> Err
+            in
+            res
     in
     case typename.thing of
         AST.NameWithoutArgs id ->
@@ -173,7 +196,7 @@ make_outer_type_scope prog =
     let
         builtin_scope : AnalysisRes Scope.FullScope
         builtin_scope =
-            Ok { values = [], types = [], generic_types = [] }
+            Ok BuiltinScopes.builtin_scope
 
         import_scope : AnalysisRes Scope.FullScope
         import_scope =
@@ -186,7 +209,6 @@ make_outer_type_scope prog =
                 , import_scope
                 ]
                 |> Result.map Scope.get_declaration_scope
-
 
         module_type_names : AnalysisRes (List ( TypeDeclarationName, AST.TypeDefinitionType ))
         module_type_names =
@@ -225,14 +247,14 @@ make_outer_type_scope prog =
                             (module_generic_type_definitions dscope lis.generics)
                     )
 
-
         pre_fn_scopes =
             ar_foldN Scope.merge_two_scopes
                 Scope.empty_scope
                 [ builtin_scope
                 , import_scope
-                , declscope |> Result.andThen type_scope 
-                ] |> Debug.log "pre_fn scopes"
+                , declscope |> Result.andThen type_scope
+                ]
+                |> Debug.log "pre_fn scopes"
     in
     pre_fn_scopes
 

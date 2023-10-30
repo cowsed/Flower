@@ -35,33 +35,16 @@ collapsable title internals =
 
 
 
-type Bullet
-    = Bullet String (List Bullet)
+type Bullet msg
+    = Bullet (Element.Element msg) (List (Bullet msg))
 
 
-bullet : Bullet
-bullet =
-    Bullet "UPSC"
-        [ Bullet "Essay"
-            [ Bullet "If progress is not engendered it will be" []
-            , Bullet "Poverty is worst form of violence" []
-            , Bullet "blockchain and corruption"
-                [ Bullet "beneficiary verified public registries to" []
-                , Bullet "corruption is often related to delayed or" []
-                ]
-            , Bullet "you can learn anything from anywhere"
-                [ Bullet "history" []
-                , Bullet "Israel - water scarce - learn importance" []
-                ]
-            ]
-        ]
 
-
-viewBullet : Bullet -> Element msg
+viewBullet : Bullet msg -> Element msg
 viewBullet (Bullet text children) =
     Element.row [ Element.spacing 12 ]
         [ Element.el [ Element.alignTop ] (Element.text "•")
-        , Element.column [ Element.spacing 6 ] (Element.text text :: List.map viewBullet children)
+        , Element.column [ Element.spacing 6 ] (text :: List.map viewBullet children)
         ]
 
 

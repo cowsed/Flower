@@ -1,13 +1,23 @@
 module Analysis.BuiltinScopes exposing (..)
 
 import Analysis.Scope as Scope
-import Language.Language as Language exposing (Identifier(..), QualifiedTypeName, Qualifier(..), ReasonForUninstantiable(..), StructDefinition, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), ValueNameAndType)
-import Language.Language exposing (SimpleNamed)
+import Language.Language as Language exposing (Identifier(..), Named, Qualifier(..), ReasonForUninstantiable(..), SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), integers)
 
 
 
 -- std_pair_def: Language.TypeDefinition
 -- std_pair_def = Language.GenericDefin
+
+
+builtin_string : Named TypeDefinition
+builtin_string =
+    Named (si "string") (StructDefinitionType { fields = [ SimpleNamed "len" integers.i64, SimpleNamed "cap" integers.i64 ] })
+
+
+builtin_maybe : Named Language.TypeDefinition
+builtin_maybe =
+    Named (si "Maybe")
+        (EnumDefinitionType [ Language.JustTag "Nothing", Language.TagAndTypes "Some" [ CustomTypeName (si "T") ] ])
 
 
 std_types : Scope.TypeDefs
@@ -42,12 +52,20 @@ std_pair_generic types =
 
 std_generic_types : Scope.GenericTypeDefs
 std_generic_types =
-    []
+    [ Named (si "pair") std_pair_generic ]
 
 
 std_scope : Scope.FullScope
 std_scope =
     Scope.FullScope std_types [] std_generic_types
+
+
+builtin_scope : Scope.FullScope
+builtin_scope =
+    { types = [ builtin_string, builtin_maybe ]
+    , generic_types = []
+    , values = []
+    }
 
 
 import_scope : String -> Maybe Scope.FullScope

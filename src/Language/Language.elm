@@ -83,6 +83,16 @@ named_name nt =
     nt.name
 
 
+snamed_get : SimpleNamed a -> a
+snamed_get nt =
+    nt.value
+
+
+snamed_name : SimpleNamed a -> String
+snamed_name nt =
+    nt.name
+
+
 type Value
     = IntegerValue IntegerSize Int
     | FloatingPointValue FloatingPointSize Float
@@ -147,8 +157,6 @@ is_generic_instantiable_with _ gen_args used_args =
         Nothing
 
 
-
-
 type TypeDefinition
     = StructDefinitionType StructDefinition
     | EnumDefinitionType (List EnumTagDefinition)
@@ -165,21 +173,15 @@ type alias StructDefinition =
 
 
 type EnumTagDefinition
-    = Name String
-    | NameAndTypes String (List TypeName)
+    = JustTag String
+    | TagAndTypes String (List TypeName)
 
 
 type alias FunctionHeader =
     { args : List QualifiedTypeName, rtype : Maybe TypeName }
 
 
-type alias ValueNameAndType =
-    { name : Identifier
-    , typ : TypeName
-    }
-
-
-qualify_vnt_name : String -> ValueNameAndType -> ValueNameAndType
+qualify_vnt_name : String -> Named TypeName -> Named TypeName
 qualify_vnt_name s vnt =
     { vnt | name = prepend_identifier s vnt.name }
 
@@ -249,6 +251,18 @@ builtin_type_from_name s =
 
         _ ->
             Nothing
+
+
+integers =
+    { i8= IntegerType I8
+    , i16 = IntegerType I16
+    , i32 = IntegerType I32
+    , i64 = IntegerType I64
+    , u8= IntegerType U8
+    , u16 = IntegerType U16
+    , u32 = IntegerType U32
+    , u64 = IntegerType U64
+    }
 
 
 

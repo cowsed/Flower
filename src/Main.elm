@@ -37,6 +37,9 @@ initial_input =
     """module main
 import "std"
 
+struct A{
+    a: i32
+}
 
 fn main() -> i32{
     std.puts("Hello" )
@@ -146,7 +149,7 @@ make_output mod =
                 ]
 
         footer =
-            Element.row [ Element.width fill, alignBottom, Element.padding 4 ]
+            Element.row [ Element.width fill, alignBottom, Element.padding 4, Border.widthEach {bottom = 0, left = 0, right = 0, top = 2} ]
                 [ Element.text ("Compiled in " ++ millis_elapsed mod.last_run_start mod.last_run_end ++ " ms")
                 ]
 
@@ -163,7 +166,7 @@ make_output mod =
                 Editor.code_editor mod.editor_state (\s -> EditorAction s)
 
         right_pane =
-            Element.column [ Element.width fill, Element.height fill, alignTop ]
+            Element.column [ Element.width fill, Element.height fill, alignTop, scrollbarY]
                 [ Element.el
                     [ Element.width fill
                     , Element.height Element.fill

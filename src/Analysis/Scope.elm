@@ -1,6 +1,11 @@
 module Analysis.Scope exposing (..)
 
 import Language.Language as Language
+import List.Extra
+import Language.Language exposing (Named)
+import Language.Language exposing (TypeDefinition)
+import Language.Language exposing (TypeName(..))
+import Language.Language exposing (Identifier)
 
 
 type alias TypeDefs =
@@ -21,9 +26,26 @@ type alias FullScope =
     , generic_types : GenericTypeDefs
     }
 
-
-
---
+lookup_type_in_scope: FullScope -> Language.TypeName -> Maybe (Named TypeDefinition)
+lookup_type_in_scope fs tn = 
+    let
+        pred: Named TypeDefinition -> Bool
+        pred ntd = case tn of 
+            CustomTypeName id -> ntd.name == id
+            _ -> False
+    in
+    
+    List.Extra.find pred fs.types 
+lookup_type_in_decl_scope: TypeDeclarationScope -> Language.TypeName -> Bool
+lookup_type_in_decl_scope fs tn = 
+    let
+        pred: Identifier -> Bool
+        pred ntd = case tn of 
+            CustomTypeName id -> ntd == id
+            _ -> False
+    in
+    
+    List.any pred fs.types 
 
 
 type alias TypeDeclarationScope =

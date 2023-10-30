@@ -8,7 +8,7 @@ import Element.Font as Font
 import Language.Language as Language exposing (..)
 import Pallete
 import Ui exposing (color_text, comma_space, space)
-import Util
+import Util exposing (escape_result, viewBullet)
 
 
 header : String -> Element.Element msg
@@ -64,9 +64,9 @@ explain_error ae =
 
             StructFieldNameTooComplicated loc ->
                 Element.text <| "This name is too complicated for a struct field. I expect something like `name: Type`" ++ "\n" ++ Util.show_source_view loc
+
             NoSuchTypeFound loc ->
                 Element.text <| "I couldnt find this type: TODO better" ++ "\n" ++ Util.show_source_view loc
-
         )
 
 
@@ -90,11 +90,21 @@ explain_global_scope scope =
     Element.column [ Element.spacing 6 ]
         (List.concat
             [ [ header "Values" ]
-            , scope.values |> List.map explain_name_and_type
+            , scope.values |> List.map explain_value_name_and_type
             , [ header "Types" ]
-            , scope.types |> List.map explain_outer_type
+            , scope.types |> List.map explain_type_def
+            , [ header "Generic Types" ]
+            , scope.generic_types |> List.map explain_generic_type_def
             ]
         )
+
+
+explain_generic_type_def : Named Language.GenericTypeDefinition -> Element.Element msg
+explain_generic_type_def ngt =
+    ngt.value [ CustomTypeName (Language.SingleIdentifier "T") ]
+        |> Result.mapError (\e -> Debug.toString e |> Element.text)
+        |> Result.map (\sd -> Element.row [] [ explain_type_def (Named ngt.name sd) ])
+        |> escape_result
 
 
 
@@ -108,14 +118,21 @@ explain_type_type tt =
             s ++ ": Any"
 
 
-explain_outer_type : Named Language.TypeDefinition -> Element.Element msg
-explain_outer_type nt =
+explain_type_def : Named Language.TypeDefinition -> Element.Element msg
+explain_type_def nt =
     case named_get nt of
-        StructDefinitionType _ ->
-            Element.el [] <| Element.text ("struct with name " ++ stringify_identifier nt.name)
+        StructDefinitionType def ->
+            Element.column []
+                [ Element.row [] [ Element.text "struct with name ", Ui.code <| Element.text (stringify_identifier nt.name) ]
+                , def.fields
+                    |> List.map explain_named_typename
+                    |> List.map (\e -> Util.Bullet e [])
+                    |> Util.Bullet (Element.text "Fields")
+                    |> viewBullet
+                ]
 
         EnumDefinitionType _ ->
-            Element.el [] <| Element.text ("enum with name " ++ stringify_identifier nt.name)
+            Element.row [] [ Element.text "enum with name ", Ui.code <| Element.text <| stringify_identifier nt.name ]
 
         AliasDefinitionType _ ->
             Element.row [] [ Element.text "alias with name ", Ui.code (Element.text <| stringify_identifier nt.name) ]
@@ -134,12 +151,21 @@ stringify_typeoftypedef gt =
             "alias "
 
 
-explain_name_and_type : Named Value -> Element.Element msg
-explain_name_and_type vnt =
+explain_value_name_and_type : Named Value -> Element.Element msg
+explain_value_name_and_type vnt =
     Element.row []
         [ Element.text (Language.stringify_identifier vnt.name) |> Ui.code
         , Element.text " of type "
         , explain_typename (values_type vnt.value) |> Ui.code
+        ]
+
+
+explain_named_typename : SimpleNamed TypeName -> Element.Element msg
+explain_named_typename vnt =
+    Element.row []
+        [ Element.text vnt.name |> Ui.code
+        , Element.text " of type "
+        , explain_typename vnt.value |> Ui.code
         ]
 
 
@@ -158,11 +184,16 @@ explain_typename t =
                 , explain_fheader f
                 ]
 
-        CustomTypeName _ ->
-            Debug.todo "branch 'CustomTypeName _' not implemented"
+        CustomTypeName id ->
+            Element.row [] [ Element.text "Custom type with name ", Element.text (stringify_identifier id) ]
 
-        GenericInstantiation _ _ ->
-            Debug.todo "branch 'GenericInstantiation _ _' not implemented"
+        GenericInstantiation id args ->
+            Element.row []
+                [ Element.text "Generic Instantiation of "
+                , Element.text (stringify_identifier id)
+                , Element.text " with args "
+                , Element.row [] (args |> List.map explain_typename)
+                ]
 
 
 explain_fheader : FunctionHeader -> Element.Element msg
