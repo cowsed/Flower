@@ -53,7 +53,7 @@ lookup_generic_type_in_decl_scope fs tn =
     let
         pred: Identifier -> Bool
         pred ntd = case Debug.log "TN" tn of 
-            GenericInstantiation id _ -> ntd == id
+            GenericInstantiation id args -> ntd == id && (List.length args == numargs)
             _ -> False
     in
     

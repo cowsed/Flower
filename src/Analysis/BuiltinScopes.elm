@@ -14,10 +14,24 @@ builtin_string =
     Named (si "string") (StructDefinitionType { fields = [ SimpleNamed "len" integers.i64, SimpleNamed "cap" integers.i64 ] })
 
 
-builtin_maybe : Named Language.TypeDefinition
+builtin_maybe : Named Language.GenericTypeDefinition
 builtin_maybe =
-    Named (si "Maybe")
-        (EnumDefinitionType [ Language.JustTag "Nothing", Language.TagAndTypes "Some" [ CustomTypeName (si "T") ] ])
+    let
+        body garg = EnumDefinitionType [ Language.JustTag "Nothing", Language.TagAndTypes "Some" [ garg ] ]
+        builder args =
+            case List.head args of
+                Just garg ->
+                    if List.length args == 1 then
+                        body garg
+                            |> Ok
+
+                    else
+                        WrongNumber |> Err
+
+                Nothing ->
+                    WrongNumber |> Err
+    in
+    Named (si "Maybe") builder
 
 
 std_types : Scope.TypeDefs
@@ -62,8 +76,8 @@ std_scope =
 
 builtin_scope : Scope.FullScope
 builtin_scope =
-    { types = [ builtin_string, builtin_maybe ]
-    , generic_types = []
+    { types = [ builtin_string ]
+    , generic_types = [ builtin_maybe ]
     , values = []
     }
 

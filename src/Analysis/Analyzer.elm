@@ -225,7 +225,7 @@ make_outer_type_scope prog =
 
         module_type_names : AnalysisRes (List ( TypeDeclarationName, AST.TypeDefinitionType ))
         module_type_names =
-            extract_type_declarations prog.global_typedefs |> Debug.log "Extracted names"
+            extract_type_declarations prog.global_typedefs 
 
         module_type_definitions : Scope.TypeDeclarationScope -> List ( Identifier, AST.TypeDefinitionType ) -> AnalysisRes Scope.TypeDefs
         module_type_definitions dscope l =
