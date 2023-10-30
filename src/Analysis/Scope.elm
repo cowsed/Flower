@@ -48,6 +48,18 @@ lookup_type_in_decl_scope fs tn =
     List.any pred fs.types 
 
 
+lookup_generic_type_in_decl_scope: TypeDeclarationScope -> Language.TypeName -> Bool
+lookup_generic_type_in_decl_scope fs tn = 
+    let
+        pred: Identifier -> Bool
+        pred ntd = case Debug.log "TN" tn of 
+            GenericInstantiation id _ -> ntd == id
+            _ -> False
+    in
+    
+    List.any pred (fs.generics |> Debug.log "Gnerices: ") 
+
+
 type alias TypeDeclarationScope =
     { types : List Language.Identifier
     , generics : List Language.Identifier

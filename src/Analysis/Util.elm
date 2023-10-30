@@ -25,6 +25,7 @@ type AnalysisError
     | GenericTypeNameNotValidWithoutSquareBrackets Util.SourceView
     | Unimplemented String
     | NoSuchTypeFound Util.SourceView
+    | NoSuchGenericTypeFound Util.SourceView
     | Multiple (List AnalysisError)
 
 

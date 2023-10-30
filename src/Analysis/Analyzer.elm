@@ -115,6 +115,14 @@ analyze_typename : Scope.TypeDeclarationScope -> AST.FullNameAndLocation -> Anal
 analyze_typename scope typename =
     let
         -- todo give error saying that type exists it just needs generic arguments
+        try_find_generic_type : Language.TypeName -> AnalysisRes Language.TypeName
+        try_find_generic_type tn =
+            if Scope.lookup_generic_type_in_decl_scope scope tn then
+                Ok tn
+
+            else
+                Err (NoSuchGenericTypeFound typename.loc)
+
         try_find_type : Language.TypeName -> AnalysisRes Language.TypeName
         try_find_type tn =
             let
@@ -146,6 +154,11 @@ analyze_typename scope typename =
     case typename.thing of
         AST.NameWithoutArgs id ->
             CustomTypeName id |> try_find_type
+
+        AST.NameWithArgs stuff ->
+            (stuff.args |> List.map (analyze_typename scope)) |> ar_foldN (\el l -> List.append l [el]) []
+                |> Result.map (\args -> GenericInstantiation stuff.base args)
+                |> Result.andThen try_find_generic_type
 
         _ ->
             NoSuchTypeFound typename.loc |> Err
@@ -220,7 +233,7 @@ make_outer_type_scope prog =
 
         module_generic_type_definitions : Scope.TypeDeclarationScope -> List ( ( Identifier, List String ), AST.TypeDefinitionType ) -> AnalysisRes Scope.GenericTypeDefs
         module_generic_type_definitions dscope gens =
-            Ok []
+            Debug.log "module generic type definitions" (Ok [])
 
         types_and_generics =
             module_type_names

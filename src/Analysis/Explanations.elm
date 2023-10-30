@@ -67,6 +67,8 @@ explain_error ae =
 
             NoSuchTypeFound loc ->
                 Element.text <| "I couldnt find this type: TODO better" ++ "\n" ++ Util.show_source_view loc
+            NoSuchGenericTypeFound loc ->
+                Element.text <| "I couldnt find this generic type: TODO better" ++ "\n" ++ Util.show_source_view loc
         )
 
 
