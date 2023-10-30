@@ -171,7 +171,7 @@ explain_struct str =
                     (\f ->
                         Element.row []
                             [ Element.text "field "
-                            , Element.text (Language.stringify_identifier f.name)
+                            , Element.text (Language.stringify_identifier f.name.thing)
                             , Element.text " of type "
                             , Element.text (AST.stringify_fullname f.typename.thing)
                             ]

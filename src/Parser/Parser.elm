@@ -299,8 +299,8 @@ parse_typename outer_todo ps =
             parse_fullname todo_with_type_and_args ps
 
 
-parse_named_type_type : String -> NamedTypeParseTodo -> ParseStep -> ParseRes
-parse_named_type_type valname todo ps =
+parse_named_type_type : Util.SourceView -> String -> NamedTypeParseTodo -> ParseStep -> ParseRes
+parse_named_type_type loc valname todo ps =
     let
         todo_with_type : FullNameParseTodo
         todo_with_type res =
@@ -309,7 +309,7 @@ parse_named_type_type valname todo ps =
                     Error e
 
                 Ok t ->
-                    UnqualifiedTypeWithName (Language.SingleIdentifier valname) t |> Ok |> todo
+                    UnqualifiedTypeWithName {thing = Language.SingleIdentifier valname, loc =loc } t |> Ok |> todo
     in
     parse_possibly_constrained_fullname todo_with_type ps
 
@@ -327,12 +327,12 @@ parse_named_type : NamedTypeParseTodo -> ParseStep -> ParseRes
 parse_named_type todo ps =
     -- parse things of the form `name: Type
     let
-        after_colon valname =
-            ParseFn (parse_named_type_type valname todo)
+        after_colon loc valname =
+            ParseFn (parse_named_type_type loc valname todo)
     in
     case ps.tok.typ of
         Symbol valname ->
-            parse_expected_token "Expected `:` to split betweem value name and type" Lexer.TypeSpecifier (after_colon valname |> Next ps.prog) |> next_pfn
+            parse_expected_token "Expected `:` to split betweem value name and type" Lexer.TypeSpecifier (after_colon ps.tok.loc valname |> Next ps.prog) |> next_pfn
 
         _ ->
             Error (ExpectedToken "expected a symbol name like `a` or `name` for something like `a: Type`" ps.tok.loc)
@@ -443,7 +443,11 @@ parse_statement_assignment_or_fn_call id_loc name statement_todo ps =
                     Error e
 
                 Ok t ->
-                    parse_initilization_statement statement_todo Language.Constant (UnqualifiedTypeWithName name t) |> next_pfn
+                    parse_initilization_statement
+                        statement_todo
+                        Language.Constant
+                        (UnqualifiedTypeWithName {thing = name, loc = id_loc} t)
+                        |> next_pfn
     in
     case ps.tok.typ of
         DotToken ->

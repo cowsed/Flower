@@ -69,6 +69,10 @@ type alias Named a =
     { name : Identifier, value : a }
 
 
+type alias SimpleNamed a =
+    { name : String, value : a }
+
+
 named_get : Named a -> a
 named_get nt =
     nt.value
@@ -143,9 +147,6 @@ is_generic_instantiable_with _ gen_args used_args =
         Nothing
 
 
-qualify_custom_type : String -> TypeName -> TypeName
-qualify_custom_type s tn =
-    tn
 
 
 type TypeDefinition
@@ -159,7 +160,7 @@ type alias AliasDefinition =
 
 
 type alias StructDefinition =
-    { fields : List ValueNameAndType
+    { fields : List (SimpleNamed TypeName)
     }
 
 
@@ -234,6 +235,18 @@ builtin_type_from_name s =
         "i64" ->
             IntegerType I64 |> Just
 
+        "int" ->
+            IntegerType Int |> Just
+
+        "uint" ->
+            IntegerType Uint |> Just
+
+        "f32" ->
+            FloatingPointType F32 |> Just
+
+        "f64" ->
+            FloatingPointType F64 |> Just
+
         _ ->
             Nothing
 
@@ -242,20 +255,19 @@ builtin_type_from_name s =
 -- bunch of types aliased to themselves cuz theyre builtin. Definition is in the language
 
 
-extract_builtins : TypeName -> TypeName
+extract_builtins : TypeName -> Maybe TypeName
 extract_builtins t =
     case t of
         CustomTypeName id ->
             case id of
                 SingleIdentifier s ->
                     builtin_type_from_name s
-                        |> Maybe.withDefault t
 
                 _ ->
-                    t
+                    Nothing
 
         _ ->
-            t
+            Nothing
 
 
 precedence : InfixOpType -> Int

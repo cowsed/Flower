@@ -61,6 +61,12 @@ explain_error ae =
 
             TypeNameTooComplicated loc ->
                 Element.text <| "This name is too complicated for a struct. I expect something like `struct Name`" ++ "\n" ++ Util.show_source_view loc
+
+            StructFieldNameTooComplicated loc ->
+                Element.text <| "This name is too complicated for a struct field. I expect something like `name: Type`" ++ "\n" ++ Util.show_source_view loc
+            NoSuchTypeFound loc ->
+                Element.text <| "I couldnt find this type: TODO better" ++ "\n" ++ Util.show_source_view loc
+
         )
 
 

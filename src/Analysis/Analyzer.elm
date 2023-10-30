@@ -5,10 +5,11 @@ import Analysis.Scope as Scope
 import Analysis.Util exposing (..)
 import Json.Decode exposing (bool)
 import Keyboard.Key exposing (Key(..))
-import Language.Language as Language exposing (FunctionHeader, Identifier(..), IntegerSize(..), Named, QualifiedTypeName, TypeDefinition(..), TypeName(..), TypeOfCustomType, ValueNameAndType)
+import Language.Language as Language exposing (FunctionHeader, Identifier(..), IntegerSize(..), Named, QualifiedTypeName, SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType, ValueNameAndType)
 import Parser.AST as AST
 import Parser.ParserCommon exposing (Error(..))
 import String exposing (join)
+import Language.Language exposing (extract_builtins)
 
 
 type alias GoodProgram =
@@ -102,8 +103,8 @@ type TypeDeclarationName
     | Generic Identifier (List String)
 
 
-extract_typenames : List AST.TypeDefinitionType -> AnalysisRes (List ( TypeDeclarationName, AST.TypeDefinitionType ))
-extract_typenames ls =
+extract_type_declarations : List AST.TypeDefinitionType -> AnalysisRes (List ( TypeDeclarationName, AST.TypeDefinitionType ))
+extract_type_declarations ls =
     let
         l : List (AnalysisRes ( TypeDeclarationName, AST.TypeDefinitionType ))
         l =
@@ -112,16 +113,51 @@ extract_typenames ls =
     List.foldl (\a b -> res_join_n b a) (Ok []) l
 
 
-analyze_struct_def : AST.StructDefnition -> AnalysisRes Language.StructDefinition
-analyze_struct_def tdt =
-    Debug.todo "Analyze Struct"
+analyze_typename : Scope.TypeDeclarationScope -> AST.FullNameAndLocation -> AnalysisRes Language.TypeName
+analyze_typename scope typename =
+    let
+        try_find_type : Language.TypeName -> AnalysisRes Language.TypeName
+        try_find_type tn =
+            extract_builtins tn |> Result.fromMaybe (NoSuchTypeFound typename.loc)
+    in
+    case typename.thing of
+        AST.NameWithoutArgs id ->
+            CustomTypeName id |> try_find_type
+
+        _ ->
+            NoSuchTypeFound typename.loc |> Err
 
 
-extract_typedefs : ( Identifier, AST.TypeDefinitionType ) -> AnalysisRes (Named TypeDefinition)
-extract_typedefs ( name, def ) =
+ensure_good_struct_field : Scope.TypeDeclarationScope -> AST.UnqualifiedTypeWithName -> AnalysisRes (SimpleNamed Language.TypeName)
+ensure_good_struct_field scope field =
+    let
+        name_res =
+            case field.name.thing of
+                SingleIdentifier s ->
+                    Ok s
+
+                _ ->
+                    Err (StructFieldNameTooComplicated field.name.loc)
+
+        typename_res =
+            analyze_typename scope field.typename
+    in
+    ar_map2 (\name tname -> SimpleNamed name tname) name_res typename_res
+
+
+analyze_struct_def : Scope.TypeDeclarationScope -> AST.StructDefnition -> AnalysisRes Language.StructDefinition
+analyze_struct_def declscope tdt =
+    tdt.fields
+        |> List.map (ensure_good_struct_field declscope)
+        |> ar_foldN (\el l -> List.append l [ el ]) []
+        |> Result.map Language.StructDefinition
+
+
+extract_typedefs : Scope.TypeDeclarationScope -> ( Identifier, AST.TypeDefinitionType ) -> AnalysisRes (Named TypeDefinition)
+extract_typedefs declscope ( name, def ) =
     (case def of
         AST.StructDefType sd ->
-            analyze_struct_def sd |> Result.map Language.StructDefinitionType
+            analyze_struct_def declscope sd |> Result.map Language.StructDefinitionType
 
         AST.EnumDefType _ ->
             Debug.todo "enum analyzing"
@@ -143,17 +179,26 @@ make_outer_type_scope prog =
         import_scope =
             analyze_imports prog.imports
 
+        declscope =
+            ar_foldN Scope.merge_two_scopes
+                Scope.empty_scope
+                [ builtin_scope
+                , import_scope
+                ]
+                |> Result.map Scope.get_declaration_scope
+
+
         module_type_names : AnalysisRes (List ( TypeDeclarationName, AST.TypeDefinitionType ))
         module_type_names =
-            extract_typenames prog.global_typedefs |> Debug.log "Extracted names"
+            extract_type_declarations prog.global_typedefs |> Debug.log "Extracted names"
 
-        module_type_definitions : List ( Identifier, AST.TypeDefinitionType ) -> AnalysisRes Scope.TypeDefs
-        module_type_definitions l =
-            l |> List.map extract_typedefs |> ar_foldN (\el li -> List.append li [ el ]) []
+        module_type_definitions : Scope.TypeDeclarationScope -> List ( Identifier, AST.TypeDefinitionType ) -> AnalysisRes Scope.TypeDefs
+        module_type_definitions dscope l =
+            l |> List.map (extract_typedefs dscope) |> ar_foldN (\el li -> List.append li [ el ]) []
 
-        module_generic_type_definitions : List ( ( Identifier, List String ), AST.TypeDefinitionType ) -> AnalysisRes Scope.GenericTypeDefs
-        module_generic_type_definitions gens =
-            Debug.todo "generics"
+        module_generic_type_definitions : Scope.TypeDeclarationScope -> List ( ( Identifier, List String ), AST.TypeDefinitionType ) -> AnalysisRes Scope.GenericTypeDefs
+        module_generic_type_definitions dscope gens =
+            Ok []
 
         types_and_generics =
             module_type_names
@@ -170,24 +215,24 @@ make_outer_type_scope prog =
                     )
                 |> Result.map (\( ts, gens ) -> { types = ts, generics = gens })
 
-        type_scope =
+        type_scope dscope =
             types_and_generics
                 |> Result.andThen
                     (\lis ->
                         Result.map2
                             (\a b -> Scope.FullScope a [] b)
-                            (module_type_definitions lis.types)
-                            (module_generic_type_definitions lis.generics)
+                            (module_type_definitions dscope lis.types)
+                            (module_generic_type_definitions dscope lis.generics)
                     )
+
 
         pre_fn_scopes =
             ar_foldN Scope.merge_two_scopes
                 Scope.empty_scope
                 [ builtin_scope
-                , import_scope  
-                , type_scope
-
-                ]
+                , import_scope
+                , declscope |> Result.andThen type_scope 
+                ] |> Debug.log "pre_fn scopes"
     in
     pre_fn_scopes
 

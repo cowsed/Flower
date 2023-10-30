@@ -13,6 +13,7 @@ type AnalysisError
     = UnknownImport AST.ImportAndLocation
     | NoModuleName
     | InvalidSyntaxInStructDefinition
+    | StructFieldNameTooComplicated Util.SourceView
     | ExpectedSymbolInGenericArg Util.SourceView
     | GenericArgIdentifierTooComplicated Util.SourceView
     | FunctionNameArgTooComplicated Util.SourceView
@@ -23,6 +24,7 @@ type AnalysisError
     | CantInstantiateGenericWithTheseArgs ReasonForUninstantiable Util.SourceView
     | GenericTypeNameNotValidWithoutSquareBrackets Util.SourceView
     | Unimplemented String
+    | NoSuchTypeFound Util.SourceView
     | Multiple (List AnalysisError)
 
 

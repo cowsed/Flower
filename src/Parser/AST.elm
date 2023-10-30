@@ -124,15 +124,15 @@ append_fullname_args me tn =
 
 
 --
-
+type alias IdentifierAndLocation = ThingAndLocation Identifier
 
 type alias UnqualifiedTypeWithName =
-    { name : Identifier, typename : FullNameAndLocation }
+    { name : IdentifierAndLocation, typename : FullNameAndLocation }
 
 
 make_qualified_typewithname : UnqualifiedTypeWithName -> Language.Qualifier -> QualifiedTypeWithName
 make_qualified_typewithname t q =
-    QualifiedTypeWithName t.name t.typename q
+    QualifiedTypeWithName t.name.thing t.typename q
 
 
 type alias QualifiedTypeWithName =

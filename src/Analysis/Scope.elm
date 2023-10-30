@@ -8,7 +8,7 @@ type alias TypeDefs =
 
 
 type alias GenericTypeDefs =
-    List Language.GenericTypeDefinition
+    List (Language.Named Language.GenericTypeDefinition)
 
 
 type alias ValueDefs =
@@ -21,9 +21,23 @@ type alias FullScope =
     , generic_types : GenericTypeDefs
     }
 
--- type alias DeclarationScope = {
---     values
--- }
+
+
+--
+
+
+type alias TypeDeclarationScope =
+    { types : List Language.Identifier
+    , generics : List Language.Identifier
+    }
+
+
+get_declaration_scope : FullScope -> TypeDeclarationScope
+get_declaration_scope scope =
+    { types = scope.types |> List.map .name
+    , generics = scope.generic_types |> List.map .name
+    }
+
 
 merge_two_scopes : FullScope -> FullScope -> FullScope
 merge_two_scopes a b =

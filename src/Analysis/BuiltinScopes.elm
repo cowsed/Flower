@@ -2,6 +2,7 @@ module Analysis.BuiltinScopes exposing (..)
 
 import Analysis.Scope as Scope
 import Language.Language as Language exposing (Identifier(..), QualifiedTypeName, Qualifier(..), ReasonForUninstantiable(..), StructDefinition, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), ValueNameAndType)
+import Language.Language exposing (SimpleNamed)
 
 
 
@@ -31,8 +32,8 @@ std_pair_generic types =
 
             Just typ ->
                 { fields =
-                    [ ValueNameAndType (si "A") typ
-                    , ValueNameAndType (si "B") typ
+                    [ SimpleNamed "A" typ
+                    , SimpleNamed "B" typ
                     ]
                 }
                     |> StructDefinitionType
