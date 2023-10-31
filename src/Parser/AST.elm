@@ -1,5 +1,6 @@
 module Parser.AST exposing (..)
 
+import Keyboard.Key exposing (Key(..))
 import Language.Language as Language exposing (Identifier(..), InfixOpType(..), stringify_identifier, stringify_infix_op)
 import Language.Syntax
 import Parser.Lexer as Lexer
@@ -59,8 +60,6 @@ append_maybe_identifier n new =
 
         Nothing ->
             SingleIdentifier new
-
-
 
 
 type FullName
@@ -124,7 +123,11 @@ append_fullname_args me tn =
 
 
 --
-type alias IdentifierAndLocation = ThingAndLocation Identifier
+
+
+type alias IdentifierAndLocation =
+    ThingAndLocation Identifier
+
 
 type alias UnqualifiedTypeWithName =
     { name : IdentifierAndLocation, typename : FullNameAndLocation }
@@ -189,6 +192,56 @@ type Expression
     | InfixExpr ExpressionAndLocation ExpressionAndLocation InfixOpType
 
 
+
+ops iot =
+    NameWithoutArgs <|
+        SingleIdentifier <|
+            case iot of
+                Addition ->
+                    "_op_add"
+
+                Subtraction ->
+                    "_op_sub"
+
+                Multiplication ->
+                    "_op_mul"
+
+                Division ->
+                    "_op_div"
+
+                Equality ->
+                    "_op_eq"
+
+                NotEqualTo ->
+                    "_op_neq"
+
+                LessThan ->
+                    "_op_lt"
+
+                LessThanEqualTo ->
+                    "_op_lte"
+
+                GreaterThan ->
+                    "_op_gt"
+
+                GreaterThanEqualTo ->
+                    "_op_gte"
+
+                And ->
+                    "_op_and"
+
+                Or ->
+                    "_op_or"
+
+                Xor ->
+                    "_op_xor"
+
+
+operator_to_function : InfixOpType -> Util.SourceView -> ExpressionAndLocation -> ExpressionAndLocation -> FunctionCall
+operator_to_function ot sv lhs rhs =
+    ops ot |> with_location sv |> (\func -> FunctionCall func [ lhs, rhs ])
+
+
 type alias FunctionCall =
     { fname : FullNameAndLocation
     , args : List ExpressionAndLocation
@@ -199,7 +252,7 @@ type alias FunctionCallAndLocation =
     ThingAndLocation FunctionCall
 
 
-stringify_expression : ExpressionAndLocation -> String 
+stringify_expression : ExpressionAndLocation -> String
 stringify_expression expr =
     case expr.thing of
         NameLookup n ->

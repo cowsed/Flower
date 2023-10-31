@@ -410,7 +410,7 @@ explain_expression expr =
 
                 Language.Syntax.NumberLiteral ->
                     Element.row [] [ Element.text ("Number Literal: " ++ s) ]
-
+    
         AST.Parenthesized e ->
             Element.row [] [ Element.text "(", explain_expression e.thing, Element.text ")" ]
 
