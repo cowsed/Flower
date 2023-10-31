@@ -136,11 +136,24 @@ explain_type_def nt =
                     |> viewBullet
                 ]
 
-        EnumDefinitionType _ ->
-            Element.row [] [ Element.text "enum with name ", Ui.code <| Element.text <| stringify_identifier nt.name ]
+        EnumDefinitionType edt ->
+            Element.column []
+                [ Element.row [] [ Element.text "enum with name ", Ui.code <| Element.text <| stringify_identifier nt.name ]
+                , Util.Bullet (Element.text "Tags") (edt |> List.map explain_enum_tag |> List.map (\e -> Util.Bullet e [])) |> viewBullet
+                ]
 
         AliasDefinitionType _ ->
             Element.row [] [ Element.text "alias with name ", Ui.code (Element.text <| stringify_identifier nt.name) ]
+
+
+explain_enum_tag : EnumTagDefinition -> Element.Element msg
+explain_enum_tag etd =
+    case etd of
+        JustTag n ->
+            Ui.code_text n
+
+        TagAndTypes n ts ->
+            Element.row [] [ Ui.code_text n, Element.text " with types ", viewBullet <| Util.Bullet Element.none (ts |> List.map explain_typename |> List.map (\e -> Util.Bullet e [])) ]
 
 
 stringify_typeoftypedef : TypeDefinition -> String
@@ -206,7 +219,9 @@ explain_integer i =
 
         Int ->
             Element.text "system word size signed integer. if this over/under flows, will crash"
-    ) |> (\l -> Element.paragraph [] [l])
+    )
+        |> (\l -> Element.paragraph [] [ l ])
+
 
 explain_typename : Language.TypeName -> Element.Element msg
 explain_typename t =

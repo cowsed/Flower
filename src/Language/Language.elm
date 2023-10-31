@@ -6,7 +6,9 @@ import Json.Decode exposing (Value)
 type Identifier
     = SingleIdentifier String -- name
     | QualifiedIdentifiers (List String) -- name.b.c
-
+si : String -> Identifier
+si s =
+    SingleIdentifier s
 
 stringify_identifier : Identifier -> String
 stringify_identifier n =

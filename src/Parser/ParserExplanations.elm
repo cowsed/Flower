@@ -390,7 +390,7 @@ explain_expression : AST.Expression -> Element.Element msg
 explain_expression expr =
      case expr of
         AST.NameLookup nwargs ->
-            Element.row [] [ Element.text ("name look up of `" ++ stringify_fullname nwargs.thing ++ "`") ]
+            Element.row [] [ Element.text "name look up of ",Ui.code_text <| stringify_fullname nwargs.thing  ]
 
         AST.FunctionCallExpr fcall ->
             Element.column [Border.width 1]

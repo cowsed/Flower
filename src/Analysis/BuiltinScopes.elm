@@ -1,7 +1,7 @@
 module Analysis.BuiltinScopes exposing (..)
 
 import Analysis.Scope as Scope
-import Language.Language as Language exposing (Identifier(..), Named, Qualifier(..), ReasonForUninstantiable(..), SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), integers)
+import Language.Language as Language exposing (Identifier(..), Named, Qualifier(..), ReasonForUninstantiable(..), SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), integers, si)
 
 
 
@@ -17,56 +17,54 @@ builtin_string =
 builtin_maybe : Named Language.GenericTypeDefinition
 builtin_maybe =
     let
-        body garg = EnumDefinitionType [ Language.JustTag "Nothing", Language.TagAndTypes "Some" [ garg ] ]
+        body garg =
+            EnumDefinitionType [ Language.JustTag "Nothing", Language.TagAndTypes "Some" [ garg ] ]
+
         builder args =
-            case List.head args of
-                Just garg ->
-                    if List.length args == 1 then
-                        body garg
-                            |> Ok
-
-                    else
-                        WrongNumber |> Err
-
-                Nothing ->
-                    WrongNumber |> Err
+            one_arg_only args |> Result.map body
     in
     Named (si "Maybe") builder
+
+
+one_arg_only : List TypeName -> Result ReasonForUninstantiable TypeName
+one_arg_only args =
+    case List.head args of
+        Just garg ->
+            if List.length args == 1 then
+                garg
+                    |> Ok
+
+            else
+                WrongNumber |> Err
+
+        Nothing ->
+            WrongNumber |> Err
 
 
 std_types : Scope.TypeDefs
 std_types =
     []
 
-
-si : String -> Identifier
-si s =
-    SingleIdentifier s
-
-
-std_pair_generic : Language.GenericTypeDefinition
-std_pair_generic types =
-    if List.length types /= 1 then
-        Err WrongNumber
-
-    else
-        case List.head types of
-            Nothing ->
-                Err WrongNumber
-
-            Just typ ->
-                { fields =
-                    [ SimpleNamed "A" typ
-                    , SimpleNamed "B" typ
-                    ]
-                }
-                    |> StructDefinitionType
-                    |> Ok
+std_pair_generic : Named Language.GenericTypeDefinition
+std_pair_generic =
+    (\types ->
+        one_arg_only types
+            |> Result.map
+                (\typ ->
+                    StructDefinitionType
+                        { fields =
+                            [ SimpleNamed "A" typ
+                            , SimpleNamed "B" typ
+                            ]
+                        }
+                )
+    )
+        |> Named (si "pair")
 
 
 std_generic_types : Scope.GenericTypeDefs
 std_generic_types =
-    [ Named (si "pair") std_pair_generic ]
+    [ std_pair_generic ]
 
 
 std_scope : Scope.FullScope
