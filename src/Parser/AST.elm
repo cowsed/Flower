@@ -1,7 +1,7 @@
 module Parser.AST exposing (..)
 
 import Keyboard.Key exposing (Key(..))
-import Language.Language as Language exposing (Identifier(..), InfixOpType(..), stringify_identifier, stringify_infix_op)
+import Language.Language as Language exposing (Identifier(..), InfixOpType(..), stringify_identifier)
 import Language.Syntax
 import Parser.Lexer as Lexer
 import Util
@@ -189,11 +189,11 @@ type Expression
     | LiteralExpr Language.Syntax.LiteralType String
     | NameLookup FullNameAndLocation
     | Parenthesized ExpressionAndLocation
-    | InfixExpr ExpressionAndLocation ExpressionAndLocation InfixOpType
 
 
 
-ops iot =
+name_of_op_function : InfixOpType -> FullName
+name_of_op_function iot =
     NameWithoutArgs <|
         SingleIdentifier <|
             case iot of
@@ -237,9 +237,9 @@ ops iot =
                     "_op_xor"
 
 
-operator_to_function : InfixOpType -> Util.SourceView -> ExpressionAndLocation -> ExpressionAndLocation -> FunctionCall
+operator_to_function : InfixOpType -> Util.SourceView -> ExpressionAndLocation -> ExpressionAndLocation -> ExpressionAndLocation
 operator_to_function ot sv lhs rhs =
-    ops ot |> with_location sv |> (\func -> FunctionCall func [ lhs, rhs ])
+    name_of_op_function ot |> with_location sv |> (\func -> FunctionCall func [ lhs, rhs ]) |> with_location sv|> FunctionCallExpr |> with_location sv
 
 
 type alias FunctionCall =
@@ -266,6 +266,3 @@ stringify_expression expr =
 
         Parenthesized e ->
             stringify_expression e
-
-        InfixExpr lhs rhs op ->
-            stringify_expression lhs ++ stringify_infix_op op ++ stringify_expression rhs

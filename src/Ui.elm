@@ -27,6 +27,8 @@ color_text col str =
 code : Element.Element msg -> Element.Element msg
 code el =
     Element.el [ Border.rounded 4, Font.family [ Font.monospace ], Background.color Pallete.bg1_c ] el
+code_text: String -> Element.Element msg
+code_text s = s |> (Element.text >> code)
 
 
 hoverer : Element.Element msg -> Element.Element msg -> Element.Element msg

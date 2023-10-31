@@ -4,7 +4,7 @@ import Analysis.BuiltinScopes as BuiltinScopes
 import Analysis.Scope as Scope
 import Analysis.Util exposing (..)
 import Keyboard.Key exposing (Key(..))
-import Language.Language as Language exposing (FunctionHeader, Identifier(..), IntegerSize(..), Named, QualifiedTypeName, SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType, extract_builtins)
+import Language.Language as Language exposing (Identifier(..), IntegerSize(..), Named, SimpleNamed, TypeDefinition(..), TypeName(..), extract_builtins)
 import Parser.AST as AST
 import Parser.ParserCommon exposing (Error(..))
 import String exposing (join)

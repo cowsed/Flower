@@ -5,12 +5,14 @@ import Element.Font as Font
 import Language.Language as Language exposing (Identifier(..))
 import Language.Syntax
 import Pallete as Pallete
-import Parser.AST as AST exposing (AliasDefinition, Expression(..), FullName, TypeDefinitionType(..), make_qualified_typewithname, stringify_fullname)
+import Parser.AST as AST exposing (AliasDefinition, Expression(..), FullName, TypeDefinitionType(..), stringify_fullname)
 import Parser.Lexer as Lexer
 import Parser.ParserCommon as ParserCommon
-import Util
 import Ui exposing (color_text)
+import Util
 import Element.Border as Border
+
+
 
 -- Syntaxifications ==========================================
 
@@ -40,7 +42,7 @@ syntaxify_string_literal s =
 
 syntaxify_number_literal : String -> Element.Element msg
 syntaxify_number_literal s =
-    color_text Pallete.aqua_c s 
+    color_text Pallete.aqua_c s
 
 
 syntaxify_identifier : Identifier -> Element.Element msg
@@ -58,7 +60,6 @@ syntaxify_literal l s =
     case l of
         Language.Syntax.StringLiteral ->
             syntaxify_string_literal ("\"" ++ s ++ "\"")
-
 
         Language.Syntax.NumberLiteral ->
             syntaxify_number_literal s
@@ -114,10 +115,6 @@ syntaxify_expression expr =
                     syntaxify_number_literal s
 
 
-        AST.InfixExpr lhs rhs op ->
-            Element.row [] [ syntaxify_expression lhs.thing, Element.text (" " ++ Language.stringify_infix_op op ++ " "), syntaxify_expression rhs.thing ]
-
-
 syntaxify_fheader : AST.FunctionHeader -> Element.Element msg
 syntaxify_fheader header =
     let
@@ -140,6 +137,7 @@ syntaxify_fheader header =
                 )
     in
     Element.row [] (List.append lis [ ret ])
+
 
 
 -- Explanations ==============================================
@@ -188,7 +186,7 @@ explain_enum_field field =
             [ Element.text field.name
             , Element.text " with args "
             , Element.column []
-                (field.args |> List.map (\f -> stringify_fullname f.thing) |> List.map Element.text )
+                (field.args |> List.map (\f -> stringify_fullname f.thing) |> List.map Element.text)
             ]
 
     else
@@ -201,7 +199,7 @@ explain_enum enum =
         [ Element.text ("Enum with name " ++ stringify_fullname enum.name.thing ++ " and fields")
         , Element.column
             []
-            (enum.fields |> List.map explain_enum_field )
+            (enum.fields |> List.map explain_enum_field)
         ]
 
 
@@ -390,16 +388,14 @@ stringify_error e =
 
 explain_expression : AST.Expression -> Element.Element msg
 explain_expression expr =
-    case expr of
+     case expr of
         AST.NameLookup nwargs ->
             Element.row [] [ Element.text ("name look up of `" ++ stringify_fullname nwargs.thing ++ "`") ]
 
         AST.FunctionCallExpr fcall ->
-            Element.row []
-                [ Element.text "Calling function: "
-                , Element.text (AST.stringify_fullname fcall.thing.fname.thing)
-                , Element.text " with args "
-                , Element.column [] (fcall.thing.args |> List.map (\a -> explain_expression a.thing))
+            Element.column [Border.width 1]
+                [ Element.row [] [ Element.text "func call: ", Element.text (AST.stringify_fullname fcall.thing.fname.thing) |> Ui.code, Element.text " with args " ]
+                , Element.row [] [Element.text "  ", Element.column [] (fcall.thing.args |> List.map (\a -> explain_expression a.thing))]
                 ]
 
         AST.LiteralExpr lt s ->
@@ -407,21 +403,11 @@ explain_expression expr =
                 Language.Syntax.StringLiteral ->
                     Element.row [] [ Element.text ("String Literal: " ++ s) ]
 
-
                 Language.Syntax.NumberLiteral ->
                     Element.row [] [ Element.text ("Number Literal: " ++ s) ]
-    
-        AST.Parenthesized e ->
-            Element.row [] [ Element.text "(", explain_expression e.thing, Element.text ")" ]
 
-        AST.InfixExpr lhs rhs op ->
-            Element.row [Border.width 1]
-                [ Element.text ("Infix op: " ++ Language.stringify_infix_op op)
-                , Element.column []
-                    [ explain_expression lhs.thing
-                    , explain_expression rhs.thing
-                    ]
-                ]
+        AST.Parenthesized e ->
+            Element.row [Border.width 1] [ Element.text "(", explain_expression e.thing, Element.text ")" ]
 
 
 explain_statement : AST.Statement -> Element.Element msg
@@ -445,7 +431,7 @@ explain_statement s =
             Element.row [] [ Element.text ("Initialize `" ++ Language.stringify_identifier name.name ++ "` of type " ++ AST.stringify_fullname name.typename.thing ++ " to "), explain_expression expr.thing ]
 
         AST.AssignmentStatement name expr ->
-            Element.row [] [ Element.text ("assigning " ++ Language.stringify_identifier name ++ " with "), explain_expression expr.thing ]
+            Element.row [] [ Element.text "assigning ", Ui.code_text <| Language.stringify_identifier name, Element.text " with ", explain_expression expr.thing ]
 
         AST.FunctionCallStatement fcal ->
             Element.row []

@@ -1,61 +1,82 @@
 module Parser.ExpressionParser exposing (parse_expr, parse_function_call)
 
 import Language.Language exposing (InfixOpType, precedence)
-import Parser.AST as AST exposing (Expression(..), ExpressionAndLocation, FullName, FunctionCall, with_location)
-import Parser.Lexer as Lexer exposing (TokenType(..), infix_op_from_token)
+import Parser.AST as AST exposing (Expression(..), ExpressionAndLocation, FullNameAndLocation, FunctionCallAndLocation, operator_to_function, with_location)
+import Parser.Lexer as Lexer exposing (TokenType(..), infix_op_from_token, token_to_str)
 import Parser.ParserCommon exposing (..)
 import Util
-import Parser.AST exposing (FullNameAndLocation)
-import Parser.AST exposing (FunctionCallAndLocation)
-import Parser.Lexer exposing (token_to_str)
 
 
-merge_infix : ExpressionAndLocation -> ExpressionAndLocation -> InfixOpType -> ExpressionAndLocation
-merge_infix lhs rhs op =
-    InfixExpr lhs rhs op |> with_location (Util.merge_sv lhs.loc rhs.loc)
+type ExprOrInfix
+    = Expr ExpressionAndLocation
+    | InfixExpr ExprOrInfix ExprOrInfix InfixOpType
 
 
-parse_expr_check_for_infix : ExpressionAndLocation -> ExprParseTodo -> ParseStep -> ParseRes
+extract_expr : ExprOrInfix -> ExpressionAndLocation
+extract_expr eor =
+    case eor of
+        Expr e ->
+            e
+
+        InfixExpr lhs rhs op ->
+            operator_to_function op (get_loc_of_eori eor) (extract_expr lhs) (extract_expr rhs)
+
+
+get_loc_of_eori : ExprOrInfix -> Util.SourceView
+get_loc_of_eori eor =
+    case eor of
+        Expr eal ->
+            eal.loc
+
+        InfixExpr lhs rhs _ ->
+            Util.merge_sv (get_loc_of_eori lhs) (get_loc_of_eori rhs)
+
+
+
+type alias InfixOrExprTodo = Result ExprParseError ExprOrInfix -> ParseRes
+
+parse_expr_check_for_infix : ExpressionAndLocation -> InfixOrExprTodo -> ParseStep -> ParseRes
 parse_expr_check_for_infix lhs outer_todo ps =
     case infix_op_from_token ps.tok of
         Nothing ->
-            reapply_token_or_fail (outer_todo (Ok lhs)) ps
+            reapply_token_or_fail (outer_todo (Ok (Expr lhs))) ps
 
         Just op ->
             let
-                expr_after_todo : ExprParseTodo
+                expr_after_todo : Result ExprParseError ExprOrInfix -> ParseRes
                 expr_after_todo res =
                     case res of
-                        Err _ ->
-                            outer_todo res
+                        Err e ->
+                            outer_todo (Err e)
 
-                        Ok this_rhs ->
-                            case this_rhs.thing of
+                        Ok expr_or_infix ->
+                            case expr_or_infix of
                                 InfixExpr next_lhs next_rhs next_op ->
                                     if precedence next_op >= precedence op then
-                                        merge_infix lhs this_rhs op
+                                        -- merge_infix lhs (operator_to_function op (Util.merge_sv (get_loc_of_eori next_lhs) (get_loc_of_eori next_rhs)) (extract_expr next_lhs) (extract_expr next_rhs)) op
+                                        InfixExpr (Expr lhs) (InfixExpr next_lhs next_rhs next_op) op
                                             |> Ok
                                             |> outer_todo
 
                                     else
-                                        merge_infix
-                                            (merge_infix lhs next_lhs op)
+                                        InfixExpr
+                                            (InfixExpr (Expr lhs) next_lhs op)
                                             next_rhs
                                             next_op
                                             |> Ok
                                             |> outer_todo
 
-                                _ ->
-                                    outer_todo (Ok (InfixExpr lhs this_rhs op |> AST.with_location (Util.merge_sv lhs.loc this_rhs.loc)))
+                                Expr e ->
+                                    outer_todo (Ok (InfixExpr (Expr lhs) (Expr e) op))
             in
-            parse_expr expr_after_todo |> ParseFn |> Next ps.prog
+            parse_expr_infix expr_after_todo |> ParseFn |> Next ps.prog
 
 
-parse_expr_name_lookup_or_func_call : ExprParseTodo -> FullNameAndLocation -> ParseStep -> ParseRes
+parse_expr_name_lookup_or_func_call : InfixOrExprTodo -> FullNameAndLocation -> ParseStep -> ParseRes
 parse_expr_name_lookup_or_func_call expr_todo fn ps =
     let
         me_as_expr =
-            NameLookup (fn) |> AST.with_location fn.loc
+            NameLookup fn |> AST.with_location fn.loc
 
         todo_after_fcall : FuncCallExprTodo
         todo_after_fcall res =
@@ -74,8 +95,18 @@ parse_expr_name_lookup_or_func_call expr_todo fn ps =
             parse_expr_check_for_infix me_as_expr expr_todo ps
 
 
-parse_expr : ExprParseTodo -> ParseStep -> ParseRes
-parse_expr todo ps =
+parse_expr: ExprParseTodo -> ParseStep -> ParseRes
+parse_expr todo ps = 
+    let
+        escape_infixing: InfixOrExprTodo
+        escape_infixing res =
+            res |> Result.map (extract_expr) |> todo 
+
+    in
+    reapply_token_or_fail (escape_infixing |> parse_expr_infix |> ParseFn |> Next ps.prog) ps
+
+parse_expr_infix : InfixOrExprTodo -> ParseStep -> ParseRes
+parse_expr_infix todo ps =
     let
         todo_after_fullname : FullNameParseTodo
         todo_after_fullname res =
@@ -108,7 +139,8 @@ parse_function_call name todo ps =
     in
     case ps.tok.typ of
         CloseParen ->
-            AST.FunctionCall name [] |> AST.with_location (Util.merge_sv name.loc ps.tok.loc)|> Ok |> todo
+            AST.FunctionCall name [] |> AST.with_location (Util.merge_sv name.loc ps.tok.loc) |> Ok |> todo
+
         _ ->
             reapply_token (ParseFn (parse_expr what_to_do)) ps
 
@@ -116,13 +148,15 @@ parse_function_call name todo ps =
 parse_func_call_expr_continue : FuncCallExprTodo -> FunctionCallAndLocation -> ParseStep -> ParseRes
 parse_func_call_expr_continue todo fcall_and_loc ps =
     let
-        add_to_fcall: FunctionCallAndLocation -> ExpressionAndLocation -> FunctionCallAndLocation
-        add_to_fcall f_and_loc e_and_loc = 
+        add_to_fcall : FunctionCallAndLocation -> ExpressionAndLocation -> FunctionCallAndLocation
+        add_to_fcall f_and_loc e_and_loc =
             let
-                f = f_and_loc.thing
-                e = e_and_loc.thing
+                f =
+                    f_and_loc.thing
+
             in
-            {thing = {f | args = List.append f.args [e_and_loc]}, loc = Util.merge_sv f_and_loc.loc e_and_loc.loc}
+            { thing = { f | args = List.append f.args [ e_and_loc ] }, loc = Util.merge_sv f_and_loc.loc e_and_loc.loc }
+
         what_to_do_with_expr : ExprParseTodo
         what_to_do_with_expr res =
             case res of
@@ -151,4 +185,4 @@ parse_func_call_expr_continue todo fcall_and_loc ps =
             todo (Ok fcall_and_loc)
 
         _ ->
-            Error (Unimplemented ps.prog ("What to do if not comma or ) in arg list (in func_call_continue_or_end): "++(token_to_str ps.tok)))
+            Error (Unimplemented ps.prog ("What to do if not comma or ) in arg list (in func_call_continue_or_end): " ++ token_to_str ps.tok))
