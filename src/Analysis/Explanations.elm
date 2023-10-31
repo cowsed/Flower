@@ -4,6 +4,8 @@ import Analysis.Analyzer exposing (..)
 import Analysis.Scope as Scope
 import Analysis.Util exposing (AnalysisError(..))
 import Element
+import Element.Background
+import Element.Border as Border
 import Element.Font as Font
 import Language.Language as Language exposing (..)
 import Pallete
@@ -67,6 +69,7 @@ explain_error ae =
 
             NoSuchTypeFound loc ->
                 Element.text <| "I couldnt find this type: TODO better" ++ "\n" ++ Util.show_source_view loc
+
             NoSuchGenericTypeFound loc ->
                 Element.text <| "I couldnt find this generic type: TODO better" ++ "\n" ++ Util.show_source_view loc
         )
@@ -171,11 +174,45 @@ explain_named_typename vnt =
         ]
 
 
+explain_integer : IntegerSize -> Element.Element msg
+explain_integer i =
+    (case i of
+        U8 ->
+            Element.text "8 bit (1 byte) unsigned integer"
+
+        U16 ->
+            Element.text "16 bit (2 byte) unsigned integer"
+
+        U32 ->
+            Element.text "32 bit (4 byte) unsigned integer"
+
+        U64 ->
+            Element.text "64 bit (8 byte) unsigned integer"
+
+        I8 ->
+            Element.text "8 bit (1 byte) signed integer"
+
+        I16 ->
+            Element.text "16 bit (2 byte) signed integer"
+
+        I32 ->
+            Element.text "32 bit (4 byte) signed integer"
+
+        I64 ->
+            Element.text "64 bit (8 byte) signed integer"
+
+        Uint ->
+            Element.text "system word size unsigned integer. if this over/under flows, will crash"
+
+        Int ->
+            Element.text "system word size signed integer. if this over/under flows, will crash"
+    ) |> (\l -> Element.paragraph [] [l])
+
 explain_typename : Language.TypeName -> Element.Element msg
 explain_typename t =
     case t of
         IntegerType isize ->
-            stringify_integer_size isize |> color_text Pallete.orange_c
+            stringify_integer_size isize |> color_text Pallete.orange_c |> Ui.hoverer (explain_integer isize |> Ui.tooltip_styling)
 
         FloatingPointType fsize ->
             stringify_floating_size fsize |> color_text Pallete.orange_c
