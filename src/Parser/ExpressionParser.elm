@@ -88,7 +88,7 @@ parse_expr todo ps =
     in
     case ps.tok.typ of
         Lexer.Literal t s ->
-            LiteralExpr t s |> AST.with_location ps.tok.loc |> Ok |> todo
+            LiteralExpr t s |> AST.with_location ps.tok.loc |> (\expr -> parse_expr_check_for_infix expr todo) |> ParseFn |> Next ps.prog
 
         _ ->
             reapply_token_or_fail (parse_fullname todo_after_fullname |> ParseFn |> Next ps.prog) ps

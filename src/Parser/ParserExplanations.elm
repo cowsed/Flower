@@ -10,6 +10,7 @@ import Parser.Lexer as Lexer
 import Parser.ParserCommon as ParserCommon
 import Util
 import Ui exposing (color_text)
+import Element.Border as Border
 
 -- Syntaxifications ==========================================
 
@@ -414,7 +415,7 @@ explain_expression expr =
             Element.row [] [ Element.text "(", explain_expression e.thing, Element.text ")" ]
 
         AST.InfixExpr lhs rhs op ->
-            Element.row []
+            Element.row [Border.width 1]
                 [ Element.text ("Infix op: " ++ Language.stringify_infix_op op)
                 , Element.column []
                     [ explain_expression lhs.thing

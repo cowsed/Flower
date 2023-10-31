@@ -42,7 +42,7 @@ struct A{
 }
 
 fn main() -> i32{
-    std.puts("Hello" )
+    std.puts("Hello")
 
 }
 """

@@ -44,7 +44,7 @@ hoverer tooltip base =
         base
 
 tooltip_styling: Element.Element msg -> Element.Element msg
-tooltip_styling el = el |> Element.el [Background.color Pallete.bg1_c, Border.color Pallete.fg_c, Element.padding 10, Border.width 2, Border.rounded 2, Border.shadow {offset = (1,1), size = 1.0, blur = 1.0, color = Pallete.fg_c}]
+tooltip_styling el = el |> Element.el [ Background.color Pallete.bg1_c, Border.color Pallete.fg_c, Element.padding 10, Border.width 2, Border.rounded 2, Border.shadow {offset = (1,1), size = 1.0, blur = 1.0, color = Pallete.fg_c}]
 
 
 stringify_time : Time.Zone -> Time.Posix -> String

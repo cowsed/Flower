@@ -107,8 +107,10 @@ extract_type_declarations ls =
         l : List (AnalysisRes ( TypeDeclarationName, AST.TypeDefinitionType ))
         l =
             ls |> List.map get_typename
-    in
-    List.foldl (\a b -> res_join_n b a) (Ok []) l
+    in 
+    List.foldl (\a b -> res_join_n b a) (Ok []) l 
+
+
 
 
 analyze_typename : Scope.TypeDeclarationScope -> AST.FullNameAndLocation -> AnalysisRes Language.TypeName
@@ -215,26 +217,17 @@ make_outer_type_scope prog =
         import_scope =
             analyze_imports prog.imports
 
-        declscope =
-            ar_foldN Scope.merge_two_scopes
-                Scope.empty_scope
-                [ builtin_scope
-                , import_scope
-                ]
-                |> Result.map Scope.get_declaration_scope
+
 
         module_type_names : AnalysisRes (List ( TypeDeclarationName, AST.TypeDefinitionType ))
         module_type_names =
             extract_type_declarations prog.global_typedefs 
 
+
         module_type_definitions : Scope.TypeDeclarationScope -> List ( Identifier, AST.TypeDefinitionType ) -> AnalysisRes Scope.TypeDefs
         module_type_definitions dscope l =
             l |> List.map (extract_typedefs dscope) |> ar_foldN (\el li -> List.append li [ el ]) []
-
-        module_generic_type_definitions : Scope.TypeDeclarationScope -> List ( ( Identifier, List String ), AST.TypeDefinitionType ) -> AnalysisRes Scope.GenericTypeDefs
-        module_generic_type_definitions dscope gens =
-            Debug.log "module generic type definitions" (Ok [])
-
+ 
         types_and_generics =
             module_type_names
                 |> Result.map
@@ -250,7 +243,24 @@ make_outer_type_scope prog =
                     )
                 |> Result.map (\( ts, gens ) -> { types = ts, generics = gens })
 
-        type_scope dscope =
+        this_mod_decl_scope = types_and_generics |> Result.map (.types) |> Result.map (List.map Tuple.first) |> Result.map (\ts -> Scope.TypeDeclarationScope ts [])
+        declscope =
+            ar_foldN Scope.merge_two_scopes
+                Scope.empty_scope
+                [ builtin_scope
+                , import_scope
+                ]
+                |> Result.map Scope.get_declaration_scope
+                |> Result.map2 Scope.merge_2_decl_scopes this_mod_decl_scope
+
+
+        module_generic_type_definitions : Scope.TypeDeclarationScope -> List ( ( Identifier, List String ), AST.TypeDefinitionType ) -> AnalysisRes Scope.GenericTypeDefs
+        module_generic_type_definitions dscope gens =
+            Debug.log "module generic type definitions" (Ok [])
+
+
+
+        make_type_def_scope dscope =
             types_and_generics
                 |> Result.andThen
                     (\lis ->
@@ -265,7 +275,7 @@ make_outer_type_scope prog =
                 Scope.empty_scope
                 [ builtin_scope
                 , import_scope
-                , declscope |> Result.andThen type_scope
+                , declscope |> Result.andThen make_type_def_scope
                 ]
                 |> Debug.log "pre_fn scopes"
     in
