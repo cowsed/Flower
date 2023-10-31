@@ -1,15 +1,18 @@
 module Parser.ExpressionParser exposing (parse_expr, parse_function_call)
 
 import Language.Language exposing (InfixOpType, precedence)
-import Parser.AST as AST exposing (Expression(..), ExpressionAndLocation, FullName, FullNameAndLocation, FunctionCall, FunctionCallAndLocation, operator_to_function, with_location)
-import Parser.Lexer as Lexer exposing (TokenType(..), infix_op_from_token, token_to_str)
+import Parser.AST as AST exposing (Expression(..), ExpressionAndLocation, FullName, FunctionCall, with_location)
+import Parser.Lexer as Lexer exposing (TokenType(..), infix_op_from_token)
 import Parser.ParserCommon exposing (..)
 import Util
+import Parser.AST exposing (FullNameAndLocation)
+import Parser.AST exposing (FunctionCallAndLocation)
+import Parser.Lexer exposing (token_to_str)
 
 
 merge_infix : ExpressionAndLocation -> ExpressionAndLocation -> InfixOpType -> ExpressionAndLocation
 merge_infix lhs rhs op =
-    operator_to_function op (Util.merge_sv lhs.loc rhs.loc) lhs rhs |> with_location (Util.merge_sv lhs.loc rhs.loc) |> FunctionCallExpr |> with_location (Util.merge_sv lhs.loc rhs.loc)
+    InfixExpr lhs rhs op |> with_location (Util.merge_sv lhs.loc rhs.loc)
 
 
 parse_expr_check_for_infix : ExpressionAndLocation -> ExprParseTodo -> ParseStep -> ParseRes
@@ -43,9 +46,7 @@ parse_expr_check_for_infix lhs outer_todo ps =
                                             |> outer_todo
 
                                 _ ->
-                                    outer_todo (Ok (operator_to_function op (Util.merge_sv lhs.loc this_rhs.loc) lhs this_rhs |> with_location (Util.merge_sv lhs.loc this_rhs.loc) |> FunctionCallExpr |> with_location (Util.merge_sv lhs.loc this_rhs.loc)))
-
-                --(InfixExpr lhs this_rhs op |> AST.with_location (Util.merge_sv lhs.loc this_rhs.loc)))
+                                    outer_todo (Ok (InfixExpr lhs this_rhs op |> AST.with_location (Util.merge_sv lhs.loc this_rhs.loc)))
             in
             parse_expr expr_after_todo |> ParseFn |> Next ps.prog
 
@@ -54,7 +55,7 @@ parse_expr_name_lookup_or_func_call : ExprParseTodo -> FullNameAndLocation -> Pa
 parse_expr_name_lookup_or_func_call expr_todo fn ps =
     let
         me_as_expr =
-            NameLookup fn |> AST.with_location fn.loc
+            NameLookup (fn) |> AST.with_location fn.loc
 
         todo_after_fcall : FuncCallExprTodo
         todo_after_fcall res =
@@ -107,8 +108,7 @@ parse_function_call name todo ps =
     in
     case ps.tok.typ of
         CloseParen ->
-            AST.FunctionCall name [] |> AST.with_location (Util.merge_sv name.loc ps.tok.loc) |> Ok |> todo
-
+            AST.FunctionCall name [] |> AST.with_location (Util.merge_sv name.loc ps.tok.loc)|> Ok |> todo
         _ ->
             reapply_token (ParseFn (parse_expr what_to_do)) ps
 
@@ -116,17 +116,13 @@ parse_function_call name todo ps =
 parse_func_call_expr_continue : FuncCallExprTodo -> FunctionCallAndLocation -> ParseStep -> ParseRes
 parse_func_call_expr_continue todo fcall_and_loc ps =
     let
-        add_to_fcall : FunctionCallAndLocation -> ExpressionAndLocation -> FunctionCallAndLocation
-        add_to_fcall f_and_loc e_and_loc =
+        add_to_fcall: FunctionCallAndLocation -> ExpressionAndLocation -> FunctionCallAndLocation
+        add_to_fcall f_and_loc e_and_loc = 
             let
-                f =
-                    f_and_loc.thing
-
-                e =
-                    e_and_loc.thing
+                f = f_and_loc.thing
+                e = e_and_loc.thing
             in
-            { thing = { f | args = List.append f.args [ e_and_loc ] }, loc = Util.merge_sv f_and_loc.loc e_and_loc.loc }
-
+            {thing = {f | args = List.append f.args [e_and_loc]}, loc = Util.merge_sv f_and_loc.loc e_and_loc.loc}
         what_to_do_with_expr : ExprParseTodo
         what_to_do_with_expr res =
             case res of
@@ -155,4 +151,4 @@ parse_func_call_expr_continue todo fcall_and_loc ps =
             todo (Ok fcall_and_loc)
 
         _ ->
-            Error (Unimplemented ps.prog ("What to do if not comma or ) in arg list (in func_call_continue_or_end): " ++ token_to_str ps.tok))
+            Error (Unimplemented ps.prog ("What to do if not comma or ) in arg list (in func_call_continue_or_end): "++(token_to_str ps.tok)))
