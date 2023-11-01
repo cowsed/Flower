@@ -5,14 +5,13 @@ import Analysis.DefinitionPropagator as DefinitionPropagator
 import Analysis.Scope as Scope
 import Analysis.Util exposing (..)
 import Keyboard.Key exposing (Key(..))
-import Language.Language as Language exposing (Identifier(..), IntegerSize(..), Named, SimpleNamed, TypeDefinition(..), TypeName(..), extract_builtins, named_name)
+import Language.Language as Language exposing (Identifier(..), IntegerSize(..), Named, SimpleNamed, TypeDefinition(..), TypeName(..), extract_builtins, named_get, named_name)
 import Language.Syntax as Syntax exposing (Node, node_get, node_map)
 import ListDict exposing (ListDict)
 import ListSet exposing (ListSet)
 import Parser.AST as AST
 import Parser.ParserCommon exposing (Error(..))
 import String exposing (join)
-import Language.Language exposing (named_get)
 
 
 type alias GoodProgram =
@@ -122,7 +121,10 @@ get_unfinished_struct s fields =
 
         add_data : AnalysisRes (( DefinitionPropagator.DeclarationName, DefinitionPropagator.Definition ) -> DefinitionPropagator.Output)
         add_data =
-            Ok <| \( tn, def ) -> DefinitionPropagator.Complete (DefinitionPropagator.TypeDef (Language.StructDefinitionType <| Language.StructDefinition []))
+            Ok <|
+                \( tn, def ) ->
+                    Debug.log ("add data called: " ++ Debug.toString tn) <|
+                        DefinitionPropagator.Complete (DefinitionPropagator.TypeDef (Language.StructDefinitionType (Language.StructDefinition [])))
 
         -- add_field fnn ruf =
         -- ruf |> Result.andThen (\uf -> ensure_good_struct_field fnn |> Result.map  (\nt -> nt.))
@@ -228,7 +230,7 @@ make_outer_type_scope prog =
             s.types
                 |> List.map
                     (\ntn ->
-                        ( node_map named_name  ntn
+                        ( node_map named_name ntn
                             |> node_map CustomTypeName
                             |> node_map DefinitionPropagator.TypeDeclaration
                         , DefinitionPropagator.TypeDef (node_get ntn |> named_get)
