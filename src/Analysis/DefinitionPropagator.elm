@@ -1,7 +1,9 @@
-module Analysis.DefinitionPropagator exposing (DefinitionPropagator, DeclarationName(..), Dependence(..), Definition(..), Output(..), Unfinished, Error(..), to_full_scope, empty_definition_propogator, from_definitions_and_declarations)
+module Analysis.DefinitionPropagator exposing (DeclarationName(..), Definition(..), DefinitionPropagator, Dependence(..), Error(..), Output(..), Unfinished, empty_definition_propogator, from_definitions_and_declarations, to_full_scope)
 
 import Analysis.Scope as Scope
 import Language.Language as Language exposing (TypeName(..))
+import Language.Syntax as Syntax exposing (Node, node_get, node_location, node_map)
+import List.Extra
 import ListDict exposing (ListDict)
 import ListSet exposing (ListSet)
 
@@ -20,7 +22,7 @@ type Definition
 
 
 type alias DefinitionPropagator =
-    { complete : ListDict DeclarationName Definition
+    { complete : ListDict (Node DeclarationName) Definition
     , incomplete : List Unfinished
     }
 
@@ -28,7 +30,18 @@ type alias DefinitionPropagator =
 to_full_scope : DefinitionPropagator -> Result Error Scope.FullScope
 to_full_scope dp =
     if List.length dp.incomplete > 0 then
-        Err StillHaveIncompleteTypes
+        Err
+            (StillHaveIncompleteTypes
+                (dp.incomplete
+                    |> List.map .name
+                    |> List.map node_get
+                    |> List.map (\decl ->
+                            case decl of
+                                TypeDeclaration tn ->
+                                    tn
+                       )
+                )
+            )
 
     else
         dp.complete
@@ -37,11 +50,11 @@ to_full_scope dp =
                 (\( k, v ) ->
                     case v of
                         TypeDef t ->
-                            case k of
+                            case node_get k of
                                 TypeDeclaration tn ->
                                     case tn of
                                         CustomTypeName s ->
-                                            Language.Named s t
+                                            Language.Named s t |> (\td -> Syntax.Node td (node_location k))
 
                                         _ ->
                                             Debug.todo "Something, im not reallu sure"
@@ -57,7 +70,7 @@ empty_definition_propogator =
     }
 
 
-from_definitions_and_declarations : List ( DeclarationName, Definition ) -> List Unfinished -> Result Error DefinitionPropagator
+from_definitions_and_declarations : List ( Syntax.Node DeclarationName, Definition ) -> List Unfinished -> Result Error DefinitionPropagator
 from_definitions_and_declarations defs decls =
     List.foldl (\dd res -> res |> Result.andThen (add_definition dd)) (Ok empty_definition_propogator) defs
         |> (\dp ->
@@ -72,14 +85,12 @@ remove_incomplete uf dp =
 
 add_incomplete_internal : Unfinished -> DefinitionPropagator -> Result Error DefinitionPropagator
 add_incomplete_internal uf dp =
-    if List.any (\ic -> ic.name == uf.name) dp.incomplete then
-        Err DuplicateDeclaration
+    case List.Extra.find (\ic -> Syntax.node_get ic.name == Syntax.node_get uf.name) dp.incomplete of
+        Just thing ->
+            DuplicateDeclaration { first = Syntax.node_location thing.name, second = Syntax.node_location uf.name } |> Err
 
-    else
-        Ok { dp | incomplete = List.append dp.incomplete [ uf ] }
-
-
-
+        Nothing ->
+            Ok { dp | incomplete = List.append dp.incomplete [ uf ] }
 
 
 type Output
@@ -88,13 +99,13 @@ type Output
 
 
 type alias Unfinished =
-    { name : DeclarationName
+    { name : Syntax.Node DeclarationName
     , needs : ListSet DeclarationName
     , add_data : ( DeclarationName, Definition ) -> Output
     }
 
 
-add_definition : ( DeclarationName, Definition ) -> DefinitionPropagator -> Result Error DefinitionPropagator
+add_definition : ( Syntax.Node DeclarationName, Definition ) -> DefinitionPropagator -> Result Error DefinitionPropagator
 add_definition ( decl, def ) old_dp =
     let
         try_add : Unfinished -> Result Error DefinitionPropagator -> Result Error DefinitionPropagator
@@ -103,10 +114,10 @@ add_definition ( decl, def ) old_dp =
                 Err e ->
                     Err e |> Debug.log "add def err"
 
-                Ok dp -> 
-                    if ListSet.member decl uf.needs then
+                Ok dp ->
+                    if ListSet.member (Syntax.node_get decl) uf.needs then
                         -- this definition needed the newly added definition
-                        case uf.add_data ( decl, def ) of
+                        case uf.add_data ( Syntax.node_get decl, def ) of
                             Complete new_def ->
                                 remove_incomplete uf dp |> add_definition ( uf.name, new_def ) |> Debug.log "added"
 
@@ -143,6 +154,6 @@ add_definition ( decl, def ) old_dp =
 
 
 type Error
-    = DuplicateDeclaration
-    | DuplicateDefinition
-    | StillHaveIncompleteTypes
+    = DuplicateDeclaration { first : Syntax.SourceView, second : Syntax.SourceView }
+    | DuplicateDefinition { first : Syntax.SourceView, second : Syntax.SourceView }
+    | StillHaveIncompleteTypes (List TypeName)

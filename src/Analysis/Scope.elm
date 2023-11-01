@@ -2,18 +2,18 @@ module Analysis.Scope exposing (..)
 
 import Language.Language as Language exposing (Identifier, Named, TypeDefinition, TypeName(..))
 import List.Extra
+import Language.Syntax as Syntax exposing (node_get, Node)
 
 
 type alias TypeDefs =
-    List (Language.Named Language.TypeDefinition)
-
+    List (Node (Language.Named Language.TypeDefinition))
 
 type alias GenericTypeDefs =
-    List (Language.Named Language.GenericTypeDefinition)
+    List (Node (Language.Named Language.GenericTypeDefinition))
 
 
 type alias ValueDefs =
-    List (Language.Named Language.Value)
+    List (Node (Language.Named Language.Value))
 
 
 type alias FullScope =
@@ -23,14 +23,14 @@ type alias FullScope =
     }
 
 
-lookup_type_in_scope : FullScope -> Language.TypeName -> Maybe (Named TypeDefinition)
+lookup_type_in_scope : FullScope -> Language.TypeName -> Maybe (Node (Named TypeDefinition))
 lookup_type_in_scope fs tn =
     let
-        pred : Named TypeDefinition -> Bool
+        pred : Node (Named TypeDefinition) -> Bool
         pred ntd =
             case tn of
                 CustomTypeName id ->
-                    ntd.name == id
+                    (node_get ntd).name == id
 
                 _ ->
                     False
@@ -73,12 +73,6 @@ type alias TypeDeclarationScope =
     , generics : List Language.Identifier
     }
 
-
-get_declaration_scope : FullScope -> TypeDeclarationScope
-get_declaration_scope scope =
-    { types = scope.types |> List.map .name
-    , generics = scope.generic_types |> List.map .name
-    }
 
 
 merge_two_scopes : FullScope -> FullScope -> FullScope

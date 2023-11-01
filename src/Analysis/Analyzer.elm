@@ -6,12 +6,13 @@ import Analysis.Scope as Scope
 import Analysis.Util exposing (..)
 import Keyboard.Key exposing (Key(..))
 import Language.Language as Language exposing (Identifier(..), IntegerSize(..), Named, SimpleNamed, TypeDefinition(..), TypeName(..), extract_builtins, named_name)
-import Language.Syntax as Syntax exposing (Node)
+import Language.Syntax as Syntax exposing (Node, node_get, node_map)
 import ListDict exposing (ListDict)
 import ListSet exposing (ListSet)
 import Parser.AST as AST
 import Parser.ParserCommon exposing (Error(..))
 import String exposing (join)
+import Language.Language exposing (named_get)
 
 
 type alias GoodProgram =
@@ -98,18 +99,18 @@ get_unfinished_struct_or_generic sdt =
             (\n ->
                 case n of
                     Plain s ->
-                        get_unfinished_struct s sdt.fields
+                        get_unfinished_struct (Node s sdt.name.loc) sdt.fields
 
                     Generic s args ->
                         Debug.todo "Get Unfinished Generic Struct"
             )
 
 
-get_unfinished_struct : Identifier -> List AST.UnqualifiedTypeWithName -> AnalysisRes DefinitionPropagator.Unfinished
+get_unfinished_struct : Node Identifier -> List AST.UnqualifiedTypeWithName -> AnalysisRes DefinitionPropagator.Unfinished
 get_unfinished_struct s fields =
     let
         name =
-            CustomTypeName s |> DefinitionPropagator.TypeDeclaration
+            node_get s |> CustomTypeName |> DefinitionPropagator.TypeDeclaration
 
         good_fields : AnalysisRes (List (SimpleNamed TypeName))
         good_fields =
@@ -126,7 +127,9 @@ get_unfinished_struct s fields =
         -- add_field fnn ruf =
         -- ruf |> Result.andThen (\uf -> ensure_good_struct_field fnn |> Result.map  (\nt -> nt.))
     in
-    good_fields |> Result.map types_needed |> Result.map2 (\add_func needs -> DefinitionPropagator.Unfinished name needs add_func) add_data
+    good_fields
+        |> Result.map types_needed
+        |> Result.map2 (\add_func needs -> DefinitionPropagator.Unfinished (Node name s.loc) needs add_func) add_data
 
 
 get_unfinished : AST.TypeDefinitionType -> AnalysisRes DefinitionPropagator.Unfinished
@@ -220,22 +223,26 @@ make_outer_type_scope prog =
         -- module_generic_type_definitions : Scope.TypeDeclarationScope -> List ( ( Identifier, List String ), AST.TypeDefinitionType ) -> AnalysisRes Scope.GenericTypeDefs
         -- module_generic_type_definitions dscope gens =
         -- Debug.log "module generic type definitions" (Ok [])
-        complete_defs : Scope.FullScope -> List ( DefinitionPropagator.DeclarationName, DefinitionPropagator.Definition )
+        complete_defs : Scope.FullScope -> List ( Node DefinitionPropagator.DeclarationName, DefinitionPropagator.Definition )
         complete_defs s =
             s.types
                 |> List.map
-                    (\nt ->
-                        ( named_name nt
-                            |> CustomTypeName
-                            |> DefinitionPropagator.TypeDeclaration
-                        , DefinitionPropagator.TypeDef (Language.named_get nt)
+                    (\ntn ->
+                        ( node_map named_name  ntn
+                            |> node_map CustomTypeName
+                            |> node_map DefinitionPropagator.TypeDeclaration
+                        , DefinitionPropagator.TypeDef (node_get ntn |> named_get)
                         )
                     )
                 |> Debug.log "completed defs"
     in
     completed_scopes
         |> Result.map complete_defs
-        |> Result.andThen (\defs -> incompletes |> Result.andThen (\incs -> DefinitionPropagator.from_definitions_and_declarations defs incs |> Result.mapError DefPropErr))
+        |> Result.andThen
+            (\defs ->
+                incompletes
+                    |> Result.andThen (\incs -> DefinitionPropagator.from_definitions_and_declarations defs incs |> Result.mapError DefPropErr)
+            )
         -- |> Result.andThen (incompletes |> Result.map DefinitionPropagator.add_many_incomplete)
         |> Result.andThen (\dp -> DefinitionPropagator.to_full_scope dp |> Result.mapError DefPropErr)
 

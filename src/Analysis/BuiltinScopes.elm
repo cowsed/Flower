@@ -2,6 +2,7 @@ module Analysis.BuiltinScopes exposing (..)
 
 import Analysis.Scope as Scope
 import Language.Language as Language exposing (Identifier(..), Named, Qualifier(..), ReasonForUninstantiable(..), SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), integers, si)
+import Language.Syntax as Syntax
 
 
 
@@ -45,6 +46,7 @@ std_types : Scope.TypeDefs
 std_types =
     []
 
+
 std_pair_generic : Named Language.GenericTypeDefinition
 std_pair_generic =
     (\types ->
@@ -64,7 +66,7 @@ std_pair_generic =
 
 std_generic_types : Scope.GenericTypeDefs
 std_generic_types =
-    [ std_pair_generic ]
+    [ Syntax.Node std_pair_generic Syntax.invalid_sourceview ]
 
 
 std_scope : Scope.FullScope
@@ -74,8 +76,8 @@ std_scope =
 
 builtin_scope : Scope.FullScope
 builtin_scope =
-    { types = [ builtin_string ]
-    , generic_types = [ builtin_maybe ]
+    { types = [ Syntax.Node builtin_string Syntax.invalid_sourceview ]
+    , generic_types = [ Syntax.Node builtin_maybe Syntax.invalid_sourceview ]
     , values = []
     }
 

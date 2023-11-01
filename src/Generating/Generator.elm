@@ -27,11 +27,12 @@ generate gp =
                 _ ->
                     l
 
-        func_headers =
-            List.foldl add_if_func_def [] gp.global_scope.values
+        -- func_headers =
+            -- List.foldl add_if_func_def [] gp.global_scope.values
 
         forward_declarations =
-            forward_declarations_header ++ (List.map llvm_forward_declaration func_headers |> String.join "\n")
+            "odfl"
+            -- forward_declarations_header ++ (List.map llvm_forward_declaration func_headers |> String.join "\n")
     in
     LLVM (forward_declarations ++ definitions_header)
 

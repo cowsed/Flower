@@ -9,10 +9,10 @@ import Element.Background
 import Element.Border as Border
 import Element.Font as Font
 import Language.Language as Language exposing (..)
+import Language.Syntax as Syntax
 import Pallete
 import Ui exposing (color_text, comma_space, space)
 import Util exposing (escape_result, viewBullet)
-import Language.Syntax as Syntax
 
 
 header : String -> Element.Element msg
@@ -77,14 +77,14 @@ explain_error ae =
 
             DefPropErr e ->
                 case e of
-                    DuplicateDeclaration ->
-                        Element.text (Debug.toString DuplicateDeclaration)
+                    DuplicateDeclaration locs ->
+                        Element.text <| "Duplicate Declaration. FirstL\n" ++ Syntax.show_source_view locs.first ++ "\nSecond:\n" ++ Syntax.show_source_view locs.second
 
-                    DuplicateDefinition ->
-                        Element.text (Debug.toString DuplicateDeclaration)
+                    DuplicateDefinition locs ->
+                        Element.text <| "Duplicate Definition. FirstL\n" ++ Syntax.show_source_view locs.first ++ "\nSecond:\n" ++ Syntax.show_source_view locs.second
 
-                    StillHaveIncompleteTypes ->
-                        Element.text (Debug.toString DuplicateDeclaration)
+                    StillHaveIncompleteTypes types ->
+                        Element.text "Still have incomplete types" |> (\h -> Element.column [] (List.append [ h ] (types |> List.map explain_typename)))
         )
 
 
@@ -108,11 +108,11 @@ explain_global_scope scope =
     Element.column [ Element.spacing 6 ]
         (List.concat
             [ [ header "Values" ]
-            , scope.values |> List.map explain_value_name_and_type
+            , scope.values |> List.map Syntax.node_get |> List.map explain_value_name_and_type
             , [ header "Types" ]
-            , scope.types |> List.map explain_type_def
+            , scope.types |> List.map Syntax.node_get |> List.map explain_type_def
             , [ header "Generic Types" ]
-            , scope.generic_types |> List.map explain_generic_type_def
+            , scope.generic_types |> List.map Syntax.node_get |> List.map explain_generic_type_def
             ]
         )
 

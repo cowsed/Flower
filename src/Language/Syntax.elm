@@ -37,6 +37,9 @@ node_location n =
     n.loc
 
 
+node_map: (a->b) -> Node a -> Node b
+node_map f na = Node (f na.thing) na.loc
+
 node_get : Node a -> a
 node_get n =
     n.thing
