@@ -77,11 +77,8 @@ explain_error ae =
 
             DefPropErr e ->
                 case e of
-                    DuplicateDeclaration locs ->
-                        Element.text <| "Duplicate Declaration. FirstL\n" ++ Syntax.show_source_view locs.first ++ "\nSecond:\n" ++ Syntax.show_source_view locs.second
-
                     DuplicateDefinition locs ->
-                        Element.text <| "Duplicate Definition. FirstL\n" ++ Syntax.show_source_view locs.first ++ "\nSecond:\n" ++ Syntax.show_source_view locs.second
+                        Element.text <| "Duplicate Definition. First:\n" ++ Syntax.show_source_view locs.first ++ "\nSecond:\n" ++ Syntax.show_source_view locs.second
 
                     StillHaveIncompleteTypes types ->
                         Element.text "Still have incomplete types" |> (\h -> Element.column [] (List.append [ h ] (types |> List.map explain_typename)))

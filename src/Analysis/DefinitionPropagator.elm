@@ -35,11 +35,12 @@ to_full_scope dp =
                 (dp.incomplete
                     |> List.map .name
                     |> List.map node_get
-                    |> List.map (\decl ->
+                    |> List.map
+                        (\decl ->
                             case decl of
                                 TypeDeclaration tn ->
                                     tn
-                       )
+                        )
                 )
             )
 
@@ -70,12 +71,46 @@ empty_definition_propogator =
     }
 
 
+add_definitions : List ( Node DeclarationName, Definition ) -> DefinitionPropagator -> Result Error DefinitionPropagator
+add_definitions defs dp =
+    List.foldl (\dd res -> res |> Result.andThen (add_definition dd)) (Ok dp) defs
+
+
+add_incompletes : List Unfinished -> DefinitionPropagator -> Result Error DefinitionPropagator
+add_incompletes incos dp =
+    incos  |> List.foldl (\dd res -> res |> Result.andThen (add_incomplete_internal dd)) (Ok dp)
+
+
+catch_duplicates_and_circular : List Unfinished -> Result Error (List Unfinished)
+catch_duplicates_and_circular ufs =
+    let
+        try_add : Unfinished -> ListDict DeclarationName Unfinished -> Result Error (ListDict DeclarationName Unfinished)
+        try_add uf set =
+            case ListDict.get uf.name.thing set of
+                Nothing ->
+                    ListDict.insert uf.name.thing uf set |> Ok
+
+                Just other ->
+                    DuplicateDefinition { first = node_location other.name, second = node_location uf.name } |> Err
+
+        find_duplicates : List Unfinished -> Result Error (List Unfinished)
+        find_duplicates luf =
+            List.foldl
+                (\uf resset ->
+                    resset
+                        |> Result.andThen (try_add uf)
+                )
+                (Ok ListDict.empty)
+                luf
+                |> Result.map ListDict.values
+    in
+    find_duplicates ufs 
+
+
 from_definitions_and_declarations : List ( Syntax.Node DeclarationName, Definition ) -> List Unfinished -> Result Error DefinitionPropagator
 from_definitions_and_declarations defs decls =
-    List.foldl (\dd res -> res |> Result.andThen (add_definition dd)) (Ok empty_definition_propogator) defs
-        |> (\dp ->
-                List.foldl (\dd res -> res |> Result.andThen (add_incomplete_internal dd)) dp decls
-           )
+    add_definitions defs empty_definition_propogator
+        |> Result.andThen (\dp -> catch_duplicates_and_circular decls |> Result.andThen (\good_decls -> add_incompletes good_decls dp))
 
 
 remove_incomplete : Unfinished -> DefinitionPropagator -> DefinitionPropagator
@@ -85,12 +120,8 @@ remove_incomplete uf dp =
 
 add_incomplete_internal : Unfinished -> DefinitionPropagator -> Result Error DefinitionPropagator
 add_incomplete_internal uf dp =
-    case List.Extra.find (\ic -> Syntax.node_get ic.name == Syntax.node_get uf.name) dp.incomplete of
-        Just thing ->
-            DuplicateDeclaration { first = Syntax.node_location thing.name, second = Syntax.node_location uf.name } |> Err
+    Ok { dp | incomplete = List.append dp.incomplete [ uf ] }
 
-        Nothing ->
-            Ok { dp | incomplete = List.append dp.incomplete [ uf ] }
 
 
 type Output
@@ -112,20 +143,20 @@ add_definition ( decl, def ) old_dp =
         try_add uf res_dp =
             case res_dp of
                 Err e ->
-                    Err e |> Debug.log "add def err"
+                    Err e
 
                 Ok dp ->
                     if ListSet.member (Syntax.node_get decl) uf.needs then
                         -- this definition needed the newly added definition
                         case uf.add_data ( Syntax.node_get decl, def ) of
                             Complete new_def ->
-                                remove_incomplete uf dp |> add_definition ( uf.name, new_def ) |> Debug.log "added"
+                                remove_incomplete uf dp |> add_definition ( uf.name, new_def )
 
                             Incomplete still_incomplete ->
-                                dp |> remove_incomplete uf |> add_incomplete_internal still_incomplete |> Debug.log "still incomplete"
+                                dp |> remove_incomplete uf |> add_incomplete_internal still_incomplete
 
                     else
-                        dp |> Ok |> Debug.log "no change"
+                        dp |> Ok
 
         -- dont need to do anything
     in
@@ -134,26 +165,8 @@ add_definition ( decl, def ) old_dp =
             { old_dp | complete = ListDict.insert decl def old_dp.complete }
         )
         old_dp.incomplete
-        |> Debug.log "add definition call"
-
-
-
--- (dp.incompletes
--- |> List.map
--- (\incomplete ->
--- if List.member decl incomplete.needs then
--- (decl, def) |> incomplete.add_data
---
--- else
--- Incomplete incomplete
--- )
--- )
---
--- |> (\is -> { dp | incompletes = is })
--- |> Ok
 
 
 type Error
-    = DuplicateDeclaration { first : Syntax.SourceView, second : Syntax.SourceView }
-    | DuplicateDefinition { first : Syntax.SourceView, second : Syntax.SourceView }
+    = DuplicateDefinition { first : Syntax.SourceView, second : Syntax.SourceView }
     | StillHaveIncompleteTypes (List TypeName)

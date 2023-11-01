@@ -40,6 +40,9 @@ insert k v dict =
 to_list: ListDict k v -> List (k,v)
 to_list d = d.elems
 
+values: ListDict k v -> List v
+values d = d.elems |> List.map Tuple.second
+
 has_key : k -> ListDict k v -> Bool
 has_key k dict =
     List.any (\( key, _ ) -> key == k) dict.elems
