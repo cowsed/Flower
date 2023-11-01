@@ -5,26 +5,23 @@ import Language.Language as Language exposing (Identifier(..), InfixOpType(..), 
 import Language.Syntax
 import Parser.Lexer as Lexer
 import Util
+import Language.Syntax as Syntax exposing (Node, node_get, node_location)
 
 
-type alias ThingAndLocation a =
-    { thing : a
-    , loc : Util.SourceView
-    }
 
 
-with_location : Util.SourceView -> a -> ThingAndLocation a
+with_location : Syntax.SourceView -> a -> Node a
 with_location loc thing =
     { thing = thing, loc = loc }
 
 
-type alias ImportAndLocation =
-    ThingAndLocation String
+type alias ImportNode =
+    Node String
 
 
 type alias Program =
     { module_name : Maybe String
-    , imports : List ImportAndLocation
+    , imports : List ImportNode
     , global_typedefs : List TypeDefinitionType
     , global_functions : List FunctionDefinition
     , needs_more : Maybe String
@@ -39,7 +36,7 @@ type TypeDefinitionType
 
 
 type alias AliasDefinition =
-    { name : FullNameAndLocation, alias_to : FullNameAndLocation }
+    { name : (Node FullName), alias_to : (Node FullName) }
 
 
 append_identifier : Identifier -> String -> Identifier
@@ -64,18 +61,15 @@ append_maybe_identifier n new =
 
 type FullName
     = NameWithoutArgs Identifier
-    | NameWithArgs { base : Identifier, args : List FullNameAndLocation }
-    | ReferenceToFullName FullNameAndLocation
+    | NameWithArgs { base : Identifier, args : List (Node FullName) }
+    | ReferenceToFullName (Node FullName)
     | Literal Language.Syntax.LiteralType String
-    | Constrained FullNameAndLocation ExpressionAndLocation
+    | Constrained (Node FullName) (Node Expression)
 
 
-type alias FullNameAndLocation =
-    ThingAndLocation FullName
 
 
-type alias ExpressionAndLocation =
-    ThingAndLocation Expression
+
 
 
 stringify_fullname : FullName -> String
@@ -100,7 +94,7 @@ stringify_fullname nwt =
             stringify_fullname typ.thing ++ " | " ++ stringify_expression constraint
 
 
-append_fullname_args : FullNameAndLocation -> FullNameAndLocation -> FullNameAndLocation
+append_fullname_args : (Node FullName) -> (Node FullName) -> (Node FullName)
 append_fullname_args me tn =
     case me.thing of
         NameWithoutArgs n ->
@@ -126,11 +120,11 @@ append_fullname_args me tn =
 
 
 type alias IdentifierAndLocation =
-    ThingAndLocation Identifier
+    Node Identifier
 
 
 type alias UnqualifiedTypeWithName =
-    { name : IdentifierAndLocation, typename : FullNameAndLocation }
+    { name : IdentifierAndLocation, typename : (Node FullName) }
 
 
 make_qualified_typewithname : UnqualifiedTypeWithName -> Language.Qualifier -> QualifiedTypeWithName
@@ -139,56 +133,56 @@ make_qualified_typewithname t q =
 
 
 type alias QualifiedTypeWithName =
-    { name : Identifier, typename : FullNameAndLocation, qualifiedness : Language.Qualifier }
+    { name : Identifier, typename : (Node FullName), qualifiedness : Language.Qualifier }
 
 
 type alias FunctionHeader =
-    { args : List QualifiedTypeWithName, return_type : Maybe FullNameAndLocation }
+    { args : List QualifiedTypeWithName, return_type : Maybe (Node FullName) }
 
 
 type alias FunctionDefinition =
-    { name : FullNameAndLocation
+    { name : (Node FullName)
     , header : FunctionHeader
     , statements : List Statement
     }
 
 
 type alias StructDefnition =
-    { name : FullNameAndLocation
+    { name : (Node FullName)
     , fields : List UnqualifiedTypeWithName
     }
 
 
 type alias EnumDefinition =
-    { name : FullNameAndLocation
+    { name : (Node FullName)
     , fields : List EnumField
     }
 
 
 type alias EnumField =
-    { name : String, args : List FullNameAndLocation }
+    { name : String, args : List (Node FullName) }
 
 
-add_arg_to_enum_field : EnumField -> FullNameAndLocation -> EnumField
+add_arg_to_enum_field : EnumField -> (Node FullName) -> EnumField
 add_arg_to_enum_field ef fn =
     { ef | args = List.append ef.args [ fn ] }
 
 
 type Statement
     = CommentStatement String
-    | ReturnStatement (Maybe ExpressionAndLocation)
-    | InitilizationStatement QualifiedTypeWithName ExpressionAndLocation
-    | AssignmentStatement Identifier ExpressionAndLocation
+    | ReturnStatement (Maybe (Node Expression))
+    | InitilizationStatement QualifiedTypeWithName (Node Expression)
+    | AssignmentStatement Identifier (Node Expression)
     | FunctionCallStatement FunctionCallAndLocation
-    | IfStatement ExpressionAndLocation (List Statement)
-    | WhileStatement ExpressionAndLocation (List Statement)
+    | IfStatement (Node Expression) (List Statement)
+    | WhileStatement (Node Expression) (List Statement)
 
 
 type Expression
     = FunctionCallExpr FunctionCallAndLocation
     | LiteralExpr Language.Syntax.LiteralType String
-    | NameLookup FullNameAndLocation
-    | Parenthesized ExpressionAndLocation
+    | NameLookup (Node FullName)
+    | Parenthesized (Node Expression)
 
 
 
@@ -237,22 +231,22 @@ name_of_op_function iot =
                     "_op_xor"
 
 
-operator_to_function : InfixOpType -> Util.SourceView -> ExpressionAndLocation -> ExpressionAndLocation -> ExpressionAndLocation
+operator_to_function : InfixOpType -> Syntax.SourceView -> (Node Expression) -> (Node Expression) -> (Node Expression)
 operator_to_function ot sv lhs rhs =
     name_of_op_function ot |> with_location sv |> (\func -> FunctionCall func [ lhs, rhs ]) |> with_location sv|> FunctionCallExpr |> with_location sv
 
 
 type alias FunctionCall =
-    { fname : FullNameAndLocation
-    , args : List ExpressionAndLocation
+    { fname : (Node FullName)
+    , args : List (Node Expression)
     }
 
 
 type alias FunctionCallAndLocation =
-    ThingAndLocation FunctionCall
+    Node FunctionCall
 
 
-stringify_expression : ExpressionAndLocation -> String
+stringify_expression : (Node Expression) -> String
 stringify_expression expr =
     case expr.thing of
         NameLookup n ->

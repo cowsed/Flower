@@ -1,9 +1,10 @@
 module Parser.ParserCommon exposing (..)
 
 import Language.Language as Language
-import Parser.AST as AST exposing (Expression(..), ExpressionAndLocation, FullName(..), FullNameAndLocation, Statement(..), UnqualifiedTypeWithName)
-import Parser.Lexer as Lexer exposing (Token, TokenType(..))
+import Parser.AST as AST exposing (Expression(..), FullName(..), Statement(..), UnqualifiedTypeWithName)
+import Parser.Lexer as Lexer exposing (Token, TokenType(..), token_type)
 import Util exposing (escape_result)
+import Language.Syntax as Syntax exposing (Node, node_get, node_location)
 
 
 type ParseFn
@@ -29,31 +30,31 @@ next_pfn f =
 
 type Error
     = NoModuleNameGiven
-    | NonStringImport Util.SourceView
+    | NonStringImport Syntax.SourceView
     | Unimplemented AST.Program String
     | NeededMoreTokens String
-    | UnknownOuterLevelObject Util.SourceView
-    | ExpectedNameAfterFn Util.SourceView
-    | ExpectedOpenParenAfterFn String Util.SourceView
-    | ExpectedToken String Util.SourceView
-    | ExpectedTypeName Util.SourceView
-    | ExpectedEndOfArgListOrComma Util.SourceView
+    | UnknownOuterLevelObject Syntax.SourceView
+    | ExpectedNameAfterFn Syntax.SourceView
+    | ExpectedOpenParenAfterFn String Syntax.SourceView
+    | ExpectedToken String Syntax.SourceView
+    | ExpectedTypeName Syntax.SourceView
+    | ExpectedEndOfArgListOrComma Syntax.SourceView
     | FailedTypeParse TypeParseError
     | FailedNamedTypeParse NamedTypeParseError
-    | KeywordNotAllowedHere Util.SourceView
+    | KeywordNotAllowedHere Syntax.SourceView
     | FailedExprParse ExprParseError
-    | ExpectedFunctionBody Util.SourceView TokenType
-    | RequireInitilizationWithValue Util.SourceView
-    | UnknownThingWhileParsingFuncCallOrAssignment Util.SourceView
+    | ExpectedFunctionBody Syntax.SourceView TokenType
+    | RequireInitilizationWithValue Syntax.SourceView
+    | UnknownThingWhileParsingFuncCallOrAssignment Syntax.SourceView
     | FailedFuncCallParse FuncCallParseError
     | FailedBlockParse StatementParseError
-    | ExpectedOpenCurlyForFunction Util.SourceView
-    | ExpectedNameAfterDot Util.SourceView
-    | UnexpectedTokenInGenArgList Util.SourceView
-    | ExpectedNameForStruct Util.SourceView
-    | UnknownTokenInEnumBody Util.SourceView
-    | ExpectedCloseParenInEnumField Util.SourceView
-    | ExpectedEqualInTypeDeclaration Util.SourceView
+    | ExpectedOpenCurlyForFunction Syntax.SourceView
+    | ExpectedNameAfterDot Syntax.SourceView
+    | UnexpectedTokenInGenArgList Syntax.SourceView
+    | ExpectedNameForStruct Syntax.SourceView
+    | UnknownTokenInEnumBody Syntax.SourceView
+    | ExpectedCloseParenInEnumField Syntax.SourceView
+    | ExpectedEqualInTypeDeclaration Syntax.SourceView
 
 
 type StatementParseError
@@ -61,31 +62,31 @@ type StatementParseError
 
 
 type TypeParseError
-    = Idk Util.SourceView
-    | UnexpectedTokenInTypesGenArgList Util.SourceView
+    = Idk Syntax.SourceView
+    | UnexpectedTokenInTypesGenArgList Syntax.SourceView
 
 
 type NamedTypeParseError
-    = NameError Util.SourceView String
+    = NameError Syntax.SourceView String
     | TypeError TypeParseError
 
 
 type FuncCallParseError
-    = IdkFuncCall Util.SourceView String
-    | ExpectedAnotherArgument Util.SourceView
+    = IdkFuncCall Syntax.SourceView String
+    | ExpectedAnotherArgument Syntax.SourceView
 
 
 type ExprParseError
-    = IdkExpr Util.SourceView String
-    | ParenWhereIDidntWantIt Util.SourceView
+    = IdkExpr Syntax.SourceView String
+    | ParenWhereIDidntWantIt Syntax.SourceView
 
 
 type alias ExprParseTodo =
-    Result ExprParseError ExpressionAndLocation -> ParseRes
+    Result ExprParseError (Node Expression) -> ParseRes
 
 
 type alias FullNameParseTodo =
-    Result Error FullNameAndLocation -> ParseRes
+    Result Error (Node FullName) -> ParseRes
 
 
 type alias NamedTypeParseTodo =
@@ -101,7 +102,7 @@ type alias StatementBlockParseTodo =
 
 
 type alias FuncCallExprTodo =
-    Result FuncCallParseError AST.FunctionCallAndLocation -> ParseRes
+    Result FuncCallParseError (Node AST.FunctionCall) -> ParseRes
 
 
 reapply_token_or_fail : ParseRes -> ParseStep -> ParseRes
@@ -131,14 +132,14 @@ extract_fn fn =
 
 parse_expected_token : String -> TokenType -> ParseRes -> ParseStep -> ParseRes
 parse_expected_token reason expected after ps =
-    if ps.tok.typ == expected then
+    if token_type ps.tok == expected then
         after
 
     else
         Error (ExpectedToken reason ps.tok.loc)
 
 
-parse_fullname_with_gen_args_comma_or_end : FullNameParseTodo -> FullNameAndLocation -> ParseStep -> ParseRes
+parse_fullname_with_gen_args_comma_or_end : FullNameParseTodo -> (Node FullName) -> ParseStep -> ParseRes
 parse_fullname_with_gen_args_comma_or_end todo name_and_args ps =
     let
         todo_with_type : FullNameParseTodo
@@ -150,7 +151,7 @@ parse_fullname_with_gen_args_comma_or_end todo name_and_args ps =
                 Ok t ->
                     parse_fullname_with_gen_args_comma_or_end todo (AST.append_fullname_args name_and_args t) |> ParseFn |> Next ps.prog
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         CommaToken ->
             parse_fullname todo_with_type |> ParseFn |> Next ps.prog
 
@@ -161,7 +162,7 @@ parse_fullname_with_gen_args_comma_or_end todo name_and_args ps =
             todo <| Err (UnexpectedTokenInGenArgList ps.tok.loc)
 
 
-parse_fullname_with_ga_start_or_end : FullNameParseTodo -> FullNameAndLocation -> ParseStep -> ParseRes
+parse_fullname_with_ga_start_or_end : FullNameParseTodo -> (Node FullName) -> ParseStep -> ParseRes
 parse_fullname_with_ga_start_or_end todo name_and_args ps =
     let
         todo_with_type : FullNameParseTodo
@@ -173,7 +174,7 @@ parse_fullname_with_ga_start_or_end todo name_and_args ps =
                 Ok t ->
                     parse_fullname_with_gen_args_comma_or_end todo (AST.append_fullname_args name_and_args t) |> ParseFn |> Next ps.prog
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         CloseSquare ->
             todo (Ok name_and_args)
 
@@ -181,24 +182,24 @@ parse_fullname_with_ga_start_or_end todo name_and_args ps =
             parse_fullname todo_with_type ps
 
 
-parse_fullname_gen_args_continue : FullNameParseTodo -> Language.Identifier -> Util.SourceView -> ParseStep -> ParseRes
+parse_fullname_gen_args_continue : FullNameParseTodo -> Language.Identifier -> Syntax.SourceView -> ParseStep -> ParseRes
 parse_fullname_gen_args_continue todo name idloc ps =
-    case ps.tok.typ of
+    case token_type ps.tok of
         Symbol s ->
-            parse_fullname_gen_args_dot_or_end todo (Util.merge_sv idloc ps.tok.loc) (AST.append_identifier name s) |> ParseFn |> Next ps.prog
+            parse_fullname_gen_args_dot_or_end todo (Syntax.merge_sv idloc ps.tok.loc) (AST.append_identifier name s) |> ParseFn |> Next ps.prog
 
         CommaToken ->
-            todo (Ok (NameWithoutArgs name |> AST.with_location (Util.merge_sv idloc ps.tok.loc)))
+            todo (Ok (NameWithoutArgs name |> AST.with_location (Syntax.merge_sv idloc ps.tok.loc)))
 
         _ ->
             Err (FailedNamedTypeParse (NameError ps.tok.loc "Expected a symbol like 'a' or 'std' here")) |> todo
 
 
-parse_fullname_gen_args_dot_or_end : FullNameParseTodo -> Util.SourceView -> Language.Identifier -> ParseStep -> ParseRes
+parse_fullname_gen_args_dot_or_end : FullNameParseTodo -> Syntax.SourceView -> Language.Identifier -> ParseStep -> ParseRes
 parse_fullname_gen_args_dot_or_end todo name_loc name_so_far ps =
 
     
-    case ps.tok.typ of
+    case token_type ps.tok of
         DotToken ->
             parse_fullname_gen_args_continue todo name_so_far name_loc |> ParseFn |> Next ps.prog
 
@@ -218,10 +219,10 @@ parse_fullname todo ps =
         todo_if_ref res =
             res
                 |> Result.mapError (\e -> Error e)
-                |> Result.andThen (\fn -> inner_todo (ReferenceToFullName fn |> AST.with_location (Util.merge_sv ps.tok.loc fn.loc) |> Ok) |> Ok)
+                |> Result.andThen (\fn -> inner_todo (ReferenceToFullName fn |> AST.with_location (Syntax.merge_sv ps.tok.loc fn.loc) |> Ok) |> Ok)
                 |> escape_result
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         Symbol s ->
             parse_fullname_gen_args_dot_or_end inner_todo ps.tok.loc (Language.SingleIdentifier s) |> ParseFn |> Next ps.prog
 

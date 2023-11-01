@@ -1,10 +1,10 @@
 module Parser.Parser exposing (..)
 
 import Language.Language as Language exposing (Identifier(..))
-import Language.Syntax exposing (KeywordType(..))
+import Language.Syntax as Syntax exposing (KeywordType(..), Node, node_get, node_location)
 import Parser.AST as AST exposing (..)
 import Parser.ExpressionParser as ExpressionParser exposing (..)
-import Parser.Lexer as Lexer exposing (Token, TokenType(..))
+import Parser.Lexer as Lexer exposing (Token, TokenType(..), token_type)
 import Parser.ParserCommon exposing (..)
 import Result
 import Util exposing (escape_result)
@@ -26,17 +26,17 @@ parse toks =
     parse_find_module_kw |> ParseFn |> rec_parse toks base_program
 
 
-parse_possibly_constrained_fullname_after_type : FullNameParseTodo -> FullNameAndLocation -> ParseStep -> ParseRes
+parse_possibly_constrained_fullname_after_type : FullNameParseTodo -> Node AST.FullName -> ParseStep -> ParseRes
 parse_possibly_constrained_fullname_after_type todo fn ps =
     let
         todo_with_constraint : ExprParseTodo
         todo_with_constraint res =
             res
                 |> Result.mapError (\e -> FailedExprParse e |> Error)
-                |> Result.andThen (\expr -> todo (Constrained fn expr |> AST.with_location (Util.merge_sv fn.loc expr.loc) |> Ok) |> Ok)
+                |> Result.andThen (\expr -> todo (Constrained fn expr |> AST.with_location (Syntax.merge_sv fn.loc expr.loc) |> Ok) |> Ok)
                 |> escape_result
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         WhereToken ->
             parse_expr todo_with_constraint |> next_pfn
 
@@ -57,7 +57,7 @@ parse_possibly_constrained_fullname todo_after ps =
     parse_fullname todo ps
 
 
-parse_struct_fields : AST.FullNameAndLocation -> List AST.UnqualifiedTypeWithName -> ParseStep -> ParseRes
+parse_struct_fields : Node AST.FullName -> List AST.UnqualifiedTypeWithName -> ParseStep -> ParseRes
 parse_struct_fields name list ps =
     let
         prog =
@@ -75,7 +75,7 @@ parse_struct_fields name list ps =
                 Ok nt ->
                     parse_struct_fields name (List.append list [ nt ]) |> next_pfn
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         CloseCurly ->
             parse_outer_scope |> ParseFn |> Next { prog | global_typedefs = List.append prog.global_typedefs [ StructDefType me_as_struct ] }
 
@@ -103,7 +103,7 @@ parse_struct ps =
                         |> ParseFn
                         |> Next ps.prog
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         Symbol _ ->
             parse_fullname todo ps
 
@@ -113,7 +113,7 @@ parse_struct ps =
 
 parse_enum_field_arg_list_close_or_continue : EnumField -> EnumDefinition -> ParseStep -> ParseRes
 parse_enum_field_arg_list_close_or_continue ef edef ps =
-    case ps.tok.typ of
+    case token_type ps.tok of
         CommaToken ->
             parse_enum_field_arg_list ef edef |> next_pfn
 
@@ -142,7 +142,7 @@ parse_enum_field_arg_list ef edef ps =
 
 parse_enum_plain_symbol_or_more : String -> EnumDefinition -> ParseStep -> ParseRes
 parse_enum_plain_symbol_or_more s edef ps =
-    case ps.tok.typ of
+    case token_type ps.tok of
         NewlineToken ->
             parse_enum_body { edef | fields = List.append edef.fields [ EnumField s [] ] } |> next_pfn
 
@@ -159,7 +159,7 @@ parse_enum_body edef ps =
         prog =
             ps.prog
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         Symbol s ->
             parse_enum_plain_symbol_or_more s edef |> next_pfn
 
@@ -193,7 +193,7 @@ parse_enum ps =
     parse_fullname todo_with_full_name ps
 
 
-parse_type_declaration_after_first_name : FullNameAndLocation -> FullNameAndLocation -> ParseStep -> ParseRes
+parse_type_declaration_after_first_name : Node AST.FullName -> Node AST.FullName -> ParseStep -> ParseRes
 parse_type_declaration_after_first_name typname n ps =
     let
         prog =
@@ -205,7 +205,7 @@ parse_type_declaration_after_first_name typname n ps =
     parse_outer_scope |> ParseFn |> Next prog_after
 
 
-parse_type_declaration_body : FullNameAndLocation -> ParseStep -> ParseRes
+parse_type_declaration_body : Node AST.FullName -> ParseStep -> ParseRes
 parse_type_declaration_body fname ps =
     let
         after_fn2 : FullNameParseTodo
@@ -221,9 +221,9 @@ parse_type_declaration_body fname ps =
 parse_type_declaration : ParseStep -> ParseRes
 parse_type_declaration ps =
     let
-        parse_equal : FullNameAndLocation -> ParseStep -> ParseRes
+        parse_equal : Node AST.FullName -> ParseStep -> ParseRes
         parse_equal fname pes =
-            case pes.tok.typ of
+            case token_type ps.tok of
                 AssignmentToken ->
                     parse_type_declaration_body fname |> next_pfn
 
@@ -242,19 +242,19 @@ parse_type_declaration ps =
 
 parse_outer_scope : ParseStep -> ParseRes
 parse_outer_scope ps =
-    case ps.tok.typ of
+    case token_type ps.tok of
         Keyword kwt ->
             case kwt of
-                Language.Syntax.FnKeyword ->
+                Syntax.FnKeyword ->
                     Next ps.prog (ParseFn parse_global_fn)
 
-                Language.Syntax.StructKeyword ->
+                Syntax.StructKeyword ->
                     parse_struct |> next_pfn
 
-                Language.Syntax.EnumKeyword ->
+                Syntax.EnumKeyword ->
                     parse_enum |> next_pfn
 
-                Language.Syntax.TypeKeyword ->
+                Syntax.TypeKeyword ->
                     parse_type_declaration |> next_pfn
 
                 _ ->
@@ -289,9 +289,9 @@ parse_typename outer_todo ps =
                     Error e
 
                 Ok nt ->
-                    outer_todo <| Ok (ReferenceToFullName nt |> AST.with_location (Util.merge_sv ps.tok.loc nt.loc))
+                    outer_todo <| Ok (ReferenceToFullName nt |> AST.with_location (Syntax.merge_sv ps.tok.loc nt.loc))
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         ReferenceToken ->
             parse_typename todo_with_type_and_args_ref |> next_pfn
 
@@ -299,7 +299,7 @@ parse_typename outer_todo ps =
             parse_fullname todo_with_type_and_args ps
 
 
-parse_named_type_type : Util.SourceView -> String -> NamedTypeParseTodo -> ParseStep -> ParseRes
+parse_named_type_type : Syntax.SourceView -> String -> NamedTypeParseTodo -> ParseStep -> ParseRes
 parse_named_type_type loc valname todo ps =
     let
         todo_with_type : FullNameParseTodo
@@ -309,14 +309,14 @@ parse_named_type_type loc valname todo ps =
                     Error e
 
                 Ok t ->
-                    UnqualifiedTypeWithName {thing = Language.SingleIdentifier valname, loc =loc } t |> Ok |> todo
+                    UnqualifiedTypeWithName { thing = Language.SingleIdentifier valname, loc = loc } t |> Ok |> todo
     in
     parse_possibly_constrained_fullname todo_with_type ps
 
 
 parse_consume_next : TokenType -> ParseFn -> ParseStep -> ParseRes
 parse_consume_next what todo ps =
-    if ps.tok.typ == what then
+    if token_type ps.tok == what then
         parse_consume_next what todo |> next_pfn
 
     else
@@ -330,7 +330,7 @@ parse_named_type todo ps =
         after_colon loc valname =
             ParseFn (parse_named_type_type loc valname todo)
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         Symbol valname ->
             parse_expected_token "Expected `:` to split betweem value name and type" Lexer.TypeSpecifier (after_colon ps.tok.loc valname |> Next ps.prog) |> next_pfn
 
@@ -340,7 +340,7 @@ parse_named_type todo ps =
 
 parse_until : TokenType -> ParseFn -> ParseStep -> ParseRes
 parse_until typ after ps =
-    if typ == ps.tok.typ then
+    if typ == token_type ps.tok then
         Next ps.prog after
 
     else
@@ -362,7 +362,7 @@ parse_global_fn_return_statement todo ps =
                         |> ParseFn
                         |> Next ps.prog
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         NewlineToken ->
             todo (ReturnStatement Nothing |> Ok)
 
@@ -389,7 +389,7 @@ parse_initilization_statement todo qual nt ps =
                     -- Next ps.prog (ParseFn (parse_block_statements { fdef | statements = List.append fdef.statements [ InitilizationStatement newtype expr ] }))
                     todo (Ok (InitilizationStatement newtype expr))
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         AssignmentToken ->
             Next ps.prog (ParseFn (parse_expr todo_with_expr))
 
@@ -414,9 +414,9 @@ parse_global_fn_assignment name todo ps =
     parse_expr after_expr_parse ps
 
 
-parse_global_fn_assignment_or_fn_call_qualified_name : Util.SourceView -> Identifier -> StatementParseTodo -> ParseStep -> ParseRes
+parse_global_fn_assignment_or_fn_call_qualified_name : Syntax.SourceView -> Identifier -> StatementParseTodo -> ParseStep -> ParseRes
 parse_global_fn_assignment_or_fn_call_qualified_name loc name fdef ps =
-    case ps.tok.typ of
+    case token_type ps.tok of
         Symbol s ->
             Next ps.prog (ParseFn (parse_statement_assignment_or_fn_call loc (append_identifier name s) fdef))
 
@@ -424,7 +424,7 @@ parse_global_fn_assignment_or_fn_call_qualified_name loc name fdef ps =
             Error (ExpectedNameAfterDot ps.tok.loc)
 
 
-parse_statement_assignment_or_fn_call : Util.SourceView -> Identifier -> StatementParseTodo -> ParseStep -> ParseRes
+parse_statement_assignment_or_fn_call : Syntax.SourceView -> Identifier -> StatementParseTodo -> ParseStep -> ParseRes
 parse_statement_assignment_or_fn_call id_loc name statement_todo ps =
     let
         todo_with_funccall : FuncCallExprTodo
@@ -446,12 +446,12 @@ parse_statement_assignment_or_fn_call id_loc name statement_todo ps =
                     parse_initilization_statement
                         statement_todo
                         Language.Constant
-                        (UnqualifiedTypeWithName {thing = name, loc = id_loc} t)
+                        (UnqualifiedTypeWithName { thing = name, loc = id_loc } t)
                         |> next_pfn
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         DotToken ->
-            parse_global_fn_assignment_or_fn_call_qualified_name (Util.merge_sv id_loc ps.tok.loc) name statement_todo |> next_pfn
+            parse_global_fn_assignment_or_fn_call_qualified_name (Syntax.merge_sv id_loc ps.tok.loc) name statement_todo |> next_pfn
 
         OpenParen ->
             ExpressionParser.parse_function_call (NameWithoutArgs name |> AST.with_location ps.tok.loc) todo_with_funccall
@@ -471,7 +471,7 @@ parse_statement_assignment_or_fn_call id_loc name statement_todo ps =
 parse_while_statement : StatementParseTodo -> ParseStep -> ParseRes
 parse_while_statement what_todo_with_statement ps =
     let
-        what_todo_after_block : ExpressionAndLocation -> Result StatementParseError (List Statement) -> ParseRes
+        what_todo_after_block : (Node Expression) -> Result StatementParseError (List Statement) -> ParseRes
         what_todo_after_block expr res =
             case res of
                 Err e ->
@@ -503,7 +503,7 @@ parse_while_statement what_todo_with_statement ps =
 parse_if_statement : StatementParseTodo -> ParseStep -> ParseRes
 parse_if_statement what_todo_with_statement ps =
     let
-        what_todo_after_block : ExpressionAndLocation -> Result StatementParseError (List Statement) -> ParseRes
+        what_todo_after_block : (Node Expression) -> Result StatementParseError (List Statement) -> ParseRes
         what_todo_after_block expr res =
             case res of
                 Err e ->
@@ -553,19 +553,19 @@ parse_statements statements todo_with_block ps =
                 Err e ->
                     Error (FailedNamedTypeParse e)
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         Keyword kwt ->
             case kwt of
-                Language.Syntax.ReturnKeyword ->
+                Syntax.ReturnKeyword ->
                     parse_global_fn_return_statement what_todo_with_statement |> next_pfn
 
-                Language.Syntax.VarKeyword ->
+                Syntax.VarKeyword ->
                     parse_named_type todo_if_var |> next_pfn
 
-                Language.Syntax.IfKeyword ->
+                Syntax.IfKeyword ->
                     parse_if_statement what_todo_with_statement |> next_pfn
 
-                Language.Syntax.WhileKeyword ->
+                Syntax.WhileKeyword ->
                     parse_while_statement what_todo_with_statement |> next_pfn
 
                 _ ->
@@ -584,10 +584,10 @@ parse_statements statements todo_with_block ps =
             parse_statements statements todo_with_block |> next_pfn
 
         _ ->
-            Error (Unimplemented ps.prog ("parsing global function statements like this one:\n" ++ Util.show_source_view ps.tok.loc))
+            Error (Unimplemented ps.prog ("parsing global function statements like this one:\n" ++ Syntax.show_source_view ps.tok.loc))
 
 
-parse_global_function_body : FullNameAndLocation -> FunctionHeader -> ParseStep -> ParseRes
+parse_global_function_body : Node AST.FullName -> FunctionHeader -> ParseStep -> ParseRes
 parse_global_function_body fname header ps =
     let
         prog =
@@ -602,7 +602,7 @@ parse_global_function_body fname header ps =
                 Ok block ->
                     Next { prog | global_functions = List.append prog.global_functions [ AST.FunctionDefinition fname header block ], needs_more = Nothing } (ParseFn parse_outer_scope)
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         OpenCurly ->
             parse_statements [] what_todo_with_block |> next_pfn
 
@@ -610,7 +610,7 @@ parse_global_function_body fname header ps =
             Error (ExpectedOpenCurlyForFunction ps.tok.loc)
 
 
-parse_global_fn_return_specifier : FullNameAndLocation -> FunctionHeader -> ParseStep -> ParseRes
+parse_global_fn_return_specifier : Node AST.FullName -> FunctionHeader -> ParseStep -> ParseRes
 parse_global_fn_return_specifier fname header_so_far ps =
     let
         what_to_do_with_ret_type : FullNameParseTodo
@@ -624,7 +624,7 @@ parse_global_fn_return_specifier fname header_so_far ps =
                         |> ParseFn
                         |> Next ps.prog
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         ReturnSpecifier ->
             parse_possibly_constrained_fullname what_to_do_with_ret_type |> next_pfn
 
@@ -632,12 +632,12 @@ parse_global_fn_return_specifier fname header_so_far ps =
             reapply_token (parse_global_function_body fname header_so_far |> ParseFn) ps
 
         _ ->
-            Error (ExpectedFunctionBody ps.tok.loc ps.tok.typ)
+            Error (ExpectedFunctionBody ps.tok.loc (token_type ps.tok))
 
 
-parse_fn_def_arg_list_comma_or_close : List QualifiedTypeWithName -> FullNameAndLocation -> ParseStep -> ParseRes
+parse_fn_def_arg_list_comma_or_close : List QualifiedTypeWithName -> Node AST.FullName -> ParseStep -> ParseRes
 parse_fn_def_arg_list_comma_or_close args fname ps =
-    case ps.tok.typ of
+    case token_type ps.tok of
         CommaToken ->
             parse_fn_definition_arg_list_or_close args fname |> next_pfn
 
@@ -648,7 +648,7 @@ parse_fn_def_arg_list_comma_or_close args fname ps =
             Error (ExpectedEndOfArgListOrComma ps.tok.loc)
 
 
-parse_fn_definition_arg_list_or_close : List QualifiedTypeWithName -> FullNameAndLocation -> ParseStep -> ParseRes
+parse_fn_definition_arg_list_or_close : List QualifiedTypeWithName -> Node AST.FullName -> ParseStep -> ParseRes
 parse_fn_definition_arg_list_or_close args_sofar fname ps =
     let
         todo : NamedTypeParseTodo
@@ -660,7 +660,7 @@ parse_fn_definition_arg_list_or_close args_sofar fname ps =
                 Ok nt ->
                     parse_fn_def_arg_list_comma_or_close (List.append args_sofar [ make_qualified_typewithname nt Language.Constant ]) fname |> next_pfn
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         Symbol _ ->
             reapply_token (parse_named_type todo |> ParseFn) ps
 
@@ -671,9 +671,9 @@ parse_fn_definition_arg_list_or_close args_sofar fname ps =
             Error (Unimplemented ps.prog ("Failing to close func param list: name = " ++ stringify_fullname fname.thing))
 
 
-parse_fn_definition_open_paren : FullNameAndLocation -> ParseStep -> ParseRes
+parse_fn_definition_open_paren : Node AST.FullName -> ParseStep -> ParseRes
 parse_fn_definition_open_paren fname ps =
-    case ps.tok.typ of
+    case token_type ps.tok of
         OpenParen ->
             parse_fn_definition_arg_list_or_close [] fname |> next_pfn
 
@@ -693,7 +693,7 @@ parse_global_fn ps =
                 Ok n ->
                     parse_fn_definition_open_paren n |> next_pfn
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         Symbol _ ->
             parse_fullname todo_with_name ps
 
@@ -710,29 +710,29 @@ parse_find_imports ps =
                 prog =
                     pss.prog
             in
-            case pss.tok.typ of
-                Lexer.Literal Language.Syntax.StringLiteral s ->
-                    Next { prog | imports = List.append prog.imports [ AST.ThingAndLocation s pss.tok.loc ] } (ParseFn parse_find_imports)
+            case token_type pss.tok of
+                Lexer.Literal Syntax.StringLiteral s ->
+                    Next { prog | imports = List.append prog.imports [ Node s pss.tok.loc ] } (ParseFn parse_find_imports)
 
                 _ ->
                     Error (NonStringImport pss.tok.loc)
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         Keyword kt ->
             case kt of
-                Language.Syntax.ImportKeyword ->
+                Syntax.ImportKeyword ->
                     Next ps.prog (ParseFn parse_get_import_name)
 
-                Language.Syntax.FnKeyword ->
+                Syntax.FnKeyword ->
                     Next ps.prog (ParseFn parse_global_fn)
 
-                Language.Syntax.StructKeyword ->
+                Syntax.StructKeyword ->
                     parse_struct |> next_pfn
 
-                Language.Syntax.TypeKeyword ->
+                Syntax.TypeKeyword ->
                     parse_type_declaration |> next_pfn
 
-                Language.Syntax.EnumKeyword ->
+                Syntax.EnumKeyword ->
                     parse_enum |> next_pfn
 
                 _ ->
@@ -754,7 +754,7 @@ parse_find_module_name ps =
         prog =
             ps.prog
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         Symbol s ->
             Next { prog | module_name = Just s, needs_more = Nothing } (ParseFn parse_find_imports)
 
@@ -768,9 +768,9 @@ parse_find_module_kw ps =
         prog =
             ps.prog
     in
-    case ps.tok.typ of
+    case token_type ps.tok of
         Keyword kw ->
-            if kw == Language.Syntax.ModuleKeyword then
+            if kw == Syntax.ModuleKeyword then
                 Next { prog | needs_more = Just "needs module name" } (ParseFn parse_find_module_name)
 
             else

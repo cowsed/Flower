@@ -6,13 +6,16 @@ import Language.Language as Language
 import Language.Syntax
 import Pallete
 import Util
-
+import Language.Syntax as Syntax exposing (Node, node_get, show_node)
 
 type alias Token =
-    { loc : Util.SourceView
-    , typ : TokenType
-    }
+    Node TokenType
 
+token :  Syntax.SourceView -> TokenType ->Node TokenType
+token loc tt=  Node tt loc
+
+token_type: Token -> TokenType
+token_type t = node_get t
 
 type TokenType
     = Keyword Language.Syntax.KeywordType
@@ -53,7 +56,7 @@ lex : String -> Result Error (List Token)
 lex str =
     let
         input_view =
-            Util.SourceView str
+            Syntax.SourceView str
     in
     String.toList str |> rec_lex begin_lex input_view 0
 
@@ -64,14 +67,14 @@ type LexRes
 
 
 type Error
-    = UnknownCharacter Util.SourceView Char
-    | UnclosedStringLiteral Util.SourceView
-    | UnknownCharacterInIntegerLiteral Util.SourceView
+    = UnknownCharacter Syntax.SourceView Char
+    | UnclosedStringLiteral Syntax.SourceView
+    | UnknownCharacterInIntegerLiteral Syntax.SourceView
 
 
 infix_op_from_token : Token -> Maybe Language.InfixOpType
 infix_op_from_token tok =
-    case tok.typ of
+    case node_get tok of
         PlusToken ->
             Just Language.Addition
 
@@ -121,13 +124,13 @@ explain_error e =
         [ Element.el [ Font.color Pallete.red_c, Font.family [ Font.monospace ] ]
             (case e of
                 UnknownCharacter sv c ->
-                    Element.text (Util.addchar "Unknown character: " c ++ "\n" ++ Util.show_source_view sv)
+                    Element.text (Util.addchar "Unknown character: " c ++ "\n" ++ Syntax.show_source_view sv)
 
                 UnclosedStringLiteral sv ->
-                    Element.text ("Unclosed String Literal here: \n" ++ Util.show_source_view sv)
+                    Element.text ("Unclosed String Literal here: \n" ++ Syntax.show_source_view sv)
 
                 UnknownCharacterInIntegerLiteral sv ->
-                    Element.text ("Unknown character in Integer Literal\n" ++ Util.show_source_view sv)
+                    Element.text ("Unknown character in Integer Literal\n" ++ Syntax.show_source_view sv)
             )
         ]
 
@@ -137,9 +140,9 @@ type LexFn
 
 
 type alias LexStepInfo =
-    { input_view : Int -> Int -> Util.SourceView
-    , view_from_start : Int -> Util.SourceView
-    , view_this : Util.SourceView
+    { input_view : Int -> Int -> Syntax.SourceView
+    , view_from_start : Int -> Syntax.SourceView
+    , view_this : Syntax.SourceView
     , pos : Int
     , char : Char
     }
@@ -152,7 +155,7 @@ call_lexfn lf lsi =
             f lsi
 
 
-rec_lex : LexFn -> (Int -> Int -> Util.SourceView) -> Int -> List Char -> Result Error (List Token)
+rec_lex : LexFn -> (Int -> Int -> Syntax.SourceView) -> Int -> List Char -> Result Error (List Token)
 rec_lex lf iv pos cs =
     case List.head cs of
         Just c ->
@@ -264,7 +267,7 @@ lex_integer start sofar lsi =
         LexFn (lex_integer start (Util.addchar sofar lsi.char)) |> Tokens []
 
     else if is_integer_ender lsi.char then
-        apply_again [ Token (lsi.view_from_start start) (Literal Language.Syntax.NumberLiteral sofar) ] begin_lex lsi
+        apply_again [ token (lsi.view_from_start start) (Literal Language.Syntax.NumberLiteral sofar) ] begin_lex lsi
 
     else
         Error (UnknownCharacterInIntegerLiteral lsi.view_this)
@@ -279,7 +282,7 @@ lex_symbol start sofar lsi =
         lex_symbol start (Util.addchar sofar lsi.char) |> LexFn |> Tokens []
 
     else
-        apply_again [ Token (lsi.view_from_start start) (is_special_or_symbol sofar) ] begin_lex lsi
+        apply_again [ token (lsi.view_from_start start) (is_special_or_symbol sofar) ] begin_lex lsi
 
 
 
@@ -294,18 +297,18 @@ begin_lex =
 lex_minus_or_return : Int -> LexStepInfo -> LexRes
 lex_minus_or_return start lsi =
     if lsi.char == '>' then
-        Tokens [ Token (lsi.input_view start (start + 2)) ReturnSpecifier ] begin_lex
+        Tokens [ token (lsi.input_view start (start + 2)) ReturnSpecifier ] begin_lex
 
     else
-        apply_again [ Token (lsi.input_view start (start + 1)) MinusToken ] begin_lex lsi
+        apply_again [ token (lsi.input_view start (start + 1)) MinusToken ] begin_lex lsi
 
 
 lex_rest_of_comment : Int -> String -> LexStepInfo -> LexRes
 lex_rest_of_comment start sofar lsi =
     if lsi.char == '\n' then
         Tokens
-            [ Token (lsi.input_view start (start + lsi.pos - 1)) (CommentToken sofar)
-            , Token (lsi.input_view lsi.pos (lsi.pos + 1)) NewlineToken
+            [ token (lsi.input_view start (start + lsi.pos - 1)) (CommentToken sofar)
+            , token (lsi.input_view lsi.pos (lsi.pos + 1)) NewlineToken
             ]
             begin_lex
 
@@ -319,13 +322,13 @@ lex_divide_or_comment lsi =
         Tokens [] (LexFn (lex_rest_of_comment (lsi.pos - 1) ""))
 
     else
-        apply_again [ Token (lsi.input_view (lsi.pos - 1) lsi.pos) DivideToken ] begin_lex lsi
+        apply_again [ token (lsi.input_view (lsi.pos - 1) lsi.pos) DivideToken ] begin_lex lsi
 
 
 lex_string_literal : Int -> String -> LexStepInfo -> LexRes
 lex_string_literal start sofar lsi =
     if lsi.char == '"' then
-        Tokens [ Token (lsi.input_view start (lsi.pos + 1)) (Literal Language.Syntax.StringLiteral sofar) ] begin_lex
+        Tokens [ token (lsi.input_view start (lsi.pos + 1)) (Literal Language.Syntax.StringLiteral sofar) ] begin_lex
 
     else if lsi.char == '\n' then
         Error (UnclosedStringLiteral (lsi.view_from_start start))
@@ -338,10 +341,10 @@ lex_this_or_equal_to : TokenType -> TokenType -> Int -> LexStepInfo -> LexRes
 lex_this_or_equal_to type_if_e type_if_note pos lsi =
     case lsi.char of
         '=' ->
-            Tokens [ Token (lsi.view_from_start pos) type_if_e ] (LexFn lex_unknown)
+            Tokens [ token (lsi.view_from_start pos) type_if_e ] (LexFn lex_unknown)
 
         _ ->
-            apply_again [ Token (lsi.input_view pos (pos + 1)) type_if_note ] (LexFn lex_unknown) lsi
+            apply_again [ token (lsi.input_view pos (pos + 1)) type_if_note ] (LexFn lex_unknown) lsi
 
 
 lex_unknown : LexStepInfo -> LexRes
@@ -354,7 +357,7 @@ lex_unknown lsi =
         Tokens [] begin_lex
 
     else if c == '\n' then
-        Tokens [ Token lsi.view_this NewlineToken ] begin_lex
+        Tokens [ token lsi.view_this NewlineToken ] begin_lex
 
     else if Char.isAlpha c then
         lex_symbol lsi.pos (String.fromChar c) |> LexFn |> Tokens []
@@ -366,31 +369,31 @@ lex_unknown lsi =
         Tokens [] (LexFn (lex_string_literal lsi.pos ""))
 
     else if c == '{' then
-        Tokens [ Token lsi.view_this OpenCurly ] begin_lex
+        Tokens [ token lsi.view_this OpenCurly ] begin_lex
 
     else if c == '}' then
-        Tokens [ Token lsi.view_this CloseCurly ] begin_lex
+        Tokens [ token lsi.view_this CloseCurly ] begin_lex
 
     else if c == '(' then
-        Tokens [ Token lsi.view_this OpenParen ] begin_lex
+        Tokens [ token lsi.view_this OpenParen ] begin_lex
 
     else if c == ')' then
-        Tokens [ Token lsi.view_this CloseParen ] begin_lex
+        Tokens [ token lsi.view_this CloseParen ] begin_lex
 
     else if c == '[' then
-        Tokens [ Token lsi.view_this OpenSquare ] begin_lex
+        Tokens [ token lsi.view_this OpenSquare ] begin_lex
 
     else if c == ']' then
-        Tokens [ Token lsi.view_this CloseSquare ] begin_lex
+        Tokens [ token lsi.view_this CloseSquare ] begin_lex
 
     else if c == ':' then
-        Tokens [ Token lsi.view_this TypeSpecifier ] begin_lex
+        Tokens [ token lsi.view_this TypeSpecifier ] begin_lex
 
     else if c == ',' then
-        Tokens [ Token lsi.view_this CommaToken ] begin_lex
+        Tokens [ token lsi.view_this CommaToken ] begin_lex
 
     else if c == '.' then
-        Tokens [ Token lsi.view_this DotToken ] begin_lex
+        Tokens [ token lsi.view_this DotToken ] begin_lex
 
     else if c == '=' then
         lex_this_or_equal_to EqualityToken AssignmentToken lsi.pos |> LexFn |> Tokens []
@@ -399,7 +402,7 @@ lex_unknown lsi =
         lex_this_or_equal_to NotEqualToken NotToken lsi.pos |> LexFn |> Tokens []
 
     else if c == '&' then
-        Tokens [ Token lsi.view_this ReferenceToken ] begin_lex
+        Tokens [ token lsi.view_this ReferenceToken ] begin_lex
 
     else if c == '<' then
         lex_this_or_equal_to LessThanEqualToken LessThanToken lsi.pos |> LexFn |> Tokens []
@@ -408,19 +411,19 @@ lex_unknown lsi =
         lex_this_or_equal_to GreaterThanEqualToken GreaterThanToken lsi.pos |> LexFn |> Tokens []
 
     else if c == '+' then
-        Tokens [ Token lsi.view_this PlusToken ] begin_lex
+        Tokens [ token lsi.view_this PlusToken ] begin_lex
 
     else if c == '-' then
         Tokens [] (LexFn (lex_minus_or_return lsi.pos))
 
     else if c == '*' then
-        Tokens [ Token lsi.view_this MultiplyToken ] begin_lex
+        Tokens [ token lsi.view_this MultiplyToken ] begin_lex
 
     else if c == '/' then
         Tokens [] (LexFn lex_divide_or_comment)
 
     else if c == '|' then
-        Tokens [ Token lsi.view_this WhereToken ] begin_lex
+        Tokens [ token lsi.view_this WhereToken ] begin_lex
 
     else
         Error (UnknownCharacter (lsi.input_view lsi.pos (lsi.pos + 1)) c)
@@ -619,7 +622,7 @@ syntaxify_token tok =
 
 token_to_str : Token -> String
 token_to_str tok =
-    case tok.typ of
+    case token_type tok of
         Keyword kt ->
             "[Keyword:"
                 ++ kwt_to_string kt

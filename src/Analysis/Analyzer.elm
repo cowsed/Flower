@@ -1,10 +1,14 @@
 module Analysis.Analyzer exposing (..)
 
 import Analysis.BuiltinScopes as BuiltinScopes
+import Analysis.DefinitionPropagator as DefinitionPropagator
 import Analysis.Scope as Scope
 import Analysis.Util exposing (..)
 import Keyboard.Key exposing (Key(..))
-import Language.Language as Language exposing (Identifier(..), IntegerSize(..), Named, SimpleNamed, TypeDefinition(..), TypeName(..), extract_builtins)
+import Language.Language as Language exposing (Identifier(..), IntegerSize(..), Named, SimpleNamed, TypeDefinition(..), TypeName(..), extract_builtins, named_name)
+import Language.Syntax as Syntax exposing (Node)
+import ListDict exposing (ListDict)
+import ListSet exposing (ListSet)
 import Parser.AST as AST
 import Parser.ParserCommon exposing (Error(..))
 import String exposing (join)
@@ -55,12 +59,12 @@ analyze ast =
     Result.map3 (GoodProgram ast) module_name outer_scopes definitions
 
 
-ensure_good_generic_args : List AST.FullNameAndLocation -> AnalysisRes (List String)
+ensure_good_generic_args : List (Node AST.FullName) -> AnalysisRes (List String)
 ensure_good_generic_args ls =
     Debug.todo " ensure good generic args"
 
 
-ensure_good_custom_type_name : AST.FullNameAndLocation -> AnalysisRes TypeDeclarationName
+ensure_good_custom_type_name : Node AST.FullName -> AnalysisRes TypeDeclarationName
 ensure_good_custom_type_name fn =
     case fn.thing of
         AST.NameWithoutArgs id ->
@@ -83,17 +87,64 @@ ensure_good_custom_type_name fn =
             Err (TypeNameTooComplicated fn.loc)
 
 
-get_typename : AST.TypeDefinitionType -> AnalysisRes ( TypeDeclarationName, AST.TypeDefinitionType )
-get_typename tdt =
+get_unfinished_struct_or_generic : AST.StructDefnition -> AnalysisRes DefinitionPropagator.Unfinished
+get_unfinished_struct_or_generic sdt =
+    let
+        good_name =
+            ensure_good_custom_type_name sdt.name
+    in
+    good_name
+        |> Result.andThen
+            (\n ->
+                case n of
+                    Plain s ->
+                        get_unfinished_struct s sdt.fields
+
+                    Generic s args ->
+                        Debug.todo "Get Unfinished Generic Struct"
+            )
+
+
+get_unfinished_struct : Identifier -> List AST.UnqualifiedTypeWithName -> AnalysisRes DefinitionPropagator.Unfinished
+get_unfinished_struct s fields =
+    let
+        name =
+            CustomTypeName s |> DefinitionPropagator.TypeDeclaration
+
+        good_fields : AnalysisRes (List (SimpleNamed TypeName))
+        good_fields =
+            fields |> List.map ensure_good_struct_field |> ar_foldN (::) []
+
+        types_needed : List (SimpleNamed TypeName) -> ListSet DefinitionPropagator.DeclarationName
+        types_needed fs =
+            List.foldl (\nt -> ListSet.insert (DefinitionPropagator.TypeDeclaration nt.value)) ListSet.empty fs
+
+        add_data : AnalysisRes (( DefinitionPropagator.DeclarationName, DefinitionPropagator.Definition ) -> DefinitionPropagator.Output)
+        add_data =
+            Ok <| \( tn, def ) -> DefinitionPropagator.Complete (DefinitionPropagator.TypeDef (Language.StructDefinitionType <| Language.StructDefinition []))
+
+        -- add_field fnn ruf =
+        -- ruf |> Result.andThen (\uf -> ensure_good_struct_field fnn |> Result.map  (\nt -> nt.))
+    in
+    good_fields |> Result.map types_needed |> Result.map2 (\add_func needs -> DefinitionPropagator.Unfinished name needs add_func) add_data
+
+
+get_unfinished : AST.TypeDefinitionType -> AnalysisRes DefinitionPropagator.Unfinished
+get_unfinished tdt =
     case tdt of
         AST.StructDefType sdt ->
-            sdt.name |> ensure_good_custom_type_name |> Result.map (\a -> ( a, tdt ))
+            get_unfinished_struct_or_generic sdt
 
-        AST.EnumDefType edt ->
-            edt.name |> ensure_good_custom_type_name |> Result.map (\a -> ( a, tdt ))
+        _ ->
+            Debug.todo "get unfinished enum and alias"
 
-        AST.AliasDefType adt ->
-            adt.name |> ensure_good_custom_type_name |> Result.map (\a -> ( a, tdt ))
+
+
+-- AST.EnumDefType edt ->
+-- edt.name |> ensure_good_custom_type_name |> Result.map (\a -> ( a, tdt ))
+--
+-- AST.AliasDefType adt ->
+-- adt.name |> ensure_good_custom_type_name |> Result.map (\a -> ( a, tdt ))
 
 
 type TypeDeclarationName
@@ -101,73 +152,33 @@ type TypeDeclarationName
     | Generic Identifier (List String)
 
 
-extract_type_declarations : List AST.TypeDefinitionType -> AnalysisRes (List ( TypeDeclarationName, AST.TypeDefinitionType ))
-extract_type_declarations ls =
+extract_unfinished : List AST.TypeDefinitionType -> AnalysisRes (List DefinitionPropagator.Unfinished)
+extract_unfinished ls =
     let
-        l : List (AnalysisRes ( TypeDeclarationName, AST.TypeDefinitionType ))
+        l : List (AnalysisRes DefinitionPropagator.Unfinished)
         l =
-            ls |> List.map get_typename
-    in 
-    List.foldl (\a b -> res_join_n b a) (Ok []) l 
-
-
-
-
-analyze_typename : Scope.TypeDeclarationScope -> AST.FullNameAndLocation -> AnalysisRes Language.TypeName
-analyze_typename scope typename =
-    let
-        -- todo give error saying that type exists it just needs generic arguments
-        try_find_generic_type : Language.TypeName -> AnalysisRes Language.TypeName
-        try_find_generic_type tn =
-            if Scope.lookup_generic_type_in_decl_scope scope tn then
-                Ok tn
-
-            else
-                Err (NoSuchGenericTypeFound typename.loc)
-
-        try_find_type : Language.TypeName -> AnalysisRes Language.TypeName
-        try_find_type tn =
-            let
-                from_builtin =
-                    extract_builtins tn
-
-                from_scope =
-                    if Scope.lookup_type_in_decl_scope scope tn then
-                        Just tn
-
-                    else
-                        Nothing
-
-                res =
-                    case from_builtin of
-                        Just t ->
-                            Ok t
-
-                        Nothing ->
-                            case from_scope of
-                                Just t ->
-                                    Ok t
-
-                                Nothing ->
-                                    NoSuchTypeFound typename.loc |> Err
-            in
-            res
+            ls |> List.map get_unfinished
     in
+    List.foldl (\a b -> res_join_n b a) (Ok []) l
+
+
+analyze_typename : Node AST.FullName -> AnalysisRes Language.TypeName
+analyze_typename typename =
     case typename.thing of
         AST.NameWithoutArgs id ->
-            CustomTypeName id |> try_find_type
+            CustomTypeName id |> Ok
 
         AST.NameWithArgs stuff ->
-            (stuff.args |> List.map (analyze_typename scope)) |> ar_foldN (\el l -> List.append l [el]) []
+            (stuff.args |> List.map analyze_typename)
+                |> ar_foldN (\el l -> List.append l [ el ]) []
                 |> Result.map (\args -> GenericInstantiation stuff.base args)
-                |> Result.andThen try_find_generic_type
 
         _ ->
             NoSuchTypeFound typename.loc |> Err
 
 
-ensure_good_struct_field : Scope.TypeDeclarationScope -> AST.UnqualifiedTypeWithName -> AnalysisRes (SimpleNamed Language.TypeName)
-ensure_good_struct_field scope field =
+ensure_good_struct_field : AST.UnqualifiedTypeWithName -> AnalysisRes (SimpleNamed Language.TypeName)
+ensure_good_struct_field field =
     let
         name_res =
             case field.name.thing of
@@ -178,32 +189,9 @@ ensure_good_struct_field scope field =
                     Err (StructFieldNameTooComplicated field.name.loc)
 
         typename_res =
-            analyze_typename scope field.typename
+            analyze_typename field.typename
     in
     ar_map2 (\name tname -> SimpleNamed name tname) name_res typename_res
-
-
-analyze_struct_def : Scope.TypeDeclarationScope -> AST.StructDefnition -> AnalysisRes Language.StructDefinition
-analyze_struct_def declscope tdt =
-    tdt.fields
-        |> List.map (ensure_good_struct_field declscope)
-        |> ar_foldN (\el l -> List.append l [ el ]) []
-        |> Result.map Language.StructDefinition
-
-
-extract_typedefs : Scope.TypeDeclarationScope -> ( Identifier, AST.TypeDefinitionType ) -> AnalysisRes (Named TypeDefinition)
-extract_typedefs declscope ( name, def ) =
-    (case def of
-        AST.StructDefType sd ->
-            analyze_struct_def declscope sd |> Result.map Language.StructDefinitionType
-
-        AST.EnumDefType _ ->
-            Debug.todo "enum analyzing"
-
-        AST.AliasDefType _ ->
-            Debug.todo "alias analyzing"
-    )
-        |> Result.map (\d -> Named name d)
 
 
 make_outer_type_scope : AST.Program -> AnalysisRes Scope.FullScope
@@ -217,77 +205,42 @@ make_outer_type_scope prog =
         import_scope =
             analyze_imports prog.imports
 
+        completed_scopes =
+            Result.map2 Scope.merge_two_scopes builtin_scope import_scope
 
+        incompletes : AnalysisRes (List DefinitionPropagator.Unfinished)
+        incompletes =
+            extract_unfinished prog.global_typedefs
 
-        module_type_names : AnalysisRes (List ( TypeDeclarationName, AST.TypeDefinitionType ))
-        module_type_names =
-            extract_type_declarations prog.global_typedefs 
-
-
-        module_type_definitions : Scope.TypeDeclarationScope -> List ( Identifier, AST.TypeDefinitionType ) -> AnalysisRes Scope.TypeDefs
-        module_type_definitions dscope l =
-            l |> List.map (extract_typedefs dscope) |> ar_foldN (\el li -> List.append li [ el ]) []
- 
-        types_and_generics =
-            module_type_names
-                |> Result.map
-                    (filterSplit
-                        (\( tdn, tdt ) ->
-                            case tdn of
-                                Plain id ->
-                                    Err ( id, tdt )
-
-                                Generic id args ->
-                                    Ok ( ( id, args ), tdt )
+        --
+        --
+        -- module_type_definitions : Scope.TypeDeclarationScope -> List ( Identifier, AST.TypeDefinitionType ) -> AnalysisRes Scope.TypeDefs
+        -- module_type_definitions dscope l =
+        -- l |> List.map (extract_typedefs dscope) |> ar_foldN (\el li -> List.append li [ el ]) []
+        -- module_generic_type_definitions : Scope.TypeDeclarationScope -> List ( ( Identifier, List String ), AST.TypeDefinitionType ) -> AnalysisRes Scope.GenericTypeDefs
+        -- module_generic_type_definitions dscope gens =
+        -- Debug.log "module generic type definitions" (Ok [])
+        complete_defs : Scope.FullScope -> List ( DefinitionPropagator.DeclarationName, DefinitionPropagator.Definition )
+        complete_defs s =
+            s.types
+                |> List.map
+                    (\nt ->
+                        ( named_name nt
+                            |> CustomTypeName
+                            |> DefinitionPropagator.TypeDeclaration
+                        , DefinitionPropagator.TypeDef (Language.named_get nt)
                         )
                     )
-                |> Result.map (\( ts, gens ) -> { types = ts, generics = gens })
-
-        this_mod_decl_scope = types_and_generics |> Result.map (.types) |> Result.map (List.map Tuple.first) |> Result.map (\ts -> Scope.TypeDeclarationScope ts [])
-        declscope =
-            ar_foldN Scope.merge_two_scopes
-                Scope.empty_scope
-                [ builtin_scope
-                , import_scope
-                ]
-                |> Result.map Scope.get_declaration_scope
-                |> Result.map2 Scope.merge_2_decl_scopes this_mod_decl_scope
-
-
-        module_generic_type_definitions : Scope.TypeDeclarationScope -> List ( ( Identifier, List String ), AST.TypeDefinitionType ) -> AnalysisRes Scope.GenericTypeDefs
-        module_generic_type_definitions dscope gens =
-            Debug.log "module generic type definitions" (Ok [])
-
-
-
-        make_type_def_scope dscope =
-            types_and_generics
-                |> Result.andThen
-                    (\lis ->
-                        Result.map2
-                            (\a b -> Scope.FullScope a [] b)
-                            (module_type_definitions dscope lis.types)
-                            (module_generic_type_definitions dscope lis.generics)
-                    )
-
-        pre_fn_scopes =
-            ar_foldN Scope.merge_two_scopes
-                Scope.empty_scope
-                [ builtin_scope
-                , import_scope
-                , declscope |> Result.andThen make_type_def_scope
-                ]
-                |> Debug.log "pre_fn scopes"
+                |> Debug.log "completed defs"
     in
-    pre_fn_scopes
+    completed_scopes
+        |> Result.map complete_defs
+        |> Result.andThen (\defs -> incompletes |> Result.andThen (\incs -> DefinitionPropagator.from_definitions_and_declarations defs incs |> Result.mapError DefPropErr))
+        -- |> Result.andThen (incompletes |> Result.map DefinitionPropagator.add_many_incomplete)
+        |> Result.andThen (\dp -> DefinitionPropagator.to_full_scope dp |> Result.mapError DefPropErr)
 
 
-find_this_module_declarations : List AST.TypeDefinitionType -> AnalysisRes Scope.ValueDefs
-find_this_module_declarations ast_defs =
-    Ok []
-
-
-analyze_imports : List AST.ImportAndLocation -> AnalysisRes Scope.FullScope
+analyze_imports : List AST.ImportNode -> AnalysisRes Scope.FullScope
 analyze_imports imps =
     imps
         |> List.map

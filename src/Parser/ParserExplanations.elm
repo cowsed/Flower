@@ -11,6 +11,7 @@ import Parser.ParserCommon as ParserCommon
 import Ui exposing (color_text)
 import Util
 import Element.Border as Border
+import Language.Syntax as Syntax
 
 
 
@@ -289,7 +290,7 @@ stringify_error e =
             "No Module Name Given. The First non comment line in a program must be `module module_name`"
 
         ParserCommon.NonStringImport location ->
-            "I expected a string literal as an import but got this nonsense instead\n" ++ Util.show_source_view location
+            "I expected a string literal as an import but got this nonsense instead\n" ++ Syntax.show_source_view location
 
         ParserCommon.Unimplemented _ reason ->
             "Unimplemented: " ++ reason
@@ -298,30 +299,30 @@ stringify_error e =
             "Couldnt end because I needed more tokens: " ++ why
 
         ParserCommon.UnknownOuterLevelObject loc ->
-            "The only things allowed at this point are `import`, a variable or a function definition, or a type definition (struct, alias, enum)\n" ++ Util.show_source_view loc
+            "The only things allowed at this point are `import`, a variable or a function definition, or a type definition (struct, alias, enum)\n" ++ Syntax.show_source_view loc
 
         ParserCommon.ExpectedNameAfterFn loc ->
-            "Expected a name after the fn keyword to name a function. Something like `fn name()` \n" ++ Util.show_source_view loc
+            "Expected a name after the fn keyword to name a function. Something like `fn name()` \n" ++ Syntax.show_source_view loc
 
         ParserCommon.ExpectedOpenParenAfterFn s loc ->
-            "Expected a close paren after the fn name `fn " ++ s ++ "()` \n" ++ Util.show_source_view loc
+            "Expected a close paren after the fn name `fn " ++ s ++ "()` \n" ++ Syntax.show_source_view loc
 
         ParserCommon.ExpectedToken explanation loc ->
-            explanation ++ "\n" ++ Util.show_source_view loc
+            explanation ++ "\n" ++ Syntax.show_source_view loc
 
         ParserCommon.ExpectedTypeName loc ->
-            "Expected a type name here.\nDid you maybe use a keyword like `return`, `fn`, `var`? You can't do that\n" ++ Util.show_source_view loc
+            "Expected a type name here.\nDid you maybe use a keyword like `return`, `fn`, `var`? You can't do that\n" ++ Syntax.show_source_view loc
 
         ParserCommon.ExpectedEndOfArgListOrComma loc ->
-            "Expected a comma to continue arg list or a close paren to end it\n" ++ Util.show_source_view loc
+            "Expected a comma to continue arg list or a close paren to end it\n" ++ Syntax.show_source_view loc
 
         ParserCommon.FailedTypeParse tpe ->
             case tpe of
                 ParserCommon.Idk loc ->
-                    "Failed to parse type\n" ++ Util.show_source_view loc
+                    "Failed to parse type\n" ++ Syntax.show_source_view loc
 
                 ParserCommon.UnexpectedTokenInTypesGenArgList loc ->
-                    "Unexpexted otken in types generic arg list \n" ++ Util.show_source_view loc
+                    "Unexpexted otken in types generic arg list \n" ++ Syntax.show_source_view loc
 
         ParserCommon.FailedNamedTypeParse tpe ->
             case tpe of
@@ -329,41 +330,41 @@ stringify_error e =
                     stringify_error (ParserCommon.FailedTypeParse tp)
 
                 ParserCommon.NameError loc ne ->
-                    "Failed to parse name of name: Type. " ++ ne ++ "\n" ++ Util.show_source_view loc
+                    "Failed to parse name of name: Type. " ++ ne ++ "\n" ++ Syntax.show_source_view loc
 
         ParserCommon.KeywordNotAllowedHere loc ->
-            "This Keyword is not allowed here\n" ++ Util.show_source_view loc
+            "This Keyword is not allowed here\n" ++ Syntax.show_source_view loc
 
         ParserCommon.FailedExprParse er ->
             case er of
                 ParserCommon.IdkExpr loc s ->
-                    "Failed to parse expr: " ++ s ++ "\n" ++ Util.show_source_view loc
+                    "Failed to parse expr: " ++ s ++ "\n" ++ Syntax.show_source_view loc
 
                 ParserCommon.ParenWhereIDidntWantIt loc ->
-                    "I was expecting an expression but I found this parenthesis instead\n" ++ Util.show_source_view loc
+                    "I was expecting an expression but I found this parenthesis instead\n" ++ Syntax.show_source_view loc
 
         ParserCommon.ExpectedFunctionBody loc got ->
-            "Expected a `{` to start the function body but got `" ++ Lexer.syntaxify_token got ++ "`\n" ++ Util.show_source_view loc
+            "Expected a `{` to start the function body but got `" ++ Lexer.syntaxify_token got ++ "`\n" ++ Syntax.show_source_view loc
 
         ParserCommon.RequireInitilizationWithValue loc ->
-            "When you are initilizaing something `var a: Type = xyz you need that = xyz or else that thing is unitialized\n" ++ Util.show_source_view loc
+            "When you are initilizaing something `var a: Type = xyz you need that = xyz or else that thing is unitialized\n" ++ Syntax.show_source_view loc
 
         ParserCommon.UnknownThingWhileParsingFuncCallOrAssignment loc ->
-            "I was parsing the statements of a function (specifically an assignment or function call) and found something random\n" ++ Util.show_source_view loc
+            "I was parsing the statements of a function (specifically an assignment or function call) and found something random\n" ++ Syntax.show_source_view loc
 
         ParserCommon.FailedFuncCallParse er ->
             case er of
                 ParserCommon.IdkFuncCall loc s ->
-                    "Failed to parse a function call: " ++ s ++ "\n" ++ Util.show_source_view loc
+                    "Failed to parse a function call: " ++ s ++ "\n" ++ Syntax.show_source_view loc
 
                 ParserCommon.ExpectedAnotherArgument loc ->
-                    "I expected another argument after this comma\n" ++ Util.show_source_view loc
+                    "I expected another argument after this comma\n" ++ Syntax.show_source_view loc
 
         ParserCommon.ExpectedOpenCurlyForFunction loc ->
-            "I expected an opening curly to start a function body\n" ++ Util.show_source_view loc
+            "I expected an opening curly to start a function body\n" ++ Syntax.show_source_view loc
 
         ParserCommon.ExpectedNameAfterDot loc ->
-            "I expected another name after this dot. ie `a.b.c` but got " ++ Util.show_source_view_not_line loc ++ "\n" ++ Util.show_source_view loc
+            "I expected another name after this dot. ie `a.b.c` but got " ++ Syntax.show_source_view_not_line loc ++ "\n" ++ Syntax.show_source_view loc
 
         ParserCommon.FailedBlockParse er ->
             case er of
@@ -371,19 +372,19 @@ stringify_error e =
                     "Statement Parse Error"
 
         ParserCommon.UnexpectedTokenInGenArgList loc ->
-            "Unexpected Token in generic arg list\n" ++ Util.show_source_view loc
+            "Unexpected Token in generic arg list\n" ++ Syntax.show_source_view loc
 
         ParserCommon.ExpectedNameForStruct loc ->
-            "I expected a name for a structure here but all i got was\n" ++ Util.show_source_view loc
+            "I expected a name for a structure here but all i got was\n" ++ Syntax.show_source_view loc
 
         ParserCommon.UnknownTokenInEnumBody loc ->
-            "Unexpected token in enum body\n" ++ Util.show_source_view loc
+            "Unexpected token in enum body\n" ++ Syntax.show_source_view loc
 
         ParserCommon.ExpectedCloseParenInEnumField loc ->
-            "I got to the end of the line without a ). Enum fields should look like `Field(Type1, Type2)`\n" ++ Util.show_source_view loc
+            "I got to the end of the line without a ). Enum fields should look like `Field(Type1, Type2)`\n" ++ Syntax.show_source_view loc
 
         ParserCommon.ExpectedEqualInTypeDeclaration loc ->
-            "I expected an = like `type Name =` \n" ++ Util.show_source_view loc
+            "I expected an = like `type Name =` \n" ++ Syntax.show_source_view loc
 
 
 explain_expression : AST.Expression -> Element.Element msg

@@ -13,6 +13,7 @@ import Element.Font as Font
 import Generating.Generator exposing (generate)
 import Html
 import Keyboard.Event
+import Language.Syntax as Syntax exposing (Node, node_get, node_location)
 import Pallete
 import Parser.Lexer as Lexer
 import Parser.ParserExplanations
@@ -131,7 +132,13 @@ color_tok_type tt =
 range_from_toks : List Lexer.Token -> List Editor.Util.InfoRange
 range_from_toks toks =
     toks
-        |> List.map (\t -> Editor.Util.InfoRange (Editor.Util.Range t.loc.start t.loc.end) (color_tok_type t.typ) (Just <| Lexer.syntaxify_token t.typ))
+        |> List.map
+            (\t ->
+                Editor.Util.InfoRange
+                    (Editor.Util.Range (node_location t).start (node_location t).end)
+                    (color_tok_type (node_get t))
+                    (Just <| Lexer.syntaxify_token (node_get t))
+            )
 
 
 make_output : Model -> Element Msg
@@ -149,7 +156,7 @@ make_output mod =
                 ]
 
         footer =
-            Element.row [ Element.width fill, alignBottom, Element.padding 4, Border.widthEach {bottom = 0, left = 0, right = 0, top = 2} ]
+            Element.row [ Element.width fill, alignBottom, Element.padding 4, Border.widthEach { bottom = 0, left = 0, right = 0, top = 2 } ]
                 [ Element.text ("Compiled in " ++ millis_elapsed mod.last_run_start mod.last_run_end ++ " ms")
                 ]
 
@@ -166,7 +173,7 @@ make_output mod =
                 Editor.code_editor mod.editor_state (\s -> EditorAction s)
 
         right_pane =
-            Element.column [ Element.width fill, Element.height fill, alignTop, scrollbarY]
+            Element.column [ Element.width fill, Element.height fill, alignTop, scrollbarY ]
                 [ Element.el
                     [ Element.width fill
                     , Element.height Element.fill

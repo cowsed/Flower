@@ -1,6 +1,7 @@
 module Analysis.Explanations exposing (..)
 
 import Analysis.Analyzer exposing (..)
+import Analysis.DefinitionPropagator exposing (Error(..))
 import Analysis.Scope as Scope
 import Analysis.Util exposing (AnalysisError(..))
 import Element
@@ -11,6 +12,7 @@ import Language.Language as Language exposing (..)
 import Pallete
 import Ui exposing (color_text, comma_space, space)
 import Util exposing (escape_result, viewBullet)
+import Language.Syntax as Syntax
 
 
 header : String -> Element.Element msg
@@ -26,7 +28,7 @@ explain_error ae =
                 Element.text "I need a line at the top of the program that looks like `module main`"
 
             UnknownImport sl ->
-                Element.text ("I don't know of an import by the name `" ++ sl.thing ++ "`. \n" ++ Util.show_source_view sl.loc)
+                Element.text ("I don't know of an import by the name `" ++ sl.thing ++ "`. \n" ++ Syntax.show_source_view sl.loc)
 
             Unimplemented why ->
                 Element.text ("Unimplemented: " ++ why)
@@ -38,40 +40,51 @@ explain_error ae =
                 Element.text "Invlaid Syntax in struct definition. Only allowed things are `struct Name{}` or `struct Name[A, B, C]`\n"
 
             BadTypeParse loc ->
-                Element.text ("Arbitrary bad type parse\n" ++ Util.show_source_view loc)
+                Element.text ("Arbitrary bad type parse\n" ++ Syntax.show_source_view loc)
 
             ExpectedSymbolInGenericArg loc ->
-                Element.text ("Expected a one word symbol in generic arg list. something like `T` or `Name`\n" ++ Util.show_source_view loc)
+                Element.text ("Expected a one word symbol in generic arg list. something like `T` or `Name`\n" ++ Syntax.show_source_view loc)
 
             FunctionNameArgTooComplicated loc ->
-                Element.text ("Function name is too complicated. I expect something like `foo()` or `do_stuff`\n" ++ Util.show_source_view loc)
+                Element.text ("Function name is too complicated. I expect something like `foo()` or `do_stuff`\n" ++ Syntax.show_source_view loc)
 
             GenericArgIdentifierTooComplicated loc ->
-                Element.text ("Too complicated for generic argument\n" ++ Util.show_source_view loc)
+                Element.text ("Too complicated for generic argument\n" ++ Syntax.show_source_view loc)
 
             GenericTypeNameNotValidWithoutSquareBrackets loc ->
-                Element.text ("The type of `name` is a generic type but there were wasnt a [] right here. There is no generic argument deductio yet so dont do that\n" ++ Util.show_source_view loc)
+                Element.text ("The type of `name` is a generic type but there were wasnt a [] right here. There is no generic argument deductio yet so dont do that\n" ++ Syntax.show_source_view loc)
 
             TypeNameNotFound id loc ->
-                Element.text ("Type " ++ stringify_identifier id ++ " not found\n" ++ Util.show_source_view loc)
+                Element.text ("Type " ++ stringify_identifier id ++ " not found\n" ++ Syntax.show_source_view loc)
 
             TypeNotInstantiable typid loc ->
-                Element.text <| "This type `" ++ stringify_identifier typid ++ "` is not instantiable (its not generic)\n" ++ Util.show_source_view loc
+                Element.text <| "This type `" ++ stringify_identifier typid ++ "` is not instantiable (its not generic)\n" ++ Syntax.show_source_view loc
 
             CantInstantiateGenericWithTheseArgs reason loc ->
-                Element.text <| "Cant instantiate this generic type with these type arguments:" ++ stringify_reason_for_unsustantiable reason ++ "\n" ++ Util.show_source_view loc
+                Element.text <| "Cant instantiate this generic type with these type arguments:" ++ stringify_reason_for_unsustantiable reason ++ "\n" ++ Syntax.show_source_view loc
 
             TypeNameTooComplicated loc ->
-                Element.text <| "This name is too complicated for a struct. I expect something like `struct Name`" ++ "\n" ++ Util.show_source_view loc
+                Element.text <| "This name is too complicated for a struct. I expect something like `struct Name`" ++ "\n" ++ Syntax.show_source_view loc
 
             StructFieldNameTooComplicated loc ->
-                Element.text <| "This name is too complicated for a struct field. I expect something like `name: Type`" ++ "\n" ++ Util.show_source_view loc
+                Element.text <| "This name is too complicated for a struct field. I expect something like `name: Type`" ++ "\n" ++ Syntax.show_source_view loc
 
             NoSuchTypeFound loc ->
-                Element.text <| "I couldnt find this type: TODO better" ++ "\n" ++ Util.show_source_view loc
+                Element.text <| "I couldnt find this type: TODO better" ++ "\n" ++ Syntax.show_source_view loc
 
             NoSuchGenericTypeFound loc ->
-                Element.text <| "I couldnt find this generic type: TODO better" ++ "\n" ++ Util.show_source_view loc
+                Element.text <| "I couldnt find this generic type: TODO better" ++ "\n" ++ Syntax.show_source_view loc
+
+            DefPropErr e ->
+                case e of
+                    DuplicateDeclaration ->
+                        Element.text (Debug.toString DuplicateDeclaration)
+
+                    DuplicateDefinition ->
+                        Element.text (Debug.toString DuplicateDeclaration)
+
+                    StillHaveIncompleteTypes ->
+                        Element.text (Debug.toString DuplicateDeclaration)
         )
 
 

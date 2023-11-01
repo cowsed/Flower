@@ -3,29 +3,32 @@ module Analysis.Util exposing (..)
 import Language.Language exposing (..)
 import Parser.AST as AST
 import Util
-
+import Analysis.DefinitionPropagator exposing (DefinitionPropagator)
+import Analysis.DefinitionPropagator as DefinitionPropagator
+import Language.Syntax as Syntax
 
 type alias AnalysisRes a =
     Result AnalysisError a
 
 
 type AnalysisError
-    = UnknownImport AST.ImportAndLocation
+    = UnknownImport AST.ImportNode
     | NoModuleName
     | InvalidSyntaxInStructDefinition
-    | StructFieldNameTooComplicated Util.SourceView
-    | ExpectedSymbolInGenericArg Util.SourceView
-    | GenericArgIdentifierTooComplicated Util.SourceView
-    | FunctionNameArgTooComplicated Util.SourceView
-    | TypeNameTooComplicated Util.SourceView
-    | BadTypeParse Util.SourceView
-    | TypeNameNotFound Identifier Util.SourceView
-    | TypeNotInstantiable Identifier Util.SourceView
-    | CantInstantiateGenericWithTheseArgs ReasonForUninstantiable Util.SourceView
-    | GenericTypeNameNotValidWithoutSquareBrackets Util.SourceView
+    | StructFieldNameTooComplicated Syntax.SourceView
+    | ExpectedSymbolInGenericArg Syntax.SourceView
+    | GenericArgIdentifierTooComplicated Syntax.SourceView
+    | FunctionNameArgTooComplicated Syntax.SourceView
+    | TypeNameTooComplicated Syntax.SourceView
+    | BadTypeParse Syntax.SourceView
+    | TypeNameNotFound Identifier Syntax.SourceView
+    | TypeNotInstantiable Identifier Syntax.SourceView
+    | CantInstantiateGenericWithTheseArgs ReasonForUninstantiable Syntax.SourceView
+    | GenericTypeNameNotValidWithoutSquareBrackets Syntax.SourceView
     | Unimplemented String
-    | NoSuchTypeFound Util.SourceView
-    | NoSuchGenericTypeFound Util.SourceView
+    | NoSuchTypeFound Syntax.SourceView
+    | NoSuchGenericTypeFound Syntax.SourceView
+    | DefPropErr DefinitionPropagator.Error
     | Multiple (List AnalysisError)
 
 
