@@ -6,9 +6,12 @@ import Json.Decode exposing (Value)
 type Identifier
     = SingleIdentifier String -- name
     | QualifiedIdentifiers (List String) -- name.b.c
+
+
 si : String -> Identifier
 si s =
     SingleIdentifier s
+
 
 stringify_identifier : Identifier -> String
 stringify_identifier n =
@@ -160,7 +163,8 @@ is_generic_instantiable_with _ gen_args used_args =
 
 
 type TypeDefinition
-    = StructDefinitionType StructDefinition
+    = IntegerDefinitionType IntegerSize
+    | StructDefinitionType StructDefinition
     | EnumDefinitionType (List EnumTagDefinition)
     | AliasDefinitionType AliasDefinition
 
@@ -170,7 +174,7 @@ type alias AliasDefinition =
 
 
 type alias StructDefinition =
-    { fields : List (SimpleNamed TypeName)
+    { fields : List (SimpleNamed TypeDefinition)
     }
 
 
@@ -255,17 +259,27 @@ builtin_type_from_name s =
             Nothing
 
 
-integers =
-    { i8= IntegerType I8
+integers_names =
+    { i8 = IntegerType I8
     , i16 = IntegerType I16
     , i32 = IntegerType I32
     , i64 = IntegerType I64
-    , u8= IntegerType U8
+    , u8 = IntegerType U8
     , u16 = IntegerType U16
     , u32 = IntegerType U32
     , u64 = IntegerType U64
     }
 
+integers_types =
+    { i8 = IntegerDefinitionType I8
+    , i16 = IntegerDefinitionType I16
+    , i32 = IntegerDefinitionType I32
+    , i64 = IntegerDefinitionType I64
+    , u8 = IntegerDefinitionType U8
+    , u16 = IntegerDefinitionType U16
+    , u32 = IntegerDefinitionType U32
+    , u64 = IntegerDefinitionType U64
+    }
 
 
 -- bunch of types aliased to themselves cuz theyre builtin. Definition is in the language

@@ -1,5 +1,4 @@
 module ListSet exposing (..)
-import Html exposing (a)
 
 
 type alias ListSet a =

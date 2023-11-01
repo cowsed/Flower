@@ -11,7 +11,6 @@ empty =
     ListDict []
 
 
-
 insert : k -> v -> ListDict k v -> ListDict k v
 insert k v dict =
     if has_key k dict then
@@ -37,11 +36,24 @@ insert k v dict =
 
 --Insert a key-value pair into a dictionary. Replaces value when there is a collision.
 
-to_list: ListDict k v -> List (k,v)
-to_list d = d.elems
 
-values: ListDict k v -> List v
-values d = d.elems |> List.map Tuple.second
+to_list : ListDict k v -> List ( k, v )
+to_list d =
+    d.elems
+
+
+from_list : List ( k, v ) -> ListDict k v
+from_list l =
+    List.foldl
+        (\( k, v ) ld -> insert k v ld)
+        empty
+        l
+
+
+values : ListDict k v -> List v
+values d =
+    d.elems |> List.map Tuple.second
+
 
 has_key : k -> ListDict k v -> Bool
 has_key k dict =

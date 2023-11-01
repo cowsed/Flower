@@ -12,7 +12,7 @@ import ListSet exposing (ListSet)
 import Parser.AST as AST
 import Parser.ParserCommon exposing (Error(..))
 import String exposing (join)
-
+import Analysis.Struct as Struct
 
 type alias GoodProgram =
     { ast : AST.Program
@@ -98,40 +98,13 @@ get_unfinished_struct_or_generic sdt =
             (\n ->
                 case n of
                     Plain s ->
-                        get_unfinished_struct (Node s sdt.name.loc) sdt.fields
+                        Struct.get_unfinished_struct (Node s sdt.name.loc) sdt.fields
 
                     Generic s args ->
                         Debug.todo "Get Unfinished Generic Struct"
             )
 
 
-get_unfinished_struct : Node Identifier -> List AST.UnqualifiedTypeWithName -> AnalysisRes DefinitionPropagator.Unfinished
-get_unfinished_struct s fields =
-    let
-        name =
-            node_get s |> CustomTypeName |> DefinitionPropagator.TypeDeclaration
-
-        good_fields : AnalysisRes (List (SimpleNamed TypeName))
-        good_fields =
-            fields |> List.map ensure_good_struct_field |> ar_foldN (::) []
-
-        types_needed : List (SimpleNamed TypeName) -> ListSet DefinitionPropagator.DeclarationName
-        types_needed fs =
-            List.foldl (\nt -> ListSet.insert (DefinitionPropagator.TypeDeclaration nt.value)) ListSet.empty fs
-
-        add_data : AnalysisRes (( DefinitionPropagator.DeclarationName, DefinitionPropagator.Definition ) -> DefinitionPropagator.Output)
-        add_data =
-            Ok <|
-                \( tn, def ) ->
-                    Debug.log ("add data called: " ++ Debug.toString tn) <|
-                        DefinitionPropagator.Complete (DefinitionPropagator.TypeDef (Language.StructDefinitionType (Language.StructDefinition [])))
-
-        -- add_field fnn ruf =
-        -- ruf |> Result.andThen (\uf -> ensure_good_struct_field fnn |> Result.map  (\nt -> nt.))
-    in
-    good_fields
-        |> Result.map types_needed
-        |> Result.map2 (\add_func needs -> DefinitionPropagator.Unfinished (Node name s.loc) needs add_func) add_data
 
 
 get_unfinished : AST.TypeDefinitionType -> AnalysisRes DefinitionPropagator.Unfinished
@@ -167,36 +140,8 @@ extract_unfinished ls =
     List.foldl (\a b -> res_join_n b a) (Ok []) l
 
 
-analyze_typename : Node AST.FullName -> AnalysisRes Language.TypeName
-analyze_typename typename =
-    case typename.thing of
-        AST.NameWithoutArgs id ->
-            CustomTypeName id |> Ok
-
-        AST.NameWithArgs stuff ->
-            (stuff.args |> List.map analyze_typename)
-                |> ar_foldN (\el l -> List.append l [ el ]) []
-                |> Result.map (\args -> GenericInstantiation stuff.base args)
-
-        _ ->
-            NoSuchTypeFound typename.loc |> Err
 
 
-ensure_good_struct_field : AST.UnqualifiedTypeWithName -> AnalysisRes (SimpleNamed Language.TypeName)
-ensure_good_struct_field field =
-    let
-        name_res =
-            case field.name.thing of
-                SingleIdentifier s ->
-                    Ok s
-
-                _ ->
-                    Err (StructFieldNameTooComplicated field.name.loc)
-
-        typename_res =
-            analyze_typename field.typename
-    in
-    ar_map2 (\name tname -> SimpleNamed name tname) name_res typename_res
 
 
 make_outer_type_scope : AST.Program -> AnalysisRes Scope.FullScope
@@ -264,75 +209,3 @@ collapse_scope_results scopes =
     ar_foldN Scope.merge_two_scopes Scope.empty_scope scopes
 
 
-ar_map2 : (a -> b -> value) -> AnalysisRes a -> AnalysisRes b -> AnalysisRes value
-ar_map2 join a b =
-    case a of
-        Err eA ->
-            case b of
-                Err eB ->
-                    Err (add_error eA eB)
-
-                Ok _ ->
-                    Err eA
-
-        Ok valA ->
-            case b of
-                Err eB ->
-                    Err eB
-
-                Ok valB ->
-                    join valA valB |> Ok
-
-
-ar_foldN : (a -> b -> b) -> b -> List (AnalysisRes a) -> AnalysisRes b
-ar_foldN join_value value1 ls =
-    let
-        join : AnalysisRes a -> AnalysisRes b -> AnalysisRes b
-        join =
-            res_join_2 join_value
-
-        start : AnalysisRes b
-        start =
-            Ok value1
-    in
-    List.foldl join start ls
-
-
-ar_map3 : (a -> b -> c -> d) -> AnalysisRes a -> AnalysisRes b -> AnalysisRes c -> AnalysisRes d
-ar_map3 joiner a b c =
-    let
-        ab =
-            ar_map2 joiner a b
-    in
-    case ab of
-        Err e1 ->
-            case c of
-                Err e2 ->
-                    add_error e1 e2 |> Err
-
-                Ok _ ->
-                    e1 |> Err
-
-        Ok j1 ->
-            case c of
-                Err e2 ->
-                    e2 |> Err
-
-                Ok v2 ->
-                    j1 v2 |> Ok
-
-
-filterSplit : (a -> Result t1 t2) -> List a -> ( List t1, List t2 )
-filterSplit filterer list =
-    list
-        |> List.foldl
-            (\a state ->
-                case filterer a of
-                    Err b ->
-                        { state | t1s = List.append state.t1s [ b ] }
-
-                    Ok c ->
-                        { state | t2s = List.append state.t2s [ c ] }
-            )
-            { t1s = [], t2s = [] }
-        |> (\s -> ( s.t1s, s.t2s ))

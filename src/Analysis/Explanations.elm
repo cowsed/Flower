@@ -1,7 +1,7 @@
 module Analysis.Explanations exposing (..)
 
 import Analysis.Analyzer exposing (..)
-import Analysis.DefinitionPropagator exposing (Error(..))
+import Analysis.DefinitionPropagator as DefinitionPropagator exposing (DefinitionPropagator, Error(..))
 import Analysis.Scope as Scope
 import Analysis.Util exposing (AnalysisError(..))
 import Element
@@ -11,6 +11,7 @@ import Element.Font as Font
 import Language.Language as Language exposing (..)
 import Language.Syntax as Syntax
 import Pallete
+import Parser.ParserExplanations exposing (explain_typedef)
 import Ui exposing (color_text, comma_space, space)
 import Util exposing (escape_result, viewBullet)
 
@@ -80,9 +81,28 @@ explain_error ae =
                     DuplicateDefinition locs ->
                         Element.text <| "Duplicate Definition. First:\n" ++ Syntax.show_source_view locs.first ++ "\nSecond:\n" ++ Syntax.show_source_view locs.second
 
-                    StillHaveIncompleteTypes types ->
-                        Element.text "Still have incomplete types" |> (\h -> Element.column [] (List.append [ h ] (types |> List.map explain_typename)))
+                    StillHaveIncompletes types ->
+                        types
+                            |> List.map
+                                (\( name, needs ) ->
+                                    Element.column []
+                                        [ Element.row []
+                                            [ Element.text "Incomplete Type "
+                                            , explain_declaration_name name
+                                            , Element.text ". needs: "
+                                            ]
+                                        , Element.column [ Border.width 1 ] (needs |> List.map explain_declaration_name)
+                                        ]
+                                )
+                            |> Element.column []
         )
+
+
+explain_declaration_name : DefinitionPropagator.DeclarationName -> Element.Element msg
+explain_declaration_name dp =
+    case dp of
+        DefinitionPropagator.TypeDeclaration td ->
+            explain_typename td
 
 
 stringify_reason_for_unsustantiable : ReasonForUninstantiable -> String
@@ -107,7 +127,7 @@ explain_global_scope scope =
             [ [ header "Values" ]
             , scope.values |> List.map Syntax.node_get |> List.map explain_value_name_and_type
             , [ header "Types" ]
-            , scope.types |> List.map Syntax.node_get |> List.map explain_type_def
+            , scope.types |> List.map Syntax.node_get |> List.map (\nt -> explain_type_def nt.value)
             , [ header "Generic Types" ]
             , scope.generic_types |> List.map Syntax.node_get |> List.map explain_generic_type_def
             ]
@@ -118,7 +138,7 @@ explain_generic_type_def : Named Language.GenericTypeDefinition -> Element.Eleme
 explain_generic_type_def ngt =
     ngt.value [ CustomTypeName (Language.SingleIdentifier "T") ]
         |> Result.mapError (\e -> Debug.toString e |> Element.text)
-        |> Result.map (\sd -> Element.row [] [ explain_type_def (Named ngt.name sd) ])
+        |> Result.map (\sd -> Element.row [] [ explain_type_def (sd) ])
         |> escape_result
 
 
@@ -133,14 +153,14 @@ explain_type_type tt =
             s ++ ": Any"
 
 
-explain_type_def : Named Language.TypeDefinition -> Element.Element msg
-explain_type_def nt =
-    case named_get nt of
+explain_type_def : Language.TypeDefinition -> Element.Element msg
+explain_type_def td =
+    case td of
         StructDefinitionType def ->
             Element.column []
-                [ Element.row [] [ Element.text "struct with name ", Ui.code <| Element.text (stringify_identifier nt.name) ]
+                [ Element.row [] [ Element.text "struct with " ]
                 , def.fields
-                    |> List.map explain_named_typename
+                    |> List.map (\sn -> explain_type_def sn.value)
                     |> List.map (\e -> Util.Bullet e [])
                     |> Util.Bullet (Element.text "Fields")
                     |> viewBullet
@@ -148,12 +168,15 @@ explain_type_def nt =
 
         EnumDefinitionType edt ->
             Element.column []
-                [ Element.row [] [ Element.text "enum with name ", Ui.code <| Element.text <| stringify_identifier nt.name ]
+                [ Element.row [] [ Element.text "enum with name "]
                 , Util.Bullet (Element.text "Tags") (edt |> List.map explain_enum_tag |> List.map (\e -> Util.Bullet e [])) |> viewBullet
                 ]
 
         AliasDefinitionType _ ->
-            Element.row [] [ Element.text "alias with name ", Ui.code (Element.text <| stringify_identifier nt.name) ]
+            Element.row [] [ Element.text "alias with name " ]
+
+        IntegerDefinitionType isize ->
+            explain_integer isize
 
 
 explain_enum_tag : EnumTagDefinition -> Element.Element msg
@@ -166,17 +189,6 @@ explain_enum_tag etd =
             Element.row [] [ Ui.code_text n, Element.text " with types ", viewBullet <| Util.Bullet Element.none (ts |> List.map explain_typename |> List.map (\e -> Util.Bullet e [])) ]
 
 
-stringify_typeoftypedef : TypeDefinition -> String
-stringify_typeoftypedef gt =
-    case gt of
-        Language.StructDefinitionType _ ->
-            "struct "
-
-        Language.EnumDefinitionType _ ->
-            "enum "
-
-        Language.AliasDefinitionType _ ->
-            "alias "
 
 
 explain_value_name_and_type : Named Value -> Element.Element msg

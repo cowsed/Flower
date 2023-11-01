@@ -1,8 +1,9 @@
 module Analysis.BuiltinScopes exposing (..)
 
 import Analysis.Scope as Scope
-import Language.Language as Language exposing (Identifier(..), Named, Qualifier(..), ReasonForUninstantiable(..), SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), integers, si)
+import Language.Language as Language exposing (Identifier(..), Named, Qualifier(..), ReasonForUninstantiable(..), SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), integers_names, si)
 import Language.Syntax as Syntax
+import Language.Language exposing (integers_types)
 
 
 
@@ -12,7 +13,7 @@ import Language.Syntax as Syntax
 
 builtin_string : Named TypeDefinition
 builtin_string =
-    Named (si "string") (StructDefinitionType { fields = [ SimpleNamed "len" integers.i64, SimpleNamed "cap" integers.i64 ] })
+    Named (si "string") (StructDefinitionType { fields = [ SimpleNamed "len" integers_types.i64, SimpleNamed "cap" integers_types.i64 ] })
 
 
 builtin_maybe : Named Language.GenericTypeDefinition
@@ -47,26 +48,27 @@ std_types =
     []
 
 
-std_pair_generic : Named Language.GenericTypeDefinition
-std_pair_generic =
-    (\types ->
-        one_arg_only types
-            |> Result.map
-                (\typ ->
-                    StructDefinitionType
-                        { fields =
-                            [ SimpleNamed "A" typ
-                            , SimpleNamed "B" typ
-                            ]
-                        }
-                )
-    )
-        |> Named (si "pair")
+
+-- std_pair_generic : Named Language.GenericTypeDefinition
+-- std_pair_generic =
+--     (\types ->
+--         one_arg_only types
+--             |> Result.map
+--                 (\typ ->
+--                     StructDefinitionType
+--                         { fields =
+--                             [ SimpleNamed "A" typ
+--                             , SimpleNamed "B" typ
+--                             ]
+--                         }
+--                 )
+--     )
+--         |> Named (si "pair")
 
 
 std_generic_types : Scope.GenericTypeDefs
 std_generic_types =
-    [ Syntax.Node std_pair_generic Syntax.invalid_sourceview ]
+    []
 
 
 std_scope : Scope.FullScope
