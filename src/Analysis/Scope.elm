@@ -1,12 +1,13 @@
 module Analysis.Scope exposing (..)
 
 import Language.Language as Language exposing (Identifier, Named, TypeDefinition, TypeName(..))
+import Language.Syntax exposing (Node, node_get)
 import List.Extra
-import Language.Syntax as Syntax exposing (node_get, Node)
 
 
 type alias TypeDefs =
     List (Node (Language.Named Language.TypeDefinition))
+
 
 type alias GenericTypeDefs =
     List (Node (Language.Named Language.GenericTypeDefinition))
@@ -72,7 +73,6 @@ type alias TypeDeclarationScope =
     { types : List Language.Identifier
     , generics : List Language.Identifier
     }
-
 
 
 merge_two_scopes : FullScope -> FullScope -> FullScope

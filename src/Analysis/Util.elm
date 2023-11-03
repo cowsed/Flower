@@ -2,8 +2,6 @@ module Analysis.Util exposing (..)
 
 import Language.Language exposing (..)
 import Parser.AST as AST
-import Util
-import Analysis.DefinitionPropagator exposing (DefinitionPropagator)
 import Analysis.DefinitionPropagator as DefinitionPropagator
 import Language.Syntax as Syntax exposing (Node)
 import Language.Language as Language

@@ -1,7 +1,7 @@
 module Analysis.BuiltinScopes exposing (..)
 
 import Analysis.Scope as Scope
-import Language.Language as Language exposing (Identifier(..), Named, Qualifier(..), ReasonForUninstantiable(..), SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), integers_names, si)
+import Language.Language as Language exposing (Identifier(..), Named, Qualifier(..), ReasonForUninstantiable(..), SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), si)
 import Language.Syntax as Syntax
 import Language.Language exposing (integers_types)
 

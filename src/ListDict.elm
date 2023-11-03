@@ -55,6 +55,18 @@ values d =
     d.elems |> List.map Tuple.second
 
 
+keys : ListDict k v -> List k
+keys d =
+    d.elems |> List.map Tuple.first
+
+
+drop : k -> ListDict k v -> ListDict k v
+drop todrop ld =
+    ld.elems
+        |> List.filter (\( k, _ ) -> k /= todrop)
+        |> ListDict
+
+
 has_key : k -> ListDict k v -> Bool
 has_key k dict =
     List.any (\( key, _ ) -> key == k) dict.elems

@@ -1,17 +1,15 @@
 module Analysis.Explanations exposing (..)
 
 import Analysis.Analyzer exposing (..)
-import Analysis.DefinitionPropagator as DefinitionPropagator exposing (DefinitionPropagator, Error(..))
+import Analysis.DefinitionPropagator as DefinitionPropagator exposing (Error(..))
 import Analysis.Scope as Scope
 import Analysis.Util exposing (AnalysisError(..))
 import Element
-import Element.Background
 import Element.Border as Border
 import Element.Font as Font
 import Language.Language as Language exposing (..)
 import Language.Syntax as Syntax
 import Pallete
-import Parser.ParserExplanations exposing (explain_typedef)
 import Ui exposing (color_text, comma_space, space)
 import Util exposing (escape_result, viewBullet)
 
@@ -81,6 +79,9 @@ explain_error ae =
                     DuplicateDefinition locs ->
                         Element.text <| "Duplicate Definition. First:\n" ++ Syntax.show_source_view locs.first ++ "\nSecond:\n" ++ Syntax.show_source_view locs.second
 
+                    TypePromisedButNotFound t ->
+                        Element.row [] [ Element.text "finalize was called so iexpected this type but it wasnt here", explain_typename t ]
+
                     StillHaveIncompletes types ->
                         types
                             |> List.map
@@ -95,6 +96,8 @@ explain_error ae =
                                         ]
                                 )
                             |> Element.column []
+                    RecursiveDefinition ts -> Element.row [] (ts |> List.map explain_declaration_name |> List.intersperse (Element.text " defined in terms of \n") )
+                    DefinitionPropagator.MultipleErrs ls -> Element.column [] (ls |> List.map (explain_error << DefPropErr))
         )
 
 
@@ -138,7 +141,7 @@ explain_generic_type_def : Named Language.GenericTypeDefinition -> Element.Eleme
 explain_generic_type_def ngt =
     ngt.value [ CustomTypeName (Language.SingleIdentifier "T") ]
         |> Result.mapError (\e -> Debug.toString e |> Element.text)
-        |> Result.map (\sd -> Element.row [] [ explain_type_def (sd) ])
+        |> Result.map (\sd -> Element.row [] [ explain_type_def sd ])
         |> escape_result
 
 
@@ -168,7 +171,7 @@ explain_type_def td =
 
         EnumDefinitionType edt ->
             Element.column []
-                [ Element.row [] [ Element.text "enum with name "]
+                [ Element.row [] [ Element.text "enum with name " ]
                 , Util.Bullet (Element.text "Tags") (edt |> List.map explain_enum_tag |> List.map (\e -> Util.Bullet e [])) |> viewBullet
                 ]
 
@@ -187,8 +190,6 @@ explain_enum_tag etd =
 
         TagAndTypes n ts ->
             Element.row [] [ Ui.code_text n, Element.text " with types ", viewBullet <| Util.Bullet Element.none (ts |> List.map explain_typename |> List.map (\e -> Util.Bullet e [])) ]
-
-
 
 
 explain_value_name_and_type : Named Value -> Element.Element msg

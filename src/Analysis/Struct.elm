@@ -5,9 +5,39 @@ import Analysis.Util exposing (AnalysisError(..), AnalysisRes, analyze_typename,
 import Json.Decode exposing (field)
 import Language.Language as Language exposing (Identifier(..), SimpleNamed, StructDefinition, TypeDefinition(..), TypeName(..))
 import Language.Syntax as Syntax exposing (Node, node_get, node_location)
+import List.Extra
 import ListDict exposing (ListDict)
 import ListSet exposing (..)
 import Parser.AST as AST
+
+
+finalize : List (SimpleNamed TypeName) -> List ( DefinitionPropagator.DeclarationName, DefinitionPropagator.Definition ) -> Result DefinitionPropagator.Error DefinitionPropagator.Definition
+finalize field_decls ts =
+    let
+        get_typename : TypeName -> Maybe TypeDefinition
+        get_typename tn =
+            List.Extra.find
+                (\( decl, _ ) ->
+                    case decl of
+                        DefinitionPropagator.TypeDeclaration tn2 ->
+                            tn == tn2
+                )
+                ts
+                |> Maybe.andThen
+                    (\( _, def ) ->
+                        case def of
+                            DefinitionPropagator.TypeDef td ->
+                                Just td
+                    )
+
+        get_add : SimpleNamed TypeName -> List (SimpleNamed Language.TypeDefinition) -> Result DefinitionPropagator.Error (List (SimpleNamed Language.TypeDefinition))
+        get_add field l =
+            get_typename field.value
+                |> Maybe.map (\tdef -> List.append l [ SimpleNamed field.name tdef ])
+                |> Result.fromMaybe (DefinitionPropagator.TypePromisedButNotFound field.value)
+    in
+    List.foldl (Result.andThen << get_add) (Ok []) field_decls
+        |> Result.map (DefinitionPropagator.TypeDef << Language.StructDefinitionType << Language.StructDefinition)
 
 
 get_unfinished_struct : Node Identifier -> List AST.UnqualifiedTypeWithName -> AnalysisRes DefinitionPropagator.Unfinished
@@ -27,19 +57,9 @@ get_unfinished_struct s ast_fields =
                 |> List.map (\n -> ( n, Nothing ))
                 |> ListDict.from_list
 
-        finalize : List (SimpleNamed TypeName) -> List ( DefinitionPropagator.DeclarationName, DefinitionPropagator.Definition ) -> Result DefinitionPropagator.Error DefinitionPropagator.Definition
-        finalize field_decls ts =
-            let
-                get_add : SimpleNamed TypeName -> List (SimpleNamed Language.TypeDefinition) -> List (SimpleNamed Language.TypeDefinition)
-                get_add f l =
-                    l
-            in
-            List.foldl (Result.map << get_add) (Ok []) field_decls
-                |> Result.map (DefinitionPropagator.TypeDef << Language.StructDefinitionType << Language.StructDefinition)
-        finalize_res = good_fields |> Result.map finalize
-
-        -- add_field fnn ruf =
-        -- ruf |> Result.andThen (\uf -> ensure_good_struct_field fnn |> Result.map  (\nt -> nt.))
+        finalize_res : AnalysisRes (List ( DefinitionPropagator.DeclarationName, DefinitionPropagator.Definition ) -> Result DefinitionPropagator.Error DefinitionPropagator.Definition)
+        finalize_res =
+            good_fields |> Result.map (\ts -> \fs -> finalize ts fs)
     in
     good_fields
         |> Result.map types_needed
