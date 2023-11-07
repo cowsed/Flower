@@ -10,6 +10,7 @@ import Element exposing (Element, alignBottom, alignRight, alignTop, el, fill, s
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
+import Element.Input
 import Generating.Generator exposing (generate)
 import Html
 import Keyboard.Event
@@ -38,13 +39,27 @@ initial_input =
     """module main
 import "std/console"
 
-struct A{
-    a: i32
+enum Key{
+    KeyUp
+    KeyDown
+    KeyLeft
+    KeyRight
+}
+
+enum KeyAction{
+    KeyHeld(u64)
+    KeyPressed
+    KeyReleased
+}
+
+enum KeyboardEvent{
+    KeyEvent(Key, KeyAction)
+
 }
 
 fn main() -> i32{
-    console.puts("Hello")
-
+    console.print("Hello")
+    console.print_err("To stderr")
 }
 """
 
@@ -93,8 +108,8 @@ header str =
     Element.el [ Font.size 25, Font.semiBold ] (Element.text str)
 
 
-output_ui : Result CompilerError Analyzer.GoodProgram -> Element.Element msg
-output_ui res =
+output_ui : Bool -> (Bool -> msg) -> Result CompilerError Analyzer.GoodProgram -> Element.Element msg
+output_ui filter_builtins onchange res =
     Element.el []
         (case res of
             Err e ->
@@ -102,7 +117,13 @@ output_ui res =
 
             Ok prog ->
                 Element.column [ Element.padding 10 ]
-                    [ Analysis.Explanations.explain_program prog |> Element.el [ Border.solid, Border.width 2, Border.rounded 8, Element.padding 4 ]
+                    [ Element.Input.checkbox []
+                        { onChange = onchange
+                        , checked = filter_builtins
+                        , icon = Element.Input.defaultCheckbox
+                        , label = Element.Input.labelRight [] (Element.text "Hide Builtins")
+                        }
+                    , Analysis.Explanations.explain_program filter_builtins prog |> Element.el [ Border.solid, Border.width 2, Border.rounded 8, Element.padding 4 ]
                     , Parser.ParserExplanations.explain_program prog.ast
                     , header "LLVM IR"
                     , generate prog |> .src |> Element.text |> Ui.code |> Element.el [ Border.solid, Border.width 2, Border.rounded 8, Element.padding 4 ]
@@ -178,7 +199,7 @@ make_output mod =
                     [ Element.width fill
                     , Element.height Element.fill
                     ]
-                    (output_ui mod.output)
+                    (output_ui mod.filter_builtins ToggleFilterBuiltins mod.output)
                 ]
     in
     Element.column
@@ -221,6 +242,7 @@ view mmod =
 type Msg
     = WindowSizeChanged ( Int, Int )
     | Recompile
+    | ToggleFilterBuiltins Bool
     | EditorKey Keyboard.Event.KeyboardEvent
     | EditorAction Editor.EditorState
     | CompileStartedAtTime Time.Posix -- for timing
@@ -240,6 +262,7 @@ update msg mmod =
                 { editor_state = Editor.EditorState initial_input 0 False [] Nothing False
                 , last_run_start = Time.millisToPosix 0
                 , last_run_end = Time.millisToPosix 0
+                , filter_builtins = False
                 , output = compile initial_input
                 , window_size = ( 100, 100 )
                 , db_console = [ "Message 1" ]
@@ -304,6 +327,7 @@ update msg mmod =
                         |> Just
                     , Cmd.none
                     )
+                ToggleFilterBuiltins b -> (Just {mod | filter_builtins = b}, Cmd.none)
 
 
 millis_elapsed : Time.Posix -> Time.Posix -> String
@@ -319,6 +343,7 @@ type alias Model =
     { editor_state : Editor.EditorState
     , last_run_start : Time.Posix
     , last_run_end : Time.Posix
+    , filter_builtins : Bool
     , output : Result Compiler.CompilerError Analyzer.GoodProgram
     , window_size : ( Int, Int )
     , db_console : List String

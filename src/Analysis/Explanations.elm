@@ -12,6 +12,7 @@ import Language.Syntax as Syntax
 import Pallete
 import Ui exposing (color_text, comma_space, space)
 import Util exposing (escape_result, viewBullet, viewBulletList)
+import Analysis.BuiltinScopes exposing (is_builtin_type)
 
 
 header : String -> Element.Element msg
@@ -122,22 +123,22 @@ stringify_reason_for_unsustantiable reason =
             "Wrong number of arguments"
 
 
-explain_program : GoodProgram -> Element.Element msg
-explain_program gp =
+explain_program : Bool -> GoodProgram -> Element.Element msg
+explain_program filter_builtins  gp =
     Element.column [ Font.size 15 ]
         [ Element.el [] (Element.text ("module: " ++ gp.module_name))
-        , Element.el [ Element.padding 10 ] (explain_global_scope gp.global_scope)
+        , Element.el [ Element.padding 10 ] (explain_global_scope filter_builtins  gp.global_scope)
         ]
 
 
-explain_global_scope : Scope.FullScope -> Element.Element msg
-explain_global_scope scope =
+explain_global_scope :Bool -> Scope.FullScope -> Element.Element msg
+explain_global_scope filter_builtins scope =
     Element.column [ Element.spacing 6 ]
         (List.concat
             [ [ header "Values" ]
             , scope.values |> List.map Syntax.node_get |> List.map explain_value_name_and_type
             , [ header "Types" ]
-            , scope.types |> List.map Syntax.node_get |> List.map (\nt -> [ explain_type_def nt.name nt.value ] |> Element.row [ Border.width 1 ])
+            , scope.types |> List.map Syntax.node_get |> List.filter (\nt -> (not (is_builtin_type nt)) || (not filter_builtins)) |>   List.map (\nt -> [ explain_type_def nt.name nt.value ] |> Element.row [ Border.width 1 ])
             , [ header "Generic Types" ]
             , scope.generic_types |> List.map Syntax.node_get |> List.map explain_generic_type_def
             ]

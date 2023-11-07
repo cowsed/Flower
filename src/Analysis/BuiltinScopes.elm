@@ -111,3 +111,8 @@ import_scope im =
 
         _ ->
             Nothing
+
+
+is_builtin_type: Named TypeDefinition -> Bool
+is_builtin_type nt = 
+    List.member nt builtin_types
