@@ -118,8 +118,8 @@ catch_duplicates_and_circular ufs =
             in
             List.map
                 (\uf ->
-                    check_recursive (stuff_from_unfinished uf ) d ListSet.empty
-                        -- |> Maybe.map ((::) (uf.name |> node_get))
+                    check_recursive (stuff_from_unfinished uf) d ListSet.empty
+                 -- |> Maybe.map ((::) (uf.name |> node_get))
                 )
                 luf
                 |> collapse_recursive_errs ufs
@@ -163,7 +163,24 @@ stuff_from_unfinished uf =
 
 list_of_maybes_to_maybe_of_list : List (Maybe a) -> Maybe (List a)
 list_of_maybes_to_maybe_of_list =
-    List.foldl (\mstuff mstate -> Maybe.map2 (\m l -> List.append l [ m ]) mstuff mstate) (Just [])
+    let
+        folder : Maybe (a) -> Maybe (List a) -> Maybe (List a)
+        folder mstuff mstate =
+            case mstuff of
+                Just stuff ->
+                    case mstate of
+                        Just state ->
+                            List.append state [stuff] |> Just
+
+                        Nothing ->
+                            Just [ stuff ]
+
+                Nothing ->
+                    mstate
+    in
+    List.foldl
+        folder
+        (Just [])
 
 
 check_recursive : ( DeclarationName, List DeclarationName ) -> ListDict DeclarationName (List DeclarationName) -> ListSet DeclarationName -> Maybe RecursiveDef
@@ -175,7 +192,7 @@ check_recursive ( me, my_dependents ) others off_the_table =
         im_problematic : Maybe RecursiveDef
         im_problematic =
             List.Extra.find (\dn -> ListSet.member dn new_off_the_table) my_dependents
-                |> Maybe.map (\problem -> [me, problem])
+                |> Maybe.map (\problem -> [ me, problem ])
                 |> Maybe.map (Debug.log "Me being problematic")
 
         children_problematic : List DeclarationName -> Maybe RecursiveDef
@@ -192,7 +209,7 @@ check_recursive ( me, my_dependents ) others off_the_table =
             Just rdef
 
         Nothing ->
-            children_problematic my_dependents |> Maybe.map (\l -> List.append [ me ] l )
+            children_problematic my_dependents |> Maybe.map (\l -> List.append [ me ] l)
 
 
 this_or_err : a -> Maybe err -> Result err a
