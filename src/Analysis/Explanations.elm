@@ -206,7 +206,7 @@ explain_enum_tag etd =
             Ui.code_text n
 
         TagAndTypes n ts ->
-            Element.column [] [ Element.row [] [ Ui.code_text n, Element.text " with types " ], viewBulletList <|  (ts |> List.map explain_typename |> List.map (\e -> Util.Bullet e [])) ]
+            Element.column [] [ Element.row [] [ Ui.code_text n, Element.text " with type(s) " ], viewBulletList <|  (ts |> List.map explain_typename |> List.map (\e -> Util.Bullet e [])) ]
 
 
 explain_value_name_and_type : Named Value -> Element.Element msg

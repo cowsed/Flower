@@ -54,6 +54,15 @@ to_full_scope dp =
                             ( node_get inc.name
                             , inc.needs
                                 |> ListDict.to_list
+                                |> List.filter
+                                    (\( _, mdef ) ->
+                                        case mdef of
+                                            Just _ ->
+                                                False
+
+                                            _ ->
+                                                True
+                                    )
                                 |> List.map Tuple.first
                             )
                         )
