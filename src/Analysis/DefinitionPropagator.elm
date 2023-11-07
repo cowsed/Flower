@@ -1,6 +1,7 @@
 module Analysis.DefinitionPropagator exposing (DeclarationName(..), Definition(..), DefinitionPropagator, Dependence(..), Error(..), Unfinished, empty_definition_propogator, from_definitions_and_declarations, to_full_scope)
 
 import Analysis.Scope as Scope
+import Json.Decode exposing (maybe)
 import Language.Language as Language exposing (TypeName(..))
 import Language.Syntax as Syntax exposing (Node, node_get, node_location, node_map)
 import List.Extra
@@ -199,22 +200,61 @@ this_or_err this maybe_err =
 from_definitions_and_declarations : List ( Syntax.Node DeclarationName, Definition ) -> List Unfinished -> Result Error DefinitionPropagator
 from_definitions_and_declarations defs decls =
     add_definitions defs empty_definition_propogator
-        |> Result.andThen (\dp -> catch_duplicates_and_circular decls |> Result.andThen (\good_decls -> add_incompletes good_decls dp))
+        |> Result.andThen (\dp -> catch_duplicates_and_circular decls |> Result.andThen (\good_decls -> add_incompletes_originally good_decls dp))
+
+
+add_def_to_uf : ( DeclarationName, Definition ) -> Unfinished -> Unfinished
+add_def_to_uf ( dname, def ) u =
+    if ListDict.has_key dname u.needs then
+        { u | needs = ListDict.insert (Debug.log "adding dname" dname) (Just def) u.needs }
+
+    else
+        u |> Debug.log ("not adding" ++ Debug.toString dname ++ " to u")
 
 
 try_to_complete_incomplete : Unfinished -> List ( DeclarationName, Definition ) -> ( Bool, Unfinished )
 try_to_complete_incomplete uf defs =
-    let
-        add_def_to_uf : ( DeclarationName, Definition ) -> Unfinished -> Unfinished
-        add_def_to_uf ( dname, def ) u =
-            if ListDict.has_key dname u.needs then
-                { uf | needs = ListDict.insert (Debug.log "adding dname" dname) (Just def) u.needs }
-
-            else
-                u |> Debug.log ("not adding" ++ Debug.toString dname ++ " to u")
-    in
     List.foldl add_def_to_uf uf defs
-        |> (\uf2 -> ( all_needs_met uf2, uf2 )) |> Debug.log "Ufs"
+        |> (\uf2 -> ( all_needs_met uf2, uf2 ))
+        |> Debug.log "Ufs"
+
+
+add_definition_apply : ( Node DeclarationName, Definition ) -> DefinitionPropagator -> Result Error DefinitionPropagator
+add_definition_apply ( dname, ddef ) dp =
+    let
+        make_just_definitions : List ( a, Maybe b ) -> List ( a, b )
+        make_just_definitions =
+            List.foldl
+                (\( next_name, next_def ) l ->
+                    next_def
+                        |> Maybe.map (\def_def -> List.append l [ ( next_name, def_def ) ])
+                        |> Maybe.withDefault l
+                )
+                []
+
+        dp_with =
+            { dp | complete = ListDict.insert dname ddef dp.complete }
+
+        maybe_finished =
+            dp.incomplete |> List.map (add_def_to_uf ( node_get dname, ddef )) |> List.map (\uf2 -> ( all_needs_met uf2, uf2 ))
+
+        still_unfinished =
+            maybe_finished |> List.filter (\( complete, _ ) -> not complete) |> List.map Tuple.second
+
+        dp_with_unfinished =
+            { dp_with | incomplete = still_unfinished }
+
+        newly_finished =
+            maybe_finished
+                |> List.filter (\( complete, _ ) -> complete)
+                |> List.map Tuple.second
+                |> List.map (\uf -> uf.finalize (make_just_definitions (uf.needs |> ListDict.to_list)) |> Result.map (\def -> ( uf.name, def )))
+
+        foldf : Result Error ( Node DeclarationName, Definition ) -> Result Error DefinitionPropagator -> Result Error DefinitionPropagator
+        foldf resdef rdp =
+            Result.map2 (\a b -> ( a, b )) resdef rdp |> Result.andThen (\( def, dp2 ) -> add_definition_apply def dp2)
+    in
+    List.foldl foldf (Ok dp_with_unfinished) newly_finished
 
 
 all_needs_met : Unfinished -> Bool
@@ -232,31 +272,35 @@ all_needs_met uf =
         (ListDict.values uf.needs)
 
 
-add_incomplete_ : Unfinished -> DefinitionPropagator -> Result Error DefinitionPropagator
-add_incomplete_ uf dp =
+add_incomplete_originally : Unfinished -> DefinitionPropagator -> Result Error DefinitionPropagator
+add_incomplete_originally uf dp =
     let
         ( finished, nuf ) =
             try_to_complete_incomplete uf (ListDict.to_list dp.complete |> List.map (\( nk, v ) -> ( node_get nk, v )))
-    in
-    if finished then
-        ListDict.to_list nuf.needs
-            |> List.foldl
+
+        make_just_definitions : List ( a, Maybe b ) -> List ( a, b )
+        make_just_definitions =
+            List.foldl
                 (\( next_name, next_def ) l ->
                     next_def
                         |> Maybe.map (\def_def -> List.append l [ ( next_name, def_def ) ])
                         |> Maybe.withDefault l
                 )
                 []
+    in
+    if finished then
+        ListDict.to_list nuf.needs
+            |> make_just_definitions
             |> nuf.finalize
-            |> Result.map (\newdef -> { dp | complete = ListDict.insert uf.name newdef dp.complete })
+            |> Result.andThen (\newdef -> add_definition_apply ( uf.name, newdef ) dp)
 
     else
         Ok { dp | incomplete = List.append dp.incomplete [ nuf ] }
 
 
-add_incompletes : List Unfinished -> DefinitionPropagator -> Result Error DefinitionPropagator
-add_incompletes incos dp =
-    incos |> List.foldl (\dd res -> res |> Result.andThen (add_incomplete_ dd)) (Ok dp)
+add_incompletes_originally : List Unfinished -> DefinitionPropagator -> Result Error DefinitionPropagator
+add_incompletes_originally incos dp =
+    incos |> List.foldl (\dd res -> res |> Result.andThen (add_incomplete_originally dd)) (Ok dp)
 
 
 add_definition_simple : ( Syntax.Node DeclarationName, Definition ) -> DefinitionPropagator -> Result Error DefinitionPropagator
