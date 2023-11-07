@@ -11,7 +11,7 @@ import Language.Language as Language exposing (..)
 import Language.Syntax as Syntax
 import Pallete
 import Ui exposing (color_text, comma_space, space)
-import Util exposing (escape_result, viewBullet)
+import Util exposing (escape_result, viewBullet, viewBulletList)
 
 
 header : String -> Element.Element msg
@@ -81,6 +81,9 @@ explain_error ae =
 
                     TypePromisedButNotFound t ->
                         Element.row [] [ Element.text "finalize was called so iexpected this type but it wasnt here", explain_typename t ]
+
+                    DefinitionPromisedButNotFound decl ->
+                        Element.row [] [ Element.text "finalize was called so iexpected this definition but it wasnt here", explain_declaration_name decl ]
 
                     StillHaveIncompletes types ->
                         types
@@ -164,25 +167,24 @@ explain_type_def : Identifier -> Language.TypeDefinition -> Element.Element msg
 explain_type_def id td =
     (case td of
         StructDefinitionType def ->
-            Element.column [Element.width Element.fill]
-                [ Element.row [Element.width Element.fill] [ Element.text "struct with " ]
+            Element.column [ Element.width Element.fill ]
+                [ Element.row [ Element.width Element.fill ] [ Element.text "struct with fields:" ]
                 , def.fields
                     |> List.map
                         (\sn ->
-                            Element.row [Element.width Element.fill]
+                            Element.row [ Element.width Element.fill ]
                                 [ explain_named_typename sn
                                 ]
                         )
                     |> (\t -> t)
                     |> List.map (\e -> Util.Bullet e [])
-                    |> Util.Bullet (Element.text "Fields")
-                    |> viewBullet
+                    |> viewBulletList
                 ]
 
         EnumDefinitionType edt ->
             Element.column []
-                [ Element.row [] [ Element.text "enum with name " ]
-                , Util.Bullet (Element.text "Tags") (edt |> List.map explain_enum_tag |> List.map (\e -> Util.Bullet e [])) |> viewBullet
+                [ Element.row [] [ Element.text "enum with tags:" ]
+                , (edt |> List.map explain_enum_tag |> List.map (\e -> Util.Bullet e [])) |> viewBulletList
                 ]
 
         AliasDefinitionType _ ->
@@ -194,7 +196,7 @@ explain_type_def id td =
         FloatDefinitionType fsize ->
             explain_float fsize
     )
-        |> (\tde -> Element.row [Element.width Element.fill] [ stringify_identifier id |> Ui.code_text, tde ])
+        |> (\tde -> Element.row [ Element.width Element.fill, Element.spacing 6 ] [ stringify_identifier id |> Ui.code_text, tde ])
 
 
 explain_enum_tag : EnumTagDefinition -> Element.Element msg
@@ -204,7 +206,7 @@ explain_enum_tag etd =
             Ui.code_text n
 
         TagAndTypes n ts ->
-            Element.row [] [ Ui.code_text n, Element.text " with types ", viewBullet <| Util.Bullet Element.none (ts |> List.map explain_typename |> List.map (\e -> Util.Bullet e [])) ]
+            Element.column [] [ Element.row [] [ Ui.code_text n, Element.text " with types " ], viewBulletList <|  (ts |> List.map explain_typename |> List.map (\e -> Util.Bullet e [])) ]
 
 
 explain_value_name_and_type : Named Value -> Element.Element msg

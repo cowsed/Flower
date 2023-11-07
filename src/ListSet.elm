@@ -6,6 +6,9 @@ type alias ListSet a =
     }
 
 
+from_list: List a -> ListSet a
+from_list l = {elems = l}
+
 insert : a -> ListSet a -> ListSet a
 insert el ls =
     if member el ls then

@@ -38,6 +38,7 @@ type Error
     = DuplicateDefinition { first : Syntax.SourceView, second : Syntax.SourceView }
     | StillHaveIncompletes (List ( DeclarationName, List DeclarationName ))
     | TypePromisedButNotFound TypeName
+    | DefinitionPromisedButNotFound DeclarationName
     | RecursiveDefinition (List DeclarationName)
     | MultipleErrs (List Error)
 

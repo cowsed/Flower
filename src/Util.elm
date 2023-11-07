@@ -46,6 +46,9 @@ viewBullet (Bullet text children) =
         ]
 
 
+viewBulletList : List (Bullet msg) -> Element msg
+viewBulletList bullets =
+    Element.column [ Element.spacing 6 ] (List.map viewBullet bullets)
 
 
 last_el : List a -> Maybe a
@@ -61,7 +64,6 @@ always_tail l =
 
         Nothing ->
             []
-
 
 
 addchar : String -> Char -> String

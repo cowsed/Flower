@@ -3,7 +3,6 @@ module Analysis.BuiltinScopes exposing (..)
 import Analysis.Scope as Scope
 import Language.Language as Language exposing (Identifier(..), Named, Qualifier(..), ReasonForUninstantiable(..), SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), integer_size_name, si)
 import Language.Syntax as Syntax
-import Language.Language exposing (EnumTagDefinition)
 
 
 
@@ -36,7 +35,13 @@ builtin_maybe =
 
 
 builtin_bool : Named Language.TypeDefinition
-builtin_bool = EnumDefinitionType [Language.JustTag "true", Language.JustTag "false"] |> Named (si "bool")
+builtin_bool =
+    EnumDefinitionType
+        [ Language.JustTag "true"
+        , Language.JustTag "false"
+        ]
+        |> Named (si "bool")
+
 
 one_arg_only : List TypeName -> Result ReasonForUninstantiable TypeName
 one_arg_only args =
