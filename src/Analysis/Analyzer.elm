@@ -5,7 +5,7 @@ import Analysis.DefinitionPropagator as DefinitionPropagator
 import Analysis.Scope as Scope
 import Analysis.Util exposing (..)
 import Keyboard.Key exposing (Key(..))
-import Language.Language as Language exposing (Identifier(..), IntegerSize(..), Named, SimpleNamed, TypeDefinition(..), TypeName(..), extract_builtins, named_get, named_name)
+import Language.Language as Language exposing (Identifier(..), IntegerSize(..), Named, SimpleNamed, TypeDefinition(..), TypeName(..), named_get, named_name)
 import Language.Syntax as Syntax exposing (Node, node_get, node_map)
 import ListDict exposing (ListDict)
 import ListSet exposing (ListSet)

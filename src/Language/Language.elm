@@ -121,10 +121,6 @@ values_type v =
             Debug.todo "branch 'EnumValue' not implemented"
 
 
-builtin_typenames =
-    []
-
-
 type TypeName
     = IntegerType IntegerSize
     | FloatingPointType FloatingPointSize
@@ -259,17 +255,41 @@ builtin_type_from_name s =
             Nothing
 
 
-integers_names =
-    { i8 = IntegerType I8
-    , i16 = IntegerType I16
-    , i32 = IntegerType I32
-    , i64 = IntegerType I64
-    , u8 = IntegerType U8
-    , u16 = IntegerType U16
-    , u32 = IntegerType U32
-    , u64 = IntegerType U64
-    }
+integer_size_name : IntegerSize -> String
+integer_size_name i =
+    case i of
+        U8 ->
+            "u8"
 
+        U16 ->
+            "u16"
+
+        U32 ->
+            "u32"
+
+        U64 ->
+            "u64"
+
+        I8 ->
+            "i8"
+
+        I16 ->
+            "i16"
+
+        I32 ->
+            "i32"
+
+        I64 ->
+            "i64"
+
+        Int ->
+            "int"
+
+        Uint ->
+            "uint"
+
+
+integers_types : { i8 : TypeDefinition, i16 : TypeDefinition, i32 : TypeDefinition, i64 : TypeDefinition, u8 : TypeDefinition, u16 : TypeDefinition, u32 : TypeDefinition, u64 : TypeDefinition }
 integers_types =
     { i8 = IntegerDefinitionType I8
     , i16 = IntegerDefinitionType I16
@@ -282,22 +302,15 @@ integers_types =
     }
 
 
+integer_sizes : List IntegerSize
+integer_sizes =
+    [ U8, U16, U32, U64, Uint, I8, I16, I32, I64, Int ]
+
+
+
 -- bunch of types aliased to themselves cuz theyre builtin. Definition is in the language
 
 
-extract_builtins : TypeName -> Maybe TypeName
-extract_builtins t =
-    case t of
-        CustomTypeName id ->
-            case id of
-                SingleIdentifier s ->
-                    builtin_type_from_name s
-
-                _ ->
-                    Nothing
-
-        _ ->
-            Nothing
 
 
 precedence : InfixOpType -> Int

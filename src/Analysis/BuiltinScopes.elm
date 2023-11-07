@@ -1,9 +1,8 @@
 module Analysis.BuiltinScopes exposing (..)
 
 import Analysis.Scope as Scope
-import Language.Language as Language exposing (Identifier(..), Named, Qualifier(..), ReasonForUninstantiable(..), SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), si)
+import Language.Language as Language exposing (Identifier(..), Named, Qualifier(..), ReasonForUninstantiable(..), SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), integer_size_name, integers_types, si)
 import Language.Syntax as Syntax
-import Language.Language exposing (integers_types)
 
 
 
@@ -76,9 +75,21 @@ std_scope =
     Scope.FullScope std_types [] std_generic_types
 
 
+builtin_ints : List (Named TypeDefinition)
+builtin_ints =
+    Language.integer_sizes
+        |> List.map (\is -> Language.IntegerDefinitionType is 
+        |> Named (si (integer_size_name is)))
+
+
+builtin_types : List (Named TypeDefinition)
+builtin_types =
+    List.append builtin_ints [ builtin_string ]
+
+
 builtin_scope : Scope.FullScope
 builtin_scope =
-    { types = [ Syntax.Node builtin_string Syntax.invalid_sourceview ]
+    { types = builtin_types |> List.map (\t -> Syntax.Node t Syntax.invalid_sourceview)
     , generic_types = [ Syntax.Node builtin_maybe Syntax.invalid_sourceview ]
     , values = []
     }

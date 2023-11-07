@@ -163,7 +163,7 @@ check_recursive : ( DeclarationName, List DeclarationName ) -> ListDict Declarat
 check_recursive ( me, my_dependents ) others off_the_table =
     let
         new_off_the_table =
-            ListSet.insert me off_the_table |> Debug.log "new off the table"
+            ListSet.insert me off_the_table
 
         im_problematic : Maybe RecursiveDef
         im_problematic =
@@ -202,9 +202,56 @@ from_definitions_and_declarations defs decls =
         |> Result.andThen (\dp -> catch_duplicates_and_circular decls |> Result.andThen (\good_decls -> add_incompletes good_decls dp))
 
 
+try_to_complete_incomplete : Unfinished -> List ( DeclarationName, Definition ) -> ( Bool, Unfinished )
+try_to_complete_incomplete uf defs =
+    let
+        add_def_to_uf : ( DeclarationName, Definition ) -> Unfinished -> Unfinished
+        add_def_to_uf ( dname, def ) u =
+            if ListDict.has_key dname u.needs then
+                { uf | needs = ListDict.insert (Debug.log "adding dname" dname) (Just def) u.needs }
+
+            else
+                u |> Debug.log ("not adding" ++ Debug.toString dname ++ " to u")
+    in
+    List.foldl add_def_to_uf uf defs
+        |> (\uf2 -> ( all_needs_met uf2, uf2 )) |> Debug.log "Ufs"
+
+
+all_needs_met : Unfinished -> Bool
+all_needs_met uf =
+    List.foldl
+        (\md b ->
+            case md of
+                Nothing ->
+                    False
+
+                Just _ ->
+                    b
+        )
+        True
+        (ListDict.values uf.needs)
+
+
 add_incomplete_ : Unfinished -> DefinitionPropagator -> Result Error DefinitionPropagator
 add_incomplete_ uf dp =
-    Ok { dp | incomplete = List.append dp.incomplete [ uf ] }
+    let
+        ( finished, nuf ) =
+            try_to_complete_incomplete uf (ListDict.to_list dp.complete |> List.map (\( nk, v ) -> ( node_get nk, v )))
+    in
+    if finished then
+        ListDict.to_list nuf.needs
+            |> List.foldl
+                (\( next_name, next_def ) l ->
+                    next_def
+                        |> Maybe.map (\def_def -> List.append l [ ( next_name, def_def ) ])
+                        |> Maybe.withDefault l
+                )
+                []
+            |> nuf.finalize
+            |> Result.map (\newdef -> { dp | complete = ListDict.insert uf.name newdef dp.complete })
+
+    else
+        Ok { dp | incomplete = List.append dp.incomplete [ nuf ] }
 
 
 add_incompletes : List Unfinished -> DefinitionPropagator -> Result Error DefinitionPropagator

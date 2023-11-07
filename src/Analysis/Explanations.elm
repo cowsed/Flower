@@ -96,7 +96,7 @@ explain_error ae =
                                         ]
                                 )
                             |> Element.column []
-                    RecursiveDefinition ts -> Element.row [] (ts |> List.map explain_declaration_name |> List.intersperse (Element.text " defined in terms of \n") )
+                    RecursiveDefinition ts -> Element.row [] (ts |> List.map explain_declaration_name |> List.intersperse (Element.text " defined in terms of ") )
                     DefinitionPropagator.MultipleErrs ls -> Element.column [] (ls |> List.map (explain_error << DefPropErr))
         )
 
@@ -130,7 +130,7 @@ explain_global_scope scope =
             [ [ header "Values" ]
             , scope.values |> List.map Syntax.node_get |> List.map explain_value_name_and_type
             , [ header "Types" ]
-            , scope.types |> List.map Syntax.node_get |> List.map (\nt -> explain_type_def nt.value)
+            , scope.types |> List.map Syntax.node_get |> List.map (\nt -> [stringify_identifier nt.name |> Ui.code_text,Element.text "  ",  explain_type_def nt.value] |> Element.row [Border.width 1])
             , [ header "Generic Types" ]
             , scope.generic_types |> List.map Syntax.node_get |> List.map explain_generic_type_def
             ]
