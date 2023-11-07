@@ -116,11 +116,17 @@ catch_duplicates_and_circular ufs =
                 d =
                     ListDict.from_list (luf |> List.map (\uf -> ( node_get uf.name, ListDict.keys uf.needs )))
             in
-            List.map (\uf -> check_recursive (stuff_from_unfinished uf) d ListSet.empty |> Maybe.map ((::) (uf.name |> node_get))) luf
-                |> (\t -> t)
+            List.map
+                (\uf ->
+                    check_recursive (stuff_from_unfinished uf ) d ListSet.empty
+                        -- |> Maybe.map ((::) (uf.name |> node_get))
+                )
+                luf
                 |> collapse_recursive_errs ufs
     in
-    ufs |> find_duplicates |> Result.andThen find_recursives
+    ufs
+        |> find_duplicates
+        |> Result.andThen find_recursives
 
 
 type alias RecursiveDef =
@@ -168,7 +174,9 @@ check_recursive ( me, my_dependents ) others off_the_table =
 
         im_problematic : Maybe RecursiveDef
         im_problematic =
-            List.Extra.find (\dn -> ListSet.member dn new_off_the_table) my_dependents |> Maybe.map List.singleton |> Maybe.map (Debug.log "Me being problematic")
+            List.Extra.find (\dn -> ListSet.member dn new_off_the_table) my_dependents
+                |> Maybe.map (\problem -> [me, problem])
+                |> Maybe.map (Debug.log "Me being problematic")
 
         children_problematic : List DeclarationName -> Maybe RecursiveDef
         children_problematic deps =
@@ -180,11 +188,11 @@ check_recursive ( me, my_dependents ) others off_the_table =
                 |> Maybe.andThen List.head
     in
     case im_problematic of
-        Just err ->
-            Just err
+        Just rdef ->
+            Just rdef
 
         Nothing ->
-            children_problematic my_dependents |> Maybe.map (\l -> List.append l [ me ])
+            children_problematic my_dependents |> Maybe.map (\l -> List.append [ me ] l )
 
 
 this_or_err : a -> Maybe err -> Result err a

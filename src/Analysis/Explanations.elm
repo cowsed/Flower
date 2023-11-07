@@ -96,7 +96,7 @@ explain_error ae =
                                         ]
                                 )
                             |> Element.column []
-                    RecursiveDefinition ts -> Element.row [] (ts |> List.map explain_declaration_name |> List.intersperse (Element.text " defined in terms of ") )
+                    RecursiveDefinition ts -> Element.row [] [Element.text "Recursive Type Definition: ", Element.row [] (ts |> List.map explain_declaration_name |> List.intersperse (Element.text " defined in terms of ") )]
                     DefinitionPropagator.MultipleErrs ls -> Element.column [] (ls |> List.map (explain_error << DefPropErr))
         )
 
