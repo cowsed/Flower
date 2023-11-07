@@ -3,16 +3,15 @@ module Analysis.Analyzer exposing (..)
 import Analysis.BuiltinScopes as BuiltinScopes
 import Analysis.DefinitionPropagator as DefinitionPropagator
 import Analysis.Scope as Scope
+import Analysis.Struct as Struct
 import Analysis.Util exposing (..)
 import Keyboard.Key exposing (Key(..))
-import Language.Language as Language exposing (Identifier(..), IntegerSize(..), Named, SimpleNamed, TypeDefinition(..), TypeName(..), named_get, named_name)
-import Language.Syntax as Syntax exposing (Node, node_get, node_map)
-import ListDict exposing (ListDict)
-import ListSet exposing (ListSet)
+import Language.Language as Language exposing (Identifier(..), IntegerSize(..), Named, TypeDefinition(..), TypeName(..), named_get, named_name)
+import Language.Syntax  exposing (Node, node_get, node_map)
 import Parser.AST as AST
 import Parser.ParserCommon exposing (Error(..))
-import String exposing (join)
-import Analysis.Struct as Struct
+import Analysis.Enum as Enum
+
 
 type alias GoodProgram =
     { ast : AST.Program
@@ -60,7 +59,7 @@ analyze ast =
 
 
 ensure_good_generic_args : List (Node AST.FullName) -> AnalysisRes (List String)
-ensure_good_generic_args ls =
+ensure_good_generic_args _ =
     Debug.todo " ensure good generic args"
 
 
@@ -100,11 +99,27 @@ get_unfinished_struct_or_generic sdt =
                     Plain s ->
                         Struct.get_unfinished_struct (Node s sdt.name.loc) sdt.fields
 
-                    Generic s args ->
+                    Generic _ _ ->
                         Debug.todo "Get Unfinished Generic Struct"
             )
 
 
+get_unfinished_enum_or_generic : AST.EnumDefinition -> AnalysisRes DefinitionPropagator.Unfinished
+get_unfinished_enum_or_generic edt =
+    let
+        good_name =
+            ensure_good_custom_type_name edt.name
+    in
+    good_name
+        |> Result.andThen
+            (\n ->
+                case n of
+                    Plain s ->
+                        Enum.get_unfinished (Node s edt.name.loc) edt.fields
+
+                    Generic _ _ ->
+                        Debug.todo "Get Unfinished Generic Enum"
+            )
 
 
 get_unfinished : AST.TypeDefinitionType -> AnalysisRes DefinitionPropagator.Unfinished
@@ -112,6 +127,9 @@ get_unfinished tdt =
     case tdt of
         AST.StructDefType sdt ->
             get_unfinished_struct_or_generic sdt
+
+        AST.EnumDefType edt ->
+            get_unfinished_enum_or_generic edt
 
         _ ->
             Debug.todo "get unfinished enum and alias"
@@ -137,11 +155,7 @@ extract_unfinished ls =
         l =
             ls |> List.map get_unfinished
     in
-    List.foldl (\a b -> res_join_n b a) (Ok []) l
-
-
-
-
+    List.foldl res_join_n (Ok []) l
 
 
 make_outer_type_scope : AST.Program -> AnalysisRes Scope.FullScope
@@ -207,5 +221,3 @@ analyze_imports imps =
 collapse_scope_results : List (AnalysisRes Scope.FullScope) -> AnalysisRes Scope.FullScope
 collapse_scope_results scopes =
     ar_foldN Scope.merge_two_scopes Scope.empty_scope scopes
-
-

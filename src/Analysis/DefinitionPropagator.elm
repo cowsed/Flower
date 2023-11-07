@@ -1,9 +1,8 @@
 module Analysis.DefinitionPropagator exposing (DeclarationName(..), Definition(..), DefinitionPropagator, Dependence(..), Error(..), Unfinished, empty_definition_propogator, from_definitions_and_declarations, to_full_scope)
 
 import Analysis.Scope as Scope
-import Json.Decode exposing (maybe)
 import Language.Language as Language exposing (TypeName(..))
-import Language.Syntax as Syntax exposing (Node, node_get, node_location, node_map)
+import Language.Syntax as Syntax exposing (Node, node_get, node_location)
 import List.Extra
 import ListDict exposing (ListDict)
 import ListSet exposing (ListSet)
@@ -49,7 +48,14 @@ to_full_scope dp =
         Err
             (StillHaveIncompletes
                 (dp.incomplete
-                    |> List.map (\inc -> ( node_get inc.name, inc.needs |> ListSet.to_list |> List.map Tuple.first ))
+                    |> List.map
+                        (\inc ->
+                            ( node_get inc.name
+                            , inc.needs
+                                |> ListDict.to_list
+                                |> List.map Tuple.first
+                            )
+                        )
                  --                    |> List.map node_get
                 )
             )
@@ -164,13 +170,13 @@ stuff_from_unfinished uf =
 list_of_maybes_to_maybe_of_list : List (Maybe a) -> Maybe (List a)
 list_of_maybes_to_maybe_of_list =
     let
-        folder : Maybe (a) -> Maybe (List a) -> Maybe (List a)
+        folder : Maybe a -> Maybe (List a) -> Maybe (List a)
         folder mstuff mstate =
             case mstuff of
                 Just stuff ->
                     case mstate of
                         Just state ->
-                            List.append state [stuff] |> Just
+                            List.append state [ stuff ] |> Just
 
                         Nothing ->
                             Just [ stuff ]

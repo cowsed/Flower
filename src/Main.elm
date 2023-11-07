@@ -36,14 +36,14 @@ import Util exposing (escape_result)
 initial_input : String
 initial_input =
     """module main
-import "std"
+import "std/console"
 
 struct A{
     a: i32
 }
 
 fn main() -> i32{
-    std.puts("Hello")
+    console.puts("Hello")
 
 }
 """

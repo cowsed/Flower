@@ -1,14 +1,22 @@
 module ListDict exposing (..)
 
 
-type alias ListDict k v =
-    { elems : List ( k, v )
-    }
+type ListDict k v
+    = ListDict
+        { elems : List ( k, v )
+        }
 
 
 empty : ListDict k v
 empty =
-    ListDict []
+    ListDict { elems = [] }
+
+
+get_elems : ListDict k v -> List ( k, v )
+get_elems d =
+    case d of
+        ListDict ld ->
+            ld.elems
 
 
 insert : k -> v -> ListDict k v -> ListDict k v
@@ -26,11 +34,12 @@ insert k v dict =
                     |> List.append els
             )
             []
-            dict.elems
+            (dict |> get_elems)
+            |> (\els -> { elems = els })
             |> ListDict
 
     else
-        { dict | elems = List.append dict.elems [ ( k, v ) ] }
+        ListDict { elems = List.append (get_elems dict) [ ( k, v ) ] }
 
 
 
@@ -39,7 +48,7 @@ insert k v dict =
 
 to_list : ListDict k v -> List ( k, v )
 to_list d =
-    d.elems
+    d |> get_elems
 
 
 from_list : List ( k, v ) -> ListDict k v
@@ -52,24 +61,24 @@ from_list l =
 
 values : ListDict k v -> List v
 values d =
-    d.elems |> List.map Tuple.second
+    d |> get_elems |> List.map Tuple.second
 
 
 keys : ListDict k v -> List k
 keys d =
-    d.elems |> List.map Tuple.first
+    d |> get_elems |> List.map Tuple.first
 
 
 drop : k -> ListDict k v -> ListDict k v
 drop todrop ld =
-    ld.elems
+    ld|> get_elems
         |> List.filter (\( k, _ ) -> k /= todrop)
-        |> ListDict
+        |> from_list
 
 
 has_key : k -> ListDict k v -> Bool
 has_key k dict =
-    List.any (\( key, _ ) -> key == k) dict.elems
+    List.any (\( key, _ ) -> key == k) (dict |> get_elems)
 
 
 get : k -> ListDict k v -> Maybe v
@@ -88,4 +97,4 @@ get k dict =
                         Nothing
         )
         Nothing
-        dict.elems
+        (dict |> get_elems)

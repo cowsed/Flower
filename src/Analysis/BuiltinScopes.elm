@@ -1,8 +1,9 @@
 module Analysis.BuiltinScopes exposing (..)
 
 import Analysis.Scope as Scope
-import Language.Language as Language exposing (Identifier(..), Named, Qualifier(..), ReasonForUninstantiable(..), SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), integer_size_name, integers_types, si)
+import Language.Language as Language exposing (Identifier(..), Named, Qualifier(..), ReasonForUninstantiable(..), SimpleNamed, TypeDefinition(..), TypeName(..), TypeOfCustomType(..), integer_size_name, si)
 import Language.Syntax as Syntax
+import Language.Language exposing (EnumTagDefinition)
 
 
 
@@ -12,7 +13,14 @@ import Language.Syntax as Syntax
 
 builtin_string : Named TypeDefinition
 builtin_string =
-    Named (si "string") (StructDefinitionType { fields = [ SimpleNamed "len" integers_types.i64, SimpleNamed "cap" integers_types.i64 ] })
+    Named (si "string")
+        (StructDefinitionType
+            { fields =
+                [ SimpleNamed "len" (CustomTypeName (si "u64"))
+                , SimpleNamed "cap" (CustomTypeName (si "u64"))
+                ]
+            }
+        )
 
 
 builtin_maybe : Named Language.GenericTypeDefinition
@@ -26,6 +34,9 @@ builtin_maybe =
     in
     Named (si "Maybe") builder
 
+
+builtin_bool : Named Language.TypeDefinition
+builtin_bool = EnumDefinitionType [Language.JustTag "true", Language.JustTag "false"] |> Named (si "bool")
 
 one_arg_only : List TypeName -> Result ReasonForUninstantiable TypeName
 one_arg_only args =
@@ -42,27 +53,9 @@ one_arg_only args =
             WrongNumber |> Err
 
 
-std_types : Scope.TypeDefs
-std_types =
+std_console_types : Scope.TypeDefs
+std_console_types =
     []
-
-
-
--- std_pair_generic : Named Language.GenericTypeDefinition
--- std_pair_generic =
---     (\types ->
---         one_arg_only types
---             |> Result.map
---                 (\typ ->
---                     StructDefinitionType
---                         { fields =
---                             [ SimpleNamed "A" typ
---                             , SimpleNamed "B" typ
---                             ]
---                         }
---                 )
---     )
---         |> Named (si "pair")
 
 
 std_generic_types : Scope.GenericTypeDefs
@@ -70,21 +63,31 @@ std_generic_types =
     []
 
 
-std_scope : Scope.FullScope
-std_scope =
-    Scope.FullScope std_types [] std_generic_types
+std_console_scope : Scope.FullScope
+std_console_scope =
+    Scope.FullScope std_console_types [] std_generic_types
 
 
 builtin_ints : List (Named TypeDefinition)
 builtin_ints =
     Language.integer_sizes
-        |> List.map (\is -> Language.IntegerDefinitionType is 
-        |> Named (si (integer_size_name is)))
+        |> List.map
+            (\is ->
+                Language.IntegerDefinitionType is
+                    |> Named (si (integer_size_name is))
+            )
+
+
+builtin_floats : List (Named TypeDefinition)
+builtin_floats =
+    [ Named (si "f32") (FloatDefinitionType Language.F32)
+    , Named (si "f64") (FloatDefinitionType Language.F64)
+    ]
 
 
 builtin_types : List (Named TypeDefinition)
 builtin_types =
-    List.append builtin_ints [ builtin_string ]
+    List.concat [ builtin_ints, builtin_floats, [ builtin_string, builtin_bool ] ]
 
 
 builtin_scope : Scope.FullScope
@@ -98,8 +101,8 @@ builtin_scope =
 import_scope : String -> Maybe Scope.FullScope
 import_scope im =
     case im of
-        "std" ->
-            std_scope |> Just
+        "std/console" ->
+            std_console_scope |> Just
 
         _ ->
             Nothing

@@ -66,8 +66,8 @@ res_join_2 joiner res1 res2 =
                     joiner s1 s2 |> Ok
 
 
-res_join_n : AnalysisRes (List a) -> AnalysisRes a -> AnalysisRes (List a)
-res_join_n resl res2 =
+res_join_n :  AnalysisRes a -> AnalysisRes (List a) -> AnalysisRes (List a)
+res_join_n res2 resl  =
     case resl of
         Err e1 ->
             case res2 of

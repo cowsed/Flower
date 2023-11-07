@@ -4,8 +4,7 @@ import Keyboard.Key exposing (Key(..))
 import Language.Language as Language exposing (Identifier(..), InfixOpType(..), stringify_identifier)
 import Language.Syntax
 import Parser.Lexer as Lexer
-import Util
-import Language.Syntax as Syntax exposing (Node, node_get, node_location)
+import Language.Syntax as Syntax exposing (Node)
 
 
 

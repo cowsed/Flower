@@ -3,8 +3,8 @@ module Analysis.Struct exposing (..)
 import Analysis.DefinitionPropagator as DefinitionPropagator
 import Analysis.Util exposing (AnalysisError(..), AnalysisRes, analyze_typename, ar_foldN, ar_map2)
 import Json.Decode exposing (field)
-import Language.Language as Language exposing (Identifier(..), SimpleNamed, StructDefinition, TypeDefinition(..), TypeName(..))
-import Language.Syntax as Syntax exposing (Node, node_get, node_location)
+import Language.Language as Language exposing (Identifier(..), SimpleNamed, TypeDefinition(..), TypeName(..))
+import Language.Syntax exposing (Node, node_get)
 import List.Extra
 import ListDict exposing (ListDict)
 import ListSet exposing (..)
@@ -14,7 +14,7 @@ import Parser.AST as AST
 finalize : List (SimpleNamed TypeName) -> List ( DefinitionPropagator.DeclarationName, DefinitionPropagator.Definition ) -> Result DefinitionPropagator.Error DefinitionPropagator.Definition
 finalize field_decls ts =
     let
-        get_typename : TypeName -> Maybe TypeDefinition
+        get_typename : TypeName -> Maybe TypeName
         get_typename tn =
             List.Extra.find
                 (\( decl, _ ) ->
@@ -24,13 +24,17 @@ finalize field_decls ts =
                 )
                 ts
                 |> Maybe.andThen
-                    (\( _, def ) ->
-                        case def of
-                            DefinitionPropagator.TypeDef td ->
-                                Just td
+                    (\( dname, _ ) ->
+                        case dname of
+                            DefinitionPropagator.TypeDeclaration tn2 ->
+                                Just tn2
+
+                            -- _ ->
+                                -- Nothing
                     )
 
-        get_add : SimpleNamed TypeName -> List (SimpleNamed Language.TypeDefinition) -> Result DefinitionPropagator.Error (List (SimpleNamed Language.TypeDefinition))
+
+        get_add : SimpleNamed TypeName -> List (SimpleNamed Language.TypeName) -> Result DefinitionPropagator.Error (List (SimpleNamed Language.TypeName))
         get_add field l =
             get_typename field.value
                 |> Maybe.map (\tdef -> List.append l [ SimpleNamed field.name tdef ])

@@ -160,6 +160,7 @@ is_generic_instantiable_with _ gen_args used_args =
 
 type TypeDefinition
     = IntegerDefinitionType IntegerSize
+    | FloatDefinitionType FloatingPointSize
     | StructDefinitionType StructDefinition
     | EnumDefinitionType (List EnumTagDefinition)
     | AliasDefinitionType AliasDefinition
@@ -170,7 +171,7 @@ type alias AliasDefinition =
 
 
 type alias StructDefinition =
-    { fields : List (SimpleNamed TypeDefinition)
+    { fields : List (SimpleNamed TypeName)
     }
 
 

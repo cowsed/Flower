@@ -96,8 +96,12 @@ explain_error ae =
                                         ]
                                 )
                             |> Element.column []
-                    RecursiveDefinition ts -> Element.row [] [Element.text "Recursive Type Definition: ", Element.row [] (ts |> List.map explain_declaration_name |> List.intersperse (Element.text " defined in terms of ") )]
-                    DefinitionPropagator.MultipleErrs ls -> Element.column [] (ls |> List.map (explain_error << DefPropErr))
+
+                    RecursiveDefinition ts ->
+                        Element.row [] [ Element.text "Recursive Type Definition: ", Element.row [] (ts |> List.map explain_declaration_name |> List.intersperse (Element.text " defined in terms of ")) ]
+
+                    DefinitionPropagator.MultipleErrs ls ->
+                        Element.column [] (ls |> List.map (explain_error << DefPropErr))
         )
 
 
@@ -130,7 +134,7 @@ explain_global_scope scope =
             [ [ header "Values" ]
             , scope.values |> List.map Syntax.node_get |> List.map explain_value_name_and_type
             , [ header "Types" ]
-            , scope.types |> List.map Syntax.node_get |> List.map (\nt -> [stringify_identifier nt.name |> Ui.code_text,Element.text "  ",  explain_type_def nt.value] |> Element.row [Border.width 1])
+            , scope.types |> List.map Syntax.node_get |> List.map (\nt -> [ explain_type_def nt.name nt.value ] |> Element.row [ Border.width 1 ])
             , [ header "Generic Types" ]
             , scope.generic_types |> List.map Syntax.node_get |> List.map explain_generic_type_def
             ]
@@ -141,7 +145,7 @@ explain_generic_type_def : Named Language.GenericTypeDefinition -> Element.Eleme
 explain_generic_type_def ngt =
     ngt.value [ CustomTypeName (Language.SingleIdentifier "T") ]
         |> Result.mapError (\e -> Debug.toString e |> Element.text)
-        |> Result.map (\sd -> Element.row [] [ explain_type_def sd ])
+        |> Result.map (\sd -> Element.row [] [ explain_type_def ngt.name sd ])
         |> escape_result
 
 
@@ -156,14 +160,20 @@ explain_type_type tt =
             s ++ ": Any"
 
 
-explain_type_def : Language.TypeDefinition -> Element.Element msg
-explain_type_def td =
-    case td of
+explain_type_def : Identifier -> Language.TypeDefinition -> Element.Element msg
+explain_type_def id td =
+    (case td of
         StructDefinitionType def ->
-            Element.column []
-                [ Element.row [] [ Element.text "struct with " ]
+            Element.column [Element.width Element.fill]
+                [ Element.row [Element.width Element.fill] [ Element.text "struct with " ]
                 , def.fields
-                    |> List.map (\sn -> explain_type_def sn.value)
+                    |> List.map
+                        (\sn ->
+                            Element.row [Element.width Element.fill]
+                                [ explain_named_typename sn
+                                ]
+                        )
+                    |> (\t -> t)
                     |> List.map (\e -> Util.Bullet e [])
                     |> Util.Bullet (Element.text "Fields")
                     |> viewBullet
@@ -180,6 +190,11 @@ explain_type_def td =
 
         IntegerDefinitionType isize ->
             explain_integer isize
+
+        FloatDefinitionType fsize ->
+            explain_float fsize
+    )
+        |> (\tde -> Element.row [Element.width Element.fill] [ stringify_identifier id |> Ui.code_text, tde ])
 
 
 explain_enum_tag : EnumTagDefinition -> Element.Element msg
@@ -208,6 +223,17 @@ explain_named_typename vnt =
         , Element.text " of type "
         , explain_typename vnt.value |> Ui.code
         ]
+
+
+explain_float : FloatingPointSize -> Element.Element msg
+explain_float fsize =
+    Element.text <|
+        case fsize of
+            F32 ->
+                "32 bit floating point (4 bytes)"
+
+            F64 ->
+                "64 bit floating point (8 bytes)"
 
 
 explain_integer : IntegerSize -> Element.Element msg
