@@ -149,8 +149,11 @@ build_colored_range onchange state ir =
                             Border.color (Element.rgba 0.0 0.0 0.0 0.0)
 
                           else if ir.range.low + i == state.cursor_pos then
-                            Border.color Pallete.fg_c
+                            if state.focused then
+                                Border.color Pallete.cursor_c
 
+                            else
+                                Border.color Pallete.unfocused_cursor_c
                           else
                             Border.color (Element.rgba 0.0 0.0 0.0 0.0)
                         , if am_selected (ir.range.low + i) then
@@ -242,10 +245,10 @@ code_line onchange style state ( line_range, colors ) =
                 , Border.color
                     (if line_range.high == state.cursor_pos then
                         if state.focused then
-                            Pallete.fg_c
+                            Pallete.cursor_c
 
                         else
-                            Pallete.bg1_c
+                            Pallete.unfocused_cursor_c
 
                      else
                         Element.rgba 0.0 0.0 0.0 0.0
@@ -408,6 +411,14 @@ update_editor state ke =
                         { state | selection = Range 0 (String.length state.text) |> Just }
             )
         |> Maybe.map used_keypress
+        |> Maybe.andThen
+            (\thing ->
+                if state.focused then
+                    Just thing
+
+                else
+                    Nothing
+            )
         |> Maybe.withDefault ( state, False )
 
 

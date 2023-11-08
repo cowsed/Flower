@@ -56,3 +56,9 @@ bg1 : String
 bg1 ="#ebdbb2"
 bg2 : String
 bg2 = "#d5c4a1"
+
+unfocused_cursor_c: Element.Color
+unfocused_cursor_c = gray_c
+
+cursor_c: Element.Color
+cursor_c = fg_c
