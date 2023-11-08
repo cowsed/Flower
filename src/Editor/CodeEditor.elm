@@ -146,13 +146,13 @@ build_colored_range onchange state ir =
                         , onmousemove (ir.range.low + i)
                         , Border.widthEach { left = 1, right = 0, top = 0, bottom = 0 }
                         , if am_selected (ir.range.low + i) then
-                            Border.color Pallete.bg1_c
+                            Border.color (Element.rgba 0.0 0.0 0.0 0.0)
 
                           else if ir.range.low + i == state.cursor_pos then
                             Border.color Pallete.fg_c
 
                           else
-                            Border.color Pallete.bg_c
+                            Border.color (Element.rgba 0.0 0.0 0.0 0.0)
                         , if am_selected (ir.range.low + i) then
                             Background.color Pallete.bg1_c
 
@@ -245,10 +245,10 @@ code_line onchange style state ( line_range, colors ) =
                             Pallete.fg_c
 
                         else
-                            Pallete.red_c
+                            Pallete.bg1_c
 
                      else
-                        Pallete.bg_c
+                        Element.rgba 0.0 0.0 0.0 0.0
                     )
                 ]
                 Element.none
