@@ -110,9 +110,19 @@ get_unfinished nid fields =
                     (\l ->
                         l
                             |> (\t -> t)
+                            |> List.filter (not << is_type_weak_need)
                             |> List.map DefinitionPropagator.TypeDeclaration
                             |> ListSet.from_list
                     )
+
+        remove_reference : TypeName -> TypeName
+        remove_reference tn =
+            case tn of
+                ReferenceType refto ->
+                    refto
+
+                _ ->
+                    tn
 
         weak_needs : AnalysisRes (ListSet DeclarationName)
         weak_needs =
@@ -121,6 +131,7 @@ get_unfinished nid fields =
                     (\l ->
                         l
                             |> List.filter is_type_weak_need
+                            |> List.map remove_reference
                             |> List.map TypeDeclaration
                             |> ListSet.from_list
                     )
