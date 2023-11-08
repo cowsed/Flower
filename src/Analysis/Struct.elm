@@ -28,11 +28,9 @@ finalize field_decls ts =
                         case dname of
                             DefinitionPropagator.TypeDeclaration tn2 ->
                                 Just tn2
-
-                            -- _ ->
-                                -- Nothing
+                     -- _ ->
+                     -- Nothing
                     )
-
 
         get_add : SimpleNamed TypeName -> List (SimpleNamed Language.TypeName) -> Result DefinitionPropagator.Error (List (SimpleNamed Language.TypeName))
         get_add field l =
@@ -44,6 +42,22 @@ finalize field_decls ts =
         |> Result.map (DefinitionPropagator.TypeDef << Language.StructDefinitionType << Language.StructDefinition)
 
 
+is_type_weak_need : TypeName -> Bool
+is_type_weak_need tn =
+    case tn of
+        ReferenceType _ ->
+            True
+
+        _ ->
+            False
+
+
+maybe_finish_weak_type: TypeName -> Maybe  DefinitionPropagator.Definition
+maybe_finish_weak_type tn = 
+    case tn of 
+        ReferenceType refto -> Just (DefinitionPropagator.TypeDef (Language.ReferenceDefinitionType refto))
+        _ -> Nothing
+
 get_unfinished_struct : Node Identifier -> List AST.UnqualifiedTypeWithName -> AnalysisRes DefinitionPropagator.Unfinished
 get_unfinished_struct s ast_fields =
     let
@@ -54,20 +68,39 @@ get_unfinished_struct s ast_fields =
         good_fields =
             ast_fields |> List.map ensure_good_struct_field |> ar_foldN (::) []
 
+        all_types fs =
+            List.foldl (\nt l -> List.append l [ nt.value ]) [] fs |> List.Extra.unique
+
         types_needed : List (SimpleNamed TypeName) -> ListDict DefinitionPropagator.DeclarationName (Maybe DefinitionPropagator.Definition)
         types_needed fs =
-            List.foldl (\nt -> ListSet.insert (DefinitionPropagator.TypeDeclaration nt.value)) ListSet.empty fs
-                |> ListSet.to_list
-                |> List.map (\n -> ( n, Nothing ))
+            all_types fs
+                |> List.map (\n -> ( n, maybe_finish_weak_type n ))
+                |> List.map (\(tn, mdef) -> (DefinitionPropagator.TypeDeclaration tn, mdef))
                 |> ListDict.from_list
 
         finalize_res : AnalysisRes (List ( DefinitionPropagator.DeclarationName, DefinitionPropagator.Definition ) -> Result DefinitionPropagator.Error DefinitionPropagator.Definition)
         finalize_res =
             good_fields |> Result.map (\ts -> \fs -> finalize ts fs)
+
+        remove_reference: TypeName -> TypeName
+        remove_reference tn = 
+            case tn of 
+                ReferenceType refto -> refto
+                _ -> tn
+        weak_needs =
+            good_fields
+                |> Result.map
+                    (\fs ->
+                        all_types fs
+                            |> List.filter is_type_weak_need
+                            |> List.map remove_reference
+                            |> List.map DefinitionPropagator.TypeDeclaration
+                            |> ListSet.from_list
+                    )
     in
     good_fields
         |> Result.map types_needed
-        |> Result.map2 (\fin needs -> DefinitionPropagator.Unfinished (Node name s.loc) needs fin) finalize_res
+        |> Result.map3 (\wns fin needs -> DefinitionPropagator.Unfinished (Node name s.loc) needs wns fin) weak_needs finalize_res
 
 
 ensure_good_struct_field : AST.UnqualifiedTypeWithName -> AnalysisRes (SimpleNamed Language.TypeName)

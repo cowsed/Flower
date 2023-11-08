@@ -125,6 +125,7 @@ type TypeName
     = IntegerType IntegerSize
     | FloatingPointType FloatingPointSize
     | FunctionType FunctionHeader
+    | ReferenceType TypeName
     | CustomTypeName Identifier
     | GenericInstantiation Identifier (List TypeName)
 
@@ -161,6 +162,7 @@ is_generic_instantiable_with _ gen_args used_args =
 type TypeDefinition
     = IntegerDefinitionType IntegerSize
     | FloatDefinitionType FloatingPointSize
+    | ReferenceDefinitionType TypeName
     | StructDefinitionType StructDefinition
     | EnumDefinitionType (List EnumTagDefinition)
     | AliasDefinitionType AliasDefinition

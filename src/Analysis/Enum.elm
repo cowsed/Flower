@@ -1,7 +1,7 @@
 module Analysis.Enum exposing (get_unfinished)
 
 import Analysis.DefinitionPropagator as DefinitionPropagator exposing (DeclarationName(..), Definition(..), Error(..))
-import Analysis.Util exposing (AnalysisRes, analyze_typename, ar_foldN, res_join_2, res_join_n)
+import Analysis.Util exposing (AnalysisRes, analyze_typename, ar_foldN)
 import Language.Language as Language exposing (EnumTagDefinition(..), Identifier, SimpleNamed, TypeDefinition(..), TypeName(..), snamed_get, snamed_name)
 import Language.Syntax exposing (Node, node_map)
 import ListDict exposing (ListDict)
@@ -26,7 +26,8 @@ finalize tags defs =
                     List.foldl
                         (\typ rtyps ->
                             case ListDict.get (DefinitionPropagator.TypeDeclaration typ) defs_dict of
-                                Just _ -> rtyps |> Result.map (\types -> List.append types [ typ ])
+                                Just _ ->
+                                    rtyps |> Result.map (\types -> List.append types [ typ ])
 
                                 Nothing ->
                                     Err (DefinitionPromisedButNotFound (TypeDeclaration typ))
@@ -53,6 +54,16 @@ finalize tags defs =
                 EnumDefinitionType goodtags
                     |> DefinitionPropagator.TypeDef
             )
+
+
+is_type_weak_need : TypeName -> Bool
+is_type_weak_need tn =
+    case tn of
+        ReferenceType _ ->
+            True
+
+        _ ->
+            False
 
 
 get_unfinished : Node Identifier -> List AST.EnumField -> AnalysisRes DefinitionPropagator.Unfinished
@@ -82,16 +93,35 @@ get_unfinished nid fields =
                                 )
                     )
 
-        needed_types : AnalysisRes (ListSet DeclarationName)
-        needed_types =
+        all_types : AnalysisRes (List TypeName)
+        all_types =
             tags
                 |> Result.map
                     (\l ->
                         l
                             |> List.map snamed_get
                             |> List.concat
+                    )
+
+        needed_types : AnalysisRes (ListSet DeclarationName)
+        needed_types =
+            all_types
+                |> Result.map
+                    (\l ->
+                        l
                             |> (\t -> t)
                             |> List.map DefinitionPropagator.TypeDeclaration
+                            |> ListSet.from_list
+                    )
+
+        weak_needs : AnalysisRes (ListSet DeclarationName)
+        weak_needs =
+            all_types
+                |> Result.map
+                    (\l ->
+                        l
+                            |> List.filter is_type_weak_need
+                            |> List.map TypeDeclaration
                             |> ListSet.from_list
                     )
 
@@ -104,9 +134,10 @@ get_unfinished nid fields =
             nid
                 |> node_map (\id -> CustomTypeName id |> DefinitionPropagator.TypeDeclaration)
     in
-    Result.map2
+    Result.map3
         (DefinitionPropagator.Unfinished decl_name)
         (needed_types |> Result.map ListSet.to_list |> Result.map (List.map (\n -> ( n, Nothing ))) |> Result.map ListDict.from_list)
+        weak_needs
         finalize_res
 
 

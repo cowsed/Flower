@@ -176,14 +176,7 @@ make_outer_type_scope prog =
         incompletes =
             extract_unfinished prog.global_typedefs
 
-        --
-        --
-        -- module_type_definitions : Scope.TypeDeclarationScope -> List ( Identifier, AST.TypeDefinitionType ) -> AnalysisRes Scope.TypeDefs
-        -- module_type_definitions dscope l =
-        -- l |> List.map (extract_typedefs dscope) |> ar_foldN (\el li -> List.append li [ el ]) []
-        -- module_generic_type_definitions : Scope.TypeDeclarationScope -> List ( ( Identifier, List String ), AST.TypeDefinitionType ) -> AnalysisRes Scope.GenericTypeDefs
-        -- module_generic_type_definitions dscope gens =
-        -- Debug.log "module generic type definitions" (Ok [])
+
         complete_defs : Scope.FullScope -> List ( Node DefinitionPropagator.DeclarationName, DefinitionPropagator.Definition )
         complete_defs s =
             s.types
@@ -195,7 +188,6 @@ make_outer_type_scope prog =
                         , DefinitionPropagator.TypeDef (node_get ntn |> named_get)
                         )
                     )
-                |> Debug.log "completed defs"
     in
     completed_scopes
         |> Result.map complete_defs

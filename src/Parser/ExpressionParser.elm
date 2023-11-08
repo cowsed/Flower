@@ -4,7 +4,6 @@ import Language.Language exposing (InfixOpType, precedence)
 import Parser.AST as AST exposing (Expression(..), operator_to_function, with_location)
 import Parser.Lexer as Lexer exposing (TokenType(..), infix_op_from_token, token_to_str, token_type)
 import Parser.ParserCommon exposing (..)
-import Util
 import Language.Syntax as Syntax exposing (Node) 
 import Parser.AST exposing (FullName)
 

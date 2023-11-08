@@ -11,7 +11,7 @@ import Language.Language as Language exposing (..)
 import Language.Syntax as Syntax
 import Pallete
 import Ui exposing (color_text, comma_space, space)
-import Util exposing (escape_result, viewBullet, viewBulletList)
+import Util exposing (escape_result, viewBulletList)
 import Analysis.BuiltinScopes exposing (is_builtin_type)
 
 
@@ -100,7 +100,8 @@ explain_error ae =
                                         ]
                                 )
                             |> Element.column []
-
+                    WeakNeedsUnfulfilled wneeds -> 
+                        Element.row [] [Element.text "i was expecting these types but never got their definitions", Element.row [] (wneeds |> List.map explain_declaration_name |> List.intersperse (Element.text ", "))]
                     RecursiveDefinition ts ->
                         Element.row [] [ Element.text "Recursive Type Definition: ", Element.row [] (ts |> List.map explain_declaration_name |> List.intersperse (Element.text " defined in terms of ")) ]
 
@@ -167,6 +168,7 @@ explain_type_type tt =
 explain_type_def : Identifier -> Language.TypeDefinition -> Element.Element msg
 explain_type_def id td =
     (case td of
+        ReferenceDefinitionType refto -> Element.row [] [Element.text "reference to ", explain_typename refto]
         StructDefinitionType def ->
             Element.column [ Element.width Element.fill ]
                 [ Element.row [ Element.width Element.fill ] [ Element.text "struct with fields:" ]
@@ -289,9 +291,9 @@ explain_typename t =
                 [ color_text Pallete.red_c "fn "
                 , explain_fheader f
                 ]
-
+        ReferenceType refto -> Element.row [] [Element.text "Reference to ", explain_typename refto]
         CustomTypeName id ->
-            Element.row [] [ Element.text "Custom type with name ", Element.text (stringify_identifier id) ]
+            Element.row [] [ Element.text "Type with name ", Element.text (stringify_identifier id) ]
 
         GenericInstantiation id args ->
             Element.row []

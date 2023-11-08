@@ -42,6 +42,7 @@ analyze_typename typename =
                 |> ar_foldN (\el l -> List.append l [ el ]) []
                 |> Result.map (\args -> GenericInstantiation stuff.base args)
 
+        AST.ReferenceToFullName to -> analyze_typename to |> Result.map Language.ReferenceType
         _ ->
             NoSuchTypeFound typename.loc |> Err
 

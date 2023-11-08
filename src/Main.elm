@@ -14,7 +14,7 @@ import Element.Input
 import Generating.Generator exposing (generate)
 import Html
 import Keyboard.Event
-import Language.Syntax as Syntax exposing (Node, node_get, node_location)
+import Language.Syntax exposing (node_get, node_location)
 import Pallete
 import Parser.Lexer as Lexer
 import Parser.ParserExplanations
@@ -38,6 +38,11 @@ initial_input : String
 initial_input =
     """module main
 import "std/console"
+
+
+struct A{
+    a: &B
+}
 
 enum Key{
     KeyUp
@@ -104,6 +109,7 @@ fn main() -> i32{
 -}
 
 
+header : String -> Element msg
 header str =
     Element.el [ Font.size 25, Font.semiBold ] (Element.text str)
 

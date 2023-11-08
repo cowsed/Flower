@@ -6,6 +6,7 @@ import Language.Syntax as Syntax exposing (Node, node_get, node_location)
 import List.Extra
 import ListDict exposing (ListDict)
 import ListSet exposing (ListSet)
+import Time exposing (Month(..))
 
 
 type DeclarationName
@@ -24,19 +25,26 @@ type Definition
 type alias DefinitionPropagator =
     { complete : ListDict (Node DeclarationName) Definition
     , incomplete : List Unfinished
+    , weak_needs : ListSet DeclarationName
     }
 
 
 type alias Unfinished =
     { name : Syntax.Node DeclarationName
     , needs : ListDict DeclarationName (Maybe Definition)
+    , weak : ListSet DeclarationName
     , finalize : List ( DeclarationName, Definition ) -> Result Error Definition
     }
+
+
+type alias RecursiveDef =
+    List DeclarationName
 
 
 type Error
     = DuplicateDefinition { first : Syntax.SourceView, second : Syntax.SourceView }
     | StillHaveIncompletes (List ( DeclarationName, List DeclarationName ))
+    | WeakNeedsUnfulfilled (List DeclarationName)
     | TypePromisedButNotFound TypeName
     | DefinitionPromisedButNotFound DeclarationName
     | RecursiveDefinition (List DeclarationName)
@@ -70,6 +78,9 @@ to_full_scope dp =
                 )
             )
 
+    else if ListSet.size dp.weak_needs > 0 then
+        Err (WeakNeedsUnfulfilled (dp.weak_needs |> ListSet.to_list))
+
     else
         dp.complete
             |> ListDict.to_list
@@ -94,12 +105,37 @@ empty_definition_propogator : DefinitionPropagator
 empty_definition_propogator =
     { complete = ListDict.empty
     , incomplete = []
+    , weak_needs = ListSet.empty
     }
 
 
 add_definitions : List ( Node DeclarationName, Definition ) -> DefinitionPropagator -> Result Error DefinitionPropagator
 add_definitions defs dp =
     List.foldl (\dd res -> res |> Result.andThen (add_definition_simple dd)) (Ok dp) defs
+
+
+catch_duplicates_of_external : List Unfinished -> DefinitionPropagator -> Result Error DefinitionPropagator
+catch_duplicates_of_external ufs dp =
+    let
+        dupes : List { first : Node DeclarationName, second : Node DeclarationName }
+        dupes =
+            List.foldl
+                (\uf l ->
+                    case definition_of dp (node_get uf.name) of
+                        Just first ->
+                            List.append l [ { first = first, second = uf.name } ]
+
+                        Nothing ->
+                            l
+                )
+                []
+                ufs
+    in
+    if List.length dupes > 0 then
+        Err (dupes |> List.map (\dd -> { first = node_location dd.first, second = node_location dd.second }) |> List.map DuplicateDefinition |> MultipleErrs)
+
+    else
+        Ok dp
 
 
 catch_duplicates_and_circular : List Unfinished -> Result Error (List Unfinished)
@@ -114,8 +150,8 @@ catch_duplicates_and_circular ufs =
                 Just other ->
                     DuplicateDefinition { first = node_location other.name, second = node_location uf.name } |> Err
 
-        find_duplicates : List Unfinished -> Result Error (List Unfinished)
-        find_duplicates luf =
+        find_duplicates_this_module : List Unfinished -> Result Error (List Unfinished)
+        find_duplicates_this_module luf =
             List.foldl
                 (\uf resset ->
                     resset
@@ -130,23 +166,18 @@ catch_duplicates_and_circular ufs =
             let
                 d : ListDict DeclarationName (List DeclarationName)
                 d =
-                    ListDict.from_list (luf |> List.map (\uf -> ( node_get uf.name, ListDict.keys uf.needs )))
+                    ListDict.from_list (luf |> List.map stuff_from_unfinished)
             in
             List.map
                 (\uf ->
                     check_recursive (stuff_from_unfinished uf) d ListSet.empty
-                 -- |> Maybe.map ((::) (uf.name |> node_get))
                 )
                 luf
                 |> collapse_recursive_errs ufs
     in
     ufs
-        |> find_duplicates
+        |> find_duplicates_this_module
         |> Result.andThen find_recursives
-
-
-type alias RecursiveDef =
-    List DeclarationName
 
 
 collapse_recursive_errs : List Unfinished -> List (Maybe RecursiveDef) -> Result Error (List Unfinished)
@@ -241,23 +272,48 @@ this_or_err this maybe_err =
 from_definitions_and_declarations : List ( Syntax.Node DeclarationName, Definition ) -> List Unfinished -> Result Error DefinitionPropagator
 from_definitions_and_declarations defs decls =
     add_definitions defs empty_definition_propogator
-        |> Result.andThen (\dp -> catch_duplicates_and_circular decls |> Result.andThen (\good_decls -> add_incompletes_originally good_decls dp))
+        |> Result.andThen (catch_duplicates_of_external decls)
+        |> Result.andThen
+            (\dp ->
+                catch_duplicates_and_circular decls 
+                    |> Result.andThen (\good_decls -> add_incompletes_originally good_decls dp)
+            )
+        |> Result.andThen insure_weak_needs_completed
+
+
+insure_weak_needs_completed : DefinitionPropagator -> Result Error DefinitionPropagator
+insure_weak_needs_completed dp =
+    let
+        completed_set =
+            ListDict.keys dp.complete |> List.map node_get |> ListSet.from_list
+
+        unfulfilled =
+            ListSet.filter (\wn -> not (ListSet.member wn completed_set)) dp.weak_needs |> Debug.log "unfulfilled weak"
+    in
+    if ListSet.size unfulfilled > 0 then
+        WeakNeedsUnfulfilled (ListSet.to_list unfulfilled) |> Err
+
+    else
+        Ok dp
+
+
+
+-- List.foldl  (\wn l -> if not (dp.completes)) [] dp.weak_needs
 
 
 add_def_to_uf : ( DeclarationName, Definition ) -> Unfinished -> Unfinished
 add_def_to_uf ( dname, def ) u =
     if ListDict.has_key dname u.needs then
-        { u | needs = ListDict.insert (Debug.log "adding dname" dname) (Just def) u.needs }
+        { u | needs = ListDict.insert dname (Just def) u.needs }
 
     else
-        u |> Debug.log ("not adding" ++ Debug.toString dname ++ " to u")
+        u
 
 
 try_to_complete_incomplete : Unfinished -> List ( DeclarationName, Definition ) -> ( Bool, Unfinished )
 try_to_complete_incomplete uf defs =
     List.foldl add_def_to_uf uf defs
         |> (\uf2 -> ( all_needs_met uf2, uf2 ))
-        |> Debug.log "Ufs"
 
 
 add_definition_apply : ( Node DeclarationName, Definition ) -> DefinitionPropagator -> Result Error DefinitionPropagator
@@ -296,6 +352,10 @@ add_definition_apply ( dname, ddef ) dp =
             Result.map2 (\a b -> ( a, b )) resdef rdp |> Result.andThen (\( def, dp2 ) -> add_definition_apply def dp2)
     in
     List.foldl foldf (Ok dp_with_unfinished) newly_finished
+        |> Result.map
+            (\dp2 ->
+                { dp2 | weak_needs = ListSet.remove (node_get dname |> Debug.log "removing") dp2.weak_needs |> Debug.log "eak needs" }
+            )
 
 
 all_needs_met : Unfinished -> Bool
@@ -313,8 +373,18 @@ all_needs_met uf =
         (ListDict.values uf.needs)
 
 
-add_incomplete_originally : Unfinished -> DefinitionPropagator -> Result Error DefinitionPropagator
-add_incomplete_originally uf dp =
+has_definition_for : DefinitionPropagator -> DeclarationName -> Bool
+has_definition_for dp dn =
+    List.any (\el -> node_get el == dn) (dp.complete |> ListDict.keys)
+
+
+definition_of : DefinitionPropagator -> DeclarationName -> Maybe (Node DeclarationName)
+definition_of dp dn =
+    List.Extra.find (\el -> node_get el == dn) (dp.complete |> ListDict.keys)
+
+
+add_incomplete_originally : DefinitionPropagator -> Unfinished -> Result Error DefinitionPropagator
+add_incomplete_originally dp uf =
     let
         ( finished, nuf ) =
             try_to_complete_incomplete uf (ListDict.to_list dp.complete |> List.map (\( nk, v ) -> ( node_get nk, v )))
@@ -328,20 +398,34 @@ add_incomplete_originally uf dp =
                         |> Maybe.withDefault l
                 )
                 []
+
+        still_unfinished_weak_needs =
+            uf.weak |> ListSet.filter (not << has_definition_for dp)
     in
     if finished then
         ListDict.to_list nuf.needs
             |> make_just_definitions
             |> nuf.finalize
-            |> Result.andThen (\newdef -> add_definition_apply ( uf.name, newdef ) dp)
+            |> Result.andThen
+                (\newdef ->
+                    add_definition_apply ( uf.name, newdef )
+                        { dp | weak_needs = ListSet.merge still_unfinished_weak_needs dp.weak_needs }
+                )
 
     else
-        Ok { dp | incomplete = List.append dp.incomplete [ nuf ] }
+        Ok
+            { dp
+                | incomplete = List.append dp.incomplete [ nuf ]
+                , weak_needs = ListSet.merge still_unfinished_weak_needs dp.weak_needs |> Debug.log "new weake needs"
+            }
 
 
 add_incompletes_originally : List Unfinished -> DefinitionPropagator -> Result Error DefinitionPropagator
 add_incompletes_originally incos dp =
-    incos |> List.foldl (\dd res -> res |> Result.andThen (add_incomplete_originally dd)) (Ok dp)
+    incos
+        |> List.foldl
+            (\dd res -> res |> Result.andThen (\a -> add_incomplete_originally a dd))
+            (Ok dp)
 
 
 add_definition_simple : ( Syntax.Node DeclarationName, Definition ) -> DefinitionPropagator -> Result Error DefinitionPropagator
