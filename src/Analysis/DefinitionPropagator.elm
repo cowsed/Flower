@@ -53,52 +53,23 @@ type Error
 
 to_full_scope : DefinitionPropagator -> Result Error Scope.FullScope
 to_full_scope dp =
-    if List.length dp.incomplete > 0 then
-        Err
-            (StillHaveIncompletes
-                (dp.incomplete
-                    |> List.map
-                        (\inc ->
-                            ( node_get inc.name
-                            , inc.needs
-                                |> ListDict.to_list
-                                |> List.filter
-                                    (\( _, mdef ) ->
-                                        case mdef of
-                                            Just _ ->
-                                                False
+    dp.complete
+        |> ListDict.to_list
+        |> List.map
+            (\( k, v ) ->
+                case v of
+                    TypeDef t ->
+                        case node_get k of
+                            TypeDeclaration tn ->
+                                case tn of
+                                    CustomTypeName s ->
+                                        Language.Named s t |> (\td -> Syntax.Node td (node_location k))
 
-                                            _ ->
-                                                True
-                                    )
-                                |> List.map Tuple.first
-                            )
-                        )
-                 --                    |> List.map node_get
-                )
+                                    _ ->
+                                        Debug.todo "Something, im not reallu sure"
             )
-
-    else if ListSet.size dp.weak_needs > 0 then
-        Err (WeakNeedsUnfulfilled (dp.weak_needs |> ListSet.to_list))
-
-    else
-        dp.complete
-            |> ListDict.to_list
-            |> List.map
-                (\( k, v ) ->
-                    case v of
-                        TypeDef t ->
-                            case node_get k of
-                                TypeDeclaration tn ->
-                                    case tn of
-                                        CustomTypeName s ->
-                                            Language.Named s t |> (\td -> Syntax.Node td (node_location k))
-
-                                        _ ->
-                                            Debug.todo "Something, im not reallu sure"
-                )
-            |> (\ts -> Scope.FullScope ts [] [])
-            |> Ok
+        |> (\ts -> Scope.FullScope ts [] [])
+        |> Ok
 
 
 empty_definition_propogator : DefinitionPropagator
@@ -132,7 +103,12 @@ catch_duplicates_of_external ufs dp =
                 ufs
     in
     if List.length dupes > 0 then
-        Err (dupes |> List.map (\dd -> { first = node_location dd.first, second = node_location dd.second }) |> List.map DuplicateDefinition |> MultipleErrs)
+        Err
+            (dupes
+                |> List.map (\dd -> { first = node_location dd.first, second = node_location dd.second })
+                |> List.map DuplicateDefinition
+                |> MultipleErrs
+            )
 
     else
         Ok dp
@@ -275,7 +251,7 @@ from_definitions_and_declarations defs decls =
         |> Result.andThen (catch_duplicates_of_external decls)
         |> Result.andThen
             (\dp ->
-                catch_duplicates_and_circular decls 
+                catch_duplicates_and_circular decls
                     |> Result.andThen (\good_decls -> add_incompletes_originally good_decls dp)
             )
         |> Result.andThen insure_weak_needs_completed
@@ -287,14 +263,69 @@ insure_weak_needs_completed dp =
         completed_set =
             ListDict.keys dp.complete |> List.map node_get |> ListSet.from_list
 
-        unfulfilled =
-            ListSet.filter (\wn -> not (ListSet.member wn completed_set)) dp.weak_needs |> Debug.log "unfulfilled weak"
+        unfinished_err =
+            if List.length dp.incomplete == 0 then
+                Nothing
+
+            else
+                Just
+                    (StillHaveIncompletes
+                        (dp.incomplete
+                            |> List.map
+                                (\inc ->
+                                    ( node_get inc.name
+                                    , inc.needs
+                                        |> ListDict.to_list
+                                        |> List.filter
+                                            (\( _, mdef ) -> not (maybe_is_just mdef))
+                                        |> List.map Tuple.first
+                                    )
+                                )
+                        )
+                    )
+
+        has_incomplete dn =
+            List.any (\inc -> (inc.name |> node_get) == dn) dp.incomplete
+
+        unfulfilled_err =
+            ListSet.filter (\wn -> not (ListSet.member wn completed_set)) dp.weak_needs
+                |> ListSet.filter (not << has_incomplete)
+                |> (\unfs ->
+                        if ListSet.size unfs > 0 then
+                            Just (WeakNeedsUnfulfilled (ListSet.to_list unfs))
+
+                        else
+                            Nothing
+                   )
+
+        errs =
+            [] |> maybe_cons unfinished_err |> maybe_cons unfulfilled_err
     in
-    if ListSet.size unfulfilled > 0 then
-        WeakNeedsUnfulfilled (ListSet.to_list unfulfilled) |> Err
+    if List.length errs > 0 then
+        errs |> MultipleErrs |> Err
 
     else
         Ok dp
+
+
+maybe_cons : Maybe a -> List a -> List a
+maybe_cons m l =
+    case m of
+        Just el ->
+            el :: l
+
+        Nothing ->
+            l
+
+
+maybe_is_just : Maybe a -> Bool
+maybe_is_just m =
+    case m of
+        Just _ ->
+            True
+
+        _ ->
+            False
 
 
 
