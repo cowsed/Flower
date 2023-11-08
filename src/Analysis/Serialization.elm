@@ -25,57 +25,57 @@ encode_type : TypeName -> JE.Value
 encode_type t =
     case t of
 
-        IntegerType s ->
-            encode_integer s
-
-        FloatingPointType s ->
-            encode_floating_point s
+        -- IntegerType s ->
+            -- encode_integer s
+-- 
+        -- FloatingPointType s ->
+            -- encode_floating_point s
 
         _ ->
             Debug.todo "encode other types"
 
 
-integer_from_size : String -> JD.Decoder TypeName
-integer_from_size s =
-    case s of
-        "u8" ->
-            U8 |> IntegerType |> JD.succeed
+-- integer_from_size : String -> JD.Decoder TypeName
+-- integer_from_size s =
+--     case s of
+--         "u8" ->
+--             U8 |> IntegerType |> JD.succeed
 
-        "u16" ->
-            U16 |> IntegerType |> JD.succeed
+--         "u16" ->
+--             U16 |> IntegerType |> JD.succeed
 
-        "u32" ->
-            U32 |> IntegerType |> JD.succeed
+--         "u32" ->
+--             U32 |> IntegerType |> JD.succeed
 
-        "u64" ->
-            U64 |> IntegerType |> JD.succeed
+--         "u64" ->
+--             U64 |> IntegerType |> JD.succeed
 
-        "i8" ->
-            I8 |> IntegerType |> JD.succeed
+--         "i8" ->
+--             I8 |> IntegerType |> JD.succeed
 
-        "i16" ->
-            I16 |> IntegerType |> JD.succeed
+--         "i16" ->
+--             I16 |> IntegerType |> JD.succeed
 
-        "i32" ->
-            I32 |> IntegerType |> JD.succeed
+--         "i32" ->
+--             I32 |> IntegerType |> JD.succeed
 
-        "i64" ->
-            I64 |> IntegerType |> JD.succeed
+--         "i64" ->
+--             I64 |> IntegerType |> JD.succeed
 
-        _ ->
-            JD.fail "invalid integer size"
+--         _ ->
+--             JD.fail "invalid integer size"
 
 
-integer_type_decoder : JD.Decoder Language.TypeName
-integer_type_decoder =
-    JD.field "width" JD.string |> JD.andThen (\s -> integer_from_size s)
+-- integer_type_decoder : JD.Decoder Language.TypeName
+-- integer_type_decoder =
+    -- JD.field "width" JD.string |> JD.andThen (\s -> integer_from_size s)
 
 
 type_from_descriminator : String -> JD.Decoder TypeName
 type_from_descriminator s =
     case s of
-        "integer" ->
-            integer_type_decoder
+        -- "integer" ->
+            -- integer_type_decoder
 
 
         _ ->

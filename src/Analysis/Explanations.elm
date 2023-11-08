@@ -280,11 +280,11 @@ explain_integer i =
 explain_typename : Language.TypeName -> Element.Element msg
 explain_typename t =
     case t of
-        IntegerType isize ->
-            stringify_integer_size isize |> color_text Pallete.orange_c |> Ui.hoverer (explain_integer isize |> Ui.tooltip_styling)
+        -- IntegerType isize ->
+            -- stringify_integer_size isize |> color_text Pallete.orange_c |> Ui.hoverer (explain_integer isize |> Ui.tooltip_styling)
 
-        FloatingPointType fsize ->
-            stringify_floating_size fsize |> color_text Pallete.orange_c
+        -- FloatingPointType fsize ->
+            -- stringify_floating_size fsize |> color_text Pallete.orange_c
 
         FunctionType f ->
             Element.row [] <|

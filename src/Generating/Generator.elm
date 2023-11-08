@@ -63,11 +63,11 @@ llvm_forward_declaration nf =
 llvm_type_declaration : TypeName -> String
 llvm_type_declaration typ =
     case typ of
-        Language.IntegerType _ ->
-            Debug.log "Declaring builting type, shoudlnt happen" ""
+        -- Language.IntegerType _ ->
+        --     Debug.log "Declaring builting type, shoudlnt happen" ""
 
-        Language.FloatingPointType _ ->
-            Debug.log "Declaring builting type, shoudlnt happen" ""
+        -- Language.FloatingPointType _ ->
+        --     Debug.log "Declaring builting type, shoudlnt happen" ""
 
         _ ->
             Debug.todo "Other Type Declarations"
@@ -86,8 +86,8 @@ llvm_ret_type_name mtyp =
 llvm_type_name : TypeName -> String
 llvm_type_name typ =
     case typ of
-        IntegerType size ->
-            llvm_integer_size size
+        -- IntegerType size ->
+            -- llvm_integer_size size
 
         _ ->
             "SOME TYPE IDK MAN"

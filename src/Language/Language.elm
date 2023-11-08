@@ -108,8 +108,8 @@ type Value
 values_type : Value -> TypeName
 values_type v =
     case v of
-        IntegerValue is _ ->
-            IntegerType is
+        IntegerValue _ _ ->
+            Debug.todo "branch 'FloatingPointValue _ _' not implemented"
 
         FloatingPointValue _ _ ->
             Debug.todo "branch 'FloatingPointValue _ _' not implemented"
@@ -122,10 +122,8 @@ values_type v =
 
 
 type TypeName
-    = IntegerType IntegerSize
-    | FloatingPointType FloatingPointSize
+    = ReferenceType TypeName
     | FunctionType FunctionHeader
-    | ReferenceType TypeName
     | CustomTypeName Identifier
     | GenericInstantiation Identifier (List TypeName)
 
@@ -133,11 +131,6 @@ type TypeName
 type alias QualifiedTypeName =
     { qual : Qualifier, typ : TypeName }
 
-
-type TypeOfCustomType
-    = StructType
-    | EnumType
-    | AliasType
 
 
 type ReasonForUninstantiable
@@ -215,47 +208,47 @@ prepend_identifier s i =
             QualifiedIdentifiers (s :: l)
 
 
-builtin_type_from_name : String -> Maybe TypeName
-builtin_type_from_name s =
-    case s of
-        "u8" ->
-            IntegerType U8 |> Just
+-- builtin_type_from_name : String -> Maybe TypeName
+-- builtin_type_from_name s =
+--     case s of
+--         "u8" ->
+--             IntegerType U8 |> Just
 
-        "u16" ->
-            IntegerType U16 |> Just
+--         "u16" ->
+--             IntegerType U16 |> Just
 
-        "u32" ->
-            IntegerType U32 |> Just
+--         "u32" ->
+--             IntegerType U32 |> Just
 
-        "u64" ->
-            IntegerType U64 |> Just
+--         "u64" ->
+--             IntegerType U64 |> Just
 
-        "i8" ->
-            IntegerType I8 |> Just
+--         "i8" ->
+--             IntegerType I8 |> Just
 
-        "i16" ->
-            IntegerType I16 |> Just
+--         "i16" ->
+--             IntegerType I16 |> Just
 
-        "i32" ->
-            IntegerType I32 |> Just
+--         "i32" ->
+--             IntegerType I32 |> Just
 
-        "i64" ->
-            IntegerType I64 |> Just
+--         "i64" ->
+--             IntegerType I64 |> Just
 
-        "int" ->
-            IntegerType Int |> Just
+--         "int" ->
+--             IntegerType Int |> Just
 
-        "uint" ->
-            IntegerType Uint |> Just
+--         "uint" ->
+--             IntegerType Uint |> Just
 
-        "f32" ->
-            FloatingPointType F32 |> Just
+--         "f32" ->
+--             FloatingPointType F32 |> Just
 
-        "f64" ->
-            FloatingPointType F64 |> Just
+--         "f64" ->
+--             FloatingPointType F64 |> Just
 
-        _ ->
-            Nothing
+--         _ ->
+--             Nothing
 
 
 integer_size_name : IntegerSize -> String
