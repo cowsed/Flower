@@ -1,0 +1,41 @@
+module main
+import "std/console"
+
+
+struct A{
+    a: &A
+}
+
+enum Key{
+    Up
+    Down
+    Left
+    Right
+}
+
+enum ButtonAction{
+    Down
+    HeldFor(u64)
+    Up
+}
+
+enum MouseButton{
+    Left
+    Right
+    Middle
+    Other(i32)
+}
+
+enum InputEvent{
+    KeyEvent(Key, ButtonAction)
+    MouseEvent(MouseButton, ButtonAction)
+
+}
+
+
+
+
+fn main() -> i32{
+    console.print("Hello")
+    console.print_err("To stderr")
+}

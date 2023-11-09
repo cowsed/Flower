@@ -41,9 +41,9 @@ syntaxify_string_literal s =
     Element.el [ Font.color Pallete.blue_c ] (Element.text ("\"" ++ s ++ "\""))
 
 
-syntaxify_number_literal : String -> Element.Element msg
-syntaxify_number_literal s =
-    color_text Pallete.aqua_c s
+syntaxify_number_literal : String -> Syntax.IntegerLiteralType -> Element.Element msg
+syntaxify_number_literal s ilt =
+    color_text Pallete.aqua_c (s++"_"++(Debug.toString ilt))
 
 
 syntaxify_identifier : Identifier -> Element.Element msg
@@ -62,8 +62,8 @@ syntaxify_literal l s =
         Language.Syntax.StringLiteral ->
             syntaxify_string_literal ("\"" ++ s ++ "\"")
 
-        Language.Syntax.NumberLiteral ->
-            syntaxify_number_literal s
+        Language.Syntax.NumberLiteral ilt ->
+            syntaxify_number_literal s ilt
 
 
 syntaxify_fullname : FullName -> Element.Element msg
@@ -112,8 +112,8 @@ syntaxify_expression expr =
                 Language.Syntax.StringLiteral ->
                     syntaxify_string_literal s
 
-                Language.Syntax.NumberLiteral ->
-                    syntaxify_number_literal s
+                Language.Syntax.NumberLiteral ilt ->
+                    syntaxify_number_literal s ilt
 
 
 syntaxify_fheader : AST.FunctionHeader -> Element.Element msg
@@ -404,8 +404,8 @@ explain_expression expr =
                 Language.Syntax.StringLiteral ->
                     Element.row [] [ Element.text ("String Literal: " ++ s) ]
 
-                Language.Syntax.NumberLiteral ->
-                    Element.row [] [ Element.text ("Number Literal: " ++ s) ]
+                Language.Syntax.NumberLiteral ilt ->
+                    Element.row [] [ Element.text ("Number Literal: " ++ s ++ (Debug.toString ilt)) ]
 
         AST.Parenthesized e ->
             Element.row [Border.width 1] [ Element.text "(", explain_expression e.thing, Element.text ")" ]

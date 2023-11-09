@@ -1,0 +1,22 @@
+module main
+import "std/console"
+
+enum Key{
+    KeyUp
+    KeyDown
+    KeyLeft
+    KeyRight
+}
+
+enum KeyAction{
+    KeyHeld(u64)
+    KeyPressed
+    KeyReleased
+}
+
+enum KeyboardEvent{
+    KeyEvent(Key, KeyAction)
+
+}
+
+fn main() -> i32{}

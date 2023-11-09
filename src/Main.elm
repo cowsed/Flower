@@ -11,6 +11,9 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input
+import File
+import File.Download
+import File.Select
 import Generating.Generator exposing (generate)
 import Html
 import Keyboard.Event
@@ -39,28 +42,6 @@ initial_input =
     """module main
 import "std/console"
 
-
-struct A{
-    a: &B
-}
-
-enum Key{
-    KeyUp
-    KeyDown
-    KeyLeft
-    KeyRight
-}
-
-enum KeyAction{
-    KeyHeld(u64)
-    KeyPressed
-    KeyReleased
-}
-
-enum KeyboardEvent{
-    KeyEvent(Key, KeyAction)
-
-}
 
 fn main() -> i32{
     console.print("Hello")
@@ -168,6 +149,22 @@ range_from_toks toks =
             )
 
 
+loadfile : Element Msg
+loadfile =
+    Element.Input.button [ Border.width 2, Border.rounded 4, Element.padding 2, Background.color Pallete.bg_c ]
+        { onPress = Just (FileRequested [ "text" ] FileSelected)
+        , label = Element.text "load"
+        }
+
+
+savefile : Element Msg
+savefile =
+    Element.Input.button [ Border.width 2, Border.rounded 4, Element.padding 2, Background.color Pallete.bg_c ]
+        { onPress = Just (SaveFileAs { name = "editor.flower", mimetype = "text/plain" })
+        , label = Element.text "save"
+        }
+
+
 make_output : Model -> Element Msg
 make_output mod =
     let
@@ -176,9 +173,11 @@ make_output mod =
                 [ Font.size 30
                 , Element.width fill
                 , Background.color Pallete.bg1_c
-                , Element.paddingXY 10 6
+                , Element.paddingXY 10 3
                 ]
                 [ el [ Element.alignLeft ] (Element.text ("Flower" ++ " v0.0.2"))
+                , loadfile
+                , savefile
                 , el [ alignRight ] (Element.text "About")
                 ]
 
@@ -253,6 +252,10 @@ type Msg
     | EditorAction Editor.EditorState
     | CompileStartedAtTime Time.Posix -- for timing
     | CompileFinishedAtTime Time.Posix
+    | FileRequested (List String) (File.File -> Msg)
+    | FileSelected File.File
+    | FileLoaded String
+    | SaveFileAs { name : String, mimetype : String }
 
 
 init : a -> ( Maybe Model, Cmd Msg )
@@ -278,6 +281,27 @@ update msg mmod =
 
         Just mod ->
             case msg of
+                FileRequested types onload ->
+                    ( Just mod, File.Select.file types onload )
+
+                FileSelected file ->
+                    ( Just mod, Task.perform FileLoaded (File.toString file) )
+
+                FileLoaded filecontents ->
+                    let
+                        es =
+                            mod.editor_state
+
+                        newes =
+                            { es | text = filecontents }
+                    in
+                    update (EditorAction newes) (Just mod)
+
+                SaveFileAs { name, mimetype } ->
+                    ( Just mod
+                    , File.Download.string name mimetype mod.editor_state.text
+                    )
+
                 WindowSizeChanged s ->
                     ( Just { mod | window_size = s }, Cmd.none )
 
@@ -333,7 +357,9 @@ update msg mmod =
                         |> Just
                     , Cmd.none
                     )
-                ToggleFilterBuiltins b -> (Just {mod | filter_builtins = b}, Cmd.none)
+
+                ToggleFilterBuiltins b ->
+                    ( Just { mod | filter_builtins = b }, Cmd.none )
 
 
 millis_elapsed : Time.Posix -> Time.Posix -> String

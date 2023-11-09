@@ -15,8 +15,13 @@ type KeywordType
 
 
 type LiteralType
-    = NumberLiteral
+    = NumberLiteral IntegerLiteralType
     | StringLiteral
+
+type IntegerLiteralType
+    = Decimal
+    | Hex
+    | Binary
 
 
 type alias Node a =

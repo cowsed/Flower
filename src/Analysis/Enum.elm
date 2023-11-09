@@ -75,7 +75,7 @@ get_unfinished nid fields =
             fields
                 |> List.map ensure_good_enum_field
                 |> (\t -> t)
-                |> ar_foldN (::) []
+                |> ar_foldN (\el l -> List.append l [el]) []
 
         real_tags : AnalysisRes (List EnumTagDefinition)
         real_tags =

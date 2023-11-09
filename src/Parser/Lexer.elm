@@ -3,24 +3,29 @@ module Parser.Lexer exposing (..)
 import Element
 import Element.Font as Font
 import Language.Language as Language
-import Language.Syntax
+import Language.Syntax as Syntax exposing (Node, node_get)
 import Pallete
 import Util
-import Language.Syntax as Syntax exposing (Node, node_get, show_node)
+
 
 type alias Token =
     Node TokenType
 
-token :  Syntax.SourceView -> TokenType ->Node TokenType
-token loc tt=  Node tt loc
 
-token_type: Token -> TokenType
-token_type t = node_get t
+token : Syntax.SourceView -> TokenType -> Node TokenType
+token loc tt =
+    Node tt loc
+
+
+token_type : Token -> TokenType
+token_type t =
+    node_get t
+
 
 type TokenType
-    = Keyword Language.Syntax.KeywordType
+    = Keyword Syntax.KeywordType
     | Symbol String
-    | Literal Language.Syntax.LiteralType String
+    | Literal Syntax.LiteralType String
     | NewlineToken
     | TypeSpecifier -- :
     | CommaToken -- ,
@@ -35,19 +40,19 @@ type TokenType
     | GreaterThanToken -- >
     | GreaterThanEqualToken -- >=
     | ReferenceToken --&
-    | AndToken
-    | XorToken
-    | OrToken
-    | PlusToken
-    | MinusToken
-    | MultiplyToken
-    | DivideToken
-    | OpenCurly
-    | CloseCurly
-    | OpenParen
-    | CloseParen
-    | OpenSquare
-    | CloseSquare
+    | AndToken -- and
+    | XorToken -- xor
+    | OrToken -- or
+    | PlusToken -- +
+    | MinusToken -- -
+    | MultiplyToken -- *
+    | DivideToken -- /
+    | OpenCurly -- {
+    | CloseCurly -- }
+    | OpenParen -- (
+    | CloseParen -- )
+    | OpenSquare -- [
+    | CloseSquare -- ]
     | WhereToken -- |
     | CommentToken String
 
@@ -69,7 +74,7 @@ type LexRes
 type Error
     = UnknownCharacter Syntax.SourceView Char
     | UnclosedStringLiteral Syntax.SourceView
-    | UnknownCharacterInIntegerLiteral Syntax.SourceView
+    | UnknownCharacterInIntegerLiteral Syntax.IntegerLiteralType Syntax.SourceView
 
 
 infix_op_from_token : Token -> Maybe Language.InfixOpType
@@ -129,8 +134,8 @@ explain_error e =
                 UnclosedStringLiteral sv ->
                     Element.text ("Unclosed String Literal here: \n" ++ Syntax.show_source_view sv)
 
-                UnknownCharacterInIntegerLiteral sv ->
-                    Element.text ("Unknown character in Integer Literal\n" ++ Syntax.show_source_view sv)
+                UnknownCharacterInIntegerLiteral ilt sv ->
+                    Element.text ("Unknown character in "++(Debug.toString ilt)++" integer Literal\n" ++ Syntax.show_source_view sv)
             )
         ]
 
@@ -261,16 +266,37 @@ is_integer_ender c =
             False
 
 
-lex_integer : Int -> String -> LexStepInfo -> LexRes
-lex_integer start sofar lsi =
-    if Char.isDigit lsi.char then
-        LexFn (lex_integer start (Util.addchar sofar lsi.char)) |> Tokens []
+digit_allowed : Syntax.IntegerLiteralType -> Char -> Bool
+digit_allowed ilt c =
+    case ilt of
+        Syntax.Decimal ->
+            Char.isDigit c
+
+        Syntax.Binary ->
+            c == '0' || c == '1'
+
+        Syntax.Hex ->
+            Char.isDigit c || List.member c [ 'a', 'b', 'c', 'd', 'e', 'f' ]
+
+
+lex_integer : Syntax.IntegerLiteralType -> Int -> String -> LexStepInfo -> LexRes
+lex_integer ilt start sofar lsi =
+    if digit_allowed ilt lsi.char then
+        LexFn (lex_integer ilt start (Util.addchar sofar lsi.char)) |> Tokens []
+
+    else if lsi.char == 'x' && sofar == "0" && ilt == Syntax.Decimal then
+        -- hex literal
+        LexFn (lex_integer Syntax.Hex start (Util.addchar sofar lsi.char)) |> Tokens []
+
+    else if lsi.char == 'b' && sofar == "0" && ilt == Syntax.Decimal then
+        -- hex literal
+        LexFn (lex_integer Syntax.Binary start (Util.addchar sofar lsi.char)) |> Tokens []
 
     else if is_integer_ender lsi.char then
-        apply_again [ token (lsi.view_from_start start) (Literal Language.Syntax.NumberLiteral sofar) ] begin_lex lsi
+        apply_again [ token (lsi.view_from_start start) (Literal (Syntax.NumberLiteral ilt) sofar) ] begin_lex lsi
 
     else
-        Error (UnknownCharacterInIntegerLiteral lsi.view_this)
+        Error (UnknownCharacterInIntegerLiteral ilt lsi.view_this)
 
 
 lex_symbol : Int -> String -> LexStepInfo -> LexRes
@@ -328,7 +354,7 @@ lex_divide_or_comment lsi =
 lex_string_literal : Int -> String -> LexStepInfo -> LexRes
 lex_string_literal start sofar lsi =
     if lsi.char == '"' then
-        Tokens [ token (lsi.input_view start (lsi.pos + 1)) (Literal Language.Syntax.StringLiteral sofar) ] begin_lex
+        Tokens [ token (lsi.input_view start (lsi.pos + 1)) (Literal Syntax.StringLiteral sofar) ] begin_lex
 
     else if lsi.char == '\n' then
         Error (UnclosedStringLiteral (lsi.view_from_start start))
@@ -363,7 +389,7 @@ lex_unknown lsi =
         lex_symbol lsi.pos (String.fromChar c) |> LexFn |> Tokens []
 
     else if Char.isDigit c then
-        lex_integer lsi.pos (String.fromChar c) |> LexFn |> Tokens []
+        lex_integer Syntax.Decimal lsi.pos (String.fromChar c) |> LexFn |> Tokens []
 
     else if c == '"' then
         Tokens [] (LexFn (lex_string_literal lsi.pos ""))
@@ -449,74 +475,74 @@ is_special_or_symbol s =
                 Symbol s
 
 
-is_keyword : String -> Maybe Language.Syntax.KeywordType
+is_keyword : String -> Maybe Syntax.KeywordType
 is_keyword s =
     case s of
         "fn" ->
-            Just Language.Syntax.FnKeyword
+            Just Syntax.FnKeyword
 
         "return" ->
-            Just Language.Syntax.ReturnKeyword
+            Just Syntax.ReturnKeyword
 
         "module" ->
-            Just Language.Syntax.ModuleKeyword
+            Just Syntax.ModuleKeyword
 
         "import" ->
-            Just Language.Syntax.ImportKeyword
+            Just Syntax.ImportKeyword
 
         "var" ->
-            Just Language.Syntax.VarKeyword
+            Just Syntax.VarKeyword
 
         "struct" ->
-            Just Language.Syntax.StructKeyword
+            Just Syntax.StructKeyword
 
         "if" ->
-            Just Language.Syntax.IfKeyword
+            Just Syntax.IfKeyword
 
         "while" ->
-            Just Language.Syntax.WhileKeyword
+            Just Syntax.WhileKeyword
 
         "enum" ->
-            Just Language.Syntax.EnumKeyword
+            Just Syntax.EnumKeyword
 
         "type" ->
-            Just Language.Syntax.TypeKeyword
+            Just Syntax.TypeKeyword
 
         _ ->
             Nothing
 
 
-kwt_to_string : Language.Syntax.KeywordType -> String
+kwt_to_string : Syntax.KeywordType -> String
 kwt_to_string kwt =
     case kwt of
-        Language.Syntax.FnKeyword ->
+        Syntax.FnKeyword ->
             "fn"
 
-        Language.Syntax.ReturnKeyword ->
+        Syntax.ReturnKeyword ->
             "return"
 
-        Language.Syntax.ModuleKeyword ->
+        Syntax.ModuleKeyword ->
             "module"
 
-        Language.Syntax.ImportKeyword ->
+        Syntax.ImportKeyword ->
             "import"
 
-        Language.Syntax.VarKeyword ->
+        Syntax.VarKeyword ->
             "var"
 
-        Language.Syntax.StructKeyword ->
+        Syntax.StructKeyword ->
             "struct"
 
-        Language.Syntax.IfKeyword ->
+        Syntax.IfKeyword ->
             "if"
 
-        Language.Syntax.WhileKeyword ->
+        Syntax.WhileKeyword ->
             "while"
 
-        Language.Syntax.EnumKeyword ->
+        Syntax.EnumKeyword ->
             "enum"
 
-        Language.Syntax.TypeKeyword ->
+        Syntax.TypeKeyword ->
             "Type"
 
 
@@ -647,11 +673,19 @@ token_to_str tok =
             "[Literal: "
                 ++ str
                 ++ (case lt of
-                        Language.Syntax.StringLiteral ->
+                        Syntax.StringLiteral ->
                             "_str"
 
-                        Language.Syntax.NumberLiteral ->
-                            "_int"
+                        Syntax.NumberLiteral ilt ->
+                            case ilt of
+                                Syntax.Binary ->
+                                    "_int_bin"
+
+                                Syntax.Hex ->
+                                    "_int_hex"
+
+                                Syntax.Decimal ->
+                                    "_int"
                    )
                 ++ "]"
 

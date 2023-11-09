@@ -77,5 +77,5 @@ syntaxify_literal lt str =
         Syntax.StringLiteral ->
             "\"" ++ str ++ "\""
 
-        Syntax.NumberLiteral ->
-            str
+        Syntax.NumberLiteral ilt ->
+            str |> String.append (Debug.toString ilt)

@@ -1,0 +1,9 @@
+module main
+import "std/console"
+
+struct NodeInt{
+    val: int
+    next: &NodeInt
+}
+
+fn main() -> i32{}

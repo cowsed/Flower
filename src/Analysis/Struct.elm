@@ -66,7 +66,7 @@ get_unfinished_struct s ast_fields =
 
         good_fields : AnalysisRes (List (SimpleNamed TypeName))
         good_fields =
-            ast_fields |> List.map ensure_good_struct_field |> ar_foldN (::) []
+            ast_fields |> List.map ensure_good_struct_field |> ar_foldN (\el l -> List.append l [el]) []
 
         all_types fs =
             List.foldl (\nt l -> List.append l [ nt.value ]) [] fs |> List.Extra.unique
