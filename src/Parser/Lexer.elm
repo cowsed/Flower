@@ -136,12 +136,25 @@ explain_error e =
                     Element.text ("Unclosed String Literal here: \n" ++ Syntax.show_source_view sv)
 
                 UnknownCharacterInIntegerLiteral ilt sv ->
-                    Element.text ("Unknown character in " ++ Debug.toString ilt ++ " integer Literal\n" ++ Syntax.show_source_view sv)
+                    Element.text ("Unknown character in " ++ int_literal_to_string ilt ++ " integer Literal\n" ++ Syntax.show_source_view sv)
 
                 NotEnoughDigitsInNumberLiteral ilt sv ->
-                    Element.text ("need at least one digit in " ++ Debug.toString ilt ++ " integer Literal\n" ++ Syntax.show_source_view sv)
+                    Element.text ("need at least one digit in " ++ int_literal_to_string ilt ++ " integer Literal\n" ++ Syntax.show_source_view sv)
             )
         ]
+
+
+int_literal_to_string : Syntax.IntegerLiteralType -> String
+int_literal_to_string ilt =
+    case ilt of
+        Syntax.Binary ->
+            "Binary"
+
+        Syntax.Decimal ->
+            "Decimal"
+
+        Syntax.Hex ->
+            "Hexadecimal"
 
 
 type LexFn

@@ -43,7 +43,7 @@ syntaxify_string_literal s =
 
 syntaxify_number_literal : String -> Syntax.IntegerLiteralType -> Element.Element msg
 syntaxify_number_literal s ilt =
-    color_text Pallete.aqua_c (s++"_"++(Debug.toString ilt))
+    color_text Pallete.aqua_c (s++"_"++(Lexer.int_literal_to_string  ilt))
 
 
 syntaxify_identifier : Identifier -> Element.Element msg
@@ -405,7 +405,7 @@ explain_expression expr =
                     Element.row [] [ Element.text ("String Literal: " ++ s) ]
 
                 Language.Syntax.NumberLiteral ilt ->
-                    Element.row [] [ Element.text ("Number Literal: " ++ s ++ (Debug.toString ilt)) ]
+                    Element.row [] [ Element.text ("Number Literal: " ++ s ++ (Lexer.int_literal_to_string ilt)) ]
 
         AST.Parenthesized e ->
             Element.row [Border.width 1] [ Element.text "(", explain_expression e.thing, Element.text ")" ]
