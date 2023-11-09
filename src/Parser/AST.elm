@@ -115,8 +115,6 @@ append_fullname_args me tn =
 
 
 
---
-
 
 type alias IdentifierAndLocation =
     Node Identifier

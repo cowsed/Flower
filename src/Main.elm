@@ -239,8 +239,6 @@ view mmod =
                     , Element.clip
                     , Element.height Element.fill
                     , Element.width Element.fill
-
-                    -- , Element.explain Debug.todo
                     ]
 
 
