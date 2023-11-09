@@ -117,7 +117,19 @@ main_menu =
             { items =
                 [ Ui.Button "Save" (Just (SaveFileAs { name = "editor.flower", mimetype = "text/plain" }))
                 , Ui.Button "Open" (Just (FileRequested [ "text" ] FileSelected))
-                , Ui.Menu "Examples" { items = [ Ui.Button "Hello World" (Just (FileLoaded Examples.hello_world)), Ui.Button "Arithmetic" (Just (FileLoaded Examples.arithmetic)) ] }
+                , Ui.Menu "Examples"
+                    { items =
+                        [ Ui.Button "Hello World" (Just (FileLoaded Examples.hello_world))
+                        , Ui.Menu "Types"
+                            { items =
+                                Examples.type_examples |> List.map (\( name, src ) -> Ui.Button name (Just (FileLoaded src)))
+                            }
+                        , Ui.Menu "Errors"
+                            { items =
+                                Examples.error_examples |> List.map (\( name, src ) -> Ui.Button name (Just (FileLoaded src)))
+                            }
+                        ]
+                    }
                 ]
             }
         , Ui.Menu "Help"

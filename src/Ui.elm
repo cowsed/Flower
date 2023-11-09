@@ -4,10 +4,10 @@ import Element
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
+import Element.Input
 import Html.Attributes
 import Pallete
 import Time exposing (..)
-import Element.Input
 
 
 type alias MenuConfig msg =
@@ -33,19 +33,29 @@ draw_menu_item_menu level name mi =
             else
                 Element.onRight
 
-        title_without_submenu =
-            Element.text
-                (name
-                    ++ (if not is_top_level then
-                            " ▶"
+        suffix =
+            if not is_top_level then
+                " ▶"
 
-                        else
-                            ""
-                       )
-                )
+            else
+                ""
+
+        title_without_submenu =
+            Element.row
+                [ Element.width Element.fill
+                ]
+                [ Element.text name, Element.el [ Element.alignRight ] (Element.text suffix) ]
 
         menu =
-            Element.column [ Background.color Pallete.bg1_c, Element.spacingXY 0 2, Element.padding 2, Border.color Pallete.fg_c, Border.width 1 ] (List.map (draw_menu_item (level + 1)) mi.items)
+            Element.column
+                [ Background.color Pallete.bg1_c
+                , Element.spacingXY 0 2
+                , Element.paddingXY 0 2
+                , Element.width Element.shrink
+                , Border.color Pallete.fg_c
+                , Border.width 1
+                ]
+                (List.map (draw_menu_item (level + 1)) mi.items)
 
         title_and_submenu : Element.Element msg
         title_and_submenu =
@@ -53,10 +63,13 @@ draw_menu_item_menu level name mi =
                 [ Element.transparent True
                 , Element.mouseOver [ Element.transparent False ]
                 , direction menu
+                , Background.color Pallete.bg_c
+                , Element.width Element.fill
                 ]
-                (title_without_submenu |> Element.el [Background.color Pallete.bg_c])
+                title_without_submenu
+        attrs = [Element.inFront title_and_submenu] |> (\l -> if is_top_level then l else List.append l [Element.width Element.fill])
     in
-    Element.el [ Element.inFront title_and_submenu ] title_without_submenu
+    Element.el attrs title_without_submenu
 
 
 draw_menu_item : Int -> MenuItem msg -> Element.Element msg
