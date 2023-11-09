@@ -74,6 +74,7 @@ type LexRes
 type Error
     = UnknownCharacter Syntax.SourceView Char
     | UnclosedStringLiteral Syntax.SourceView
+    | NotEnoughDigitsInNumberLiteral Syntax.IntegerLiteralType Syntax.SourceView
     | UnknownCharacterInIntegerLiteral Syntax.IntegerLiteralType Syntax.SourceView
 
 
@@ -135,7 +136,10 @@ explain_error e =
                     Element.text ("Unclosed String Literal here: \n" ++ Syntax.show_source_view sv)
 
                 UnknownCharacterInIntegerLiteral ilt sv ->
-                    Element.text ("Unknown character in "++(Debug.toString ilt)++" integer Literal\n" ++ Syntax.show_source_view sv)
+                    Element.text ("Unknown character in " ++ Debug.toString ilt ++ " integer Literal\n" ++ Syntax.show_source_view sv)
+
+                NotEnoughDigitsInNumberLiteral ilt sv ->
+                    Element.text ("need at least one digit in " ++ Debug.toString ilt ++ " integer Literal\n" ++ Syntax.show_source_view sv)
             )
         ]
 
@@ -276,7 +280,7 @@ digit_allowed ilt c =
             c == '0' || c == '1'
 
         Syntax.Hex ->
-            Char.isDigit c || List.member c [ 'a', 'b', 'c', 'd', 'e', 'f' ]
+            Char.isDigit c || List.member c [ 'a', 'b', 'c', 'd', 'e', 'f', 'A', 'B', 'C', 'D', 'E', 'F' ]
 
 
 lex_integer : Syntax.IntegerLiteralType -> Int -> String -> LexStepInfo -> LexRes
@@ -286,11 +290,11 @@ lex_integer ilt start sofar lsi =
 
     else if lsi.char == 'x' && sofar == "0" && ilt == Syntax.Decimal then
         -- hex literal
-        LexFn (lex_integer Syntax.Hex start (Util.addchar sofar lsi.char)) |> Tokens []
+        LexFn (lex_integer Syntax.Hex start (Util.addchar "" lsi.char)) |> Tokens []
 
     else if lsi.char == 'b' && sofar == "0" && ilt == Syntax.Decimal then
         -- hex literal
-        LexFn (lex_integer Syntax.Binary start (Util.addchar sofar lsi.char)) |> Tokens []
+        LexFn (lex_integer Syntax.Binary start (Util.addchar "" lsi.char)) |> Tokens []
 
     else if is_integer_ender lsi.char then
         apply_again [ token (lsi.view_from_start start) (Literal (Syntax.NumberLiteral ilt) sofar) ] begin_lex lsi

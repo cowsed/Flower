@@ -1,11 +1,6 @@
 module main
 import "std/console"
 
-
-struct A{
-    a: &A
-}
-
 enum Key{
     Up
     Down
@@ -13,29 +8,32 @@ enum Key{
     Right
 }
 
-enum ButtonAction{
-    Down
-    HeldFor(u64)
-    Up
-}
-
 enum MouseButton{
     Left
     Right
     Middle
-    Other(i32)
+}
+
+struct Point2d{
+    x: u32
+    y: u32
+}
+
+enum ButtonState{
+    Pressed
+    Held(u64)
+    Released
 }
 
 enum InputEvent{
-    KeyEvent(Key, ButtonAction)
-    MouseEvent(MouseButton, ButtonAction)
-
+    Keyboard(Key, ButtonState)
+    MousePress(MouseButton, ButtonState)
+    MouseMove(Point2d)
 }
-
-
-
 
 fn main() -> i32{
     console.print("Hello")
     console.print_err("To stderr")
+
+    a = 0b1101
 }
