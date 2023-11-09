@@ -6,10 +6,9 @@ import Browser
 import Compiler exposing (CompilerError(..), compile, explain_error)
 import Editor.CodeEditor as Editor
 import Editor.Util
-import Element exposing (Element, alignBottom, alignRight, alignTop, el, fill, scrollbarY)
+import Element exposing (Element, alignBottom, alignTop, el, fill, scrollbarY)
 import Element.Background as Background
 import Element.Border as Border
-import Element.Events
 import Element.Font as Font
 import Element.Input
 import File
@@ -17,7 +16,6 @@ import File.Download
 import File.Select
 import Generating.Generator exposing (generate)
 import Html
-import Html.Events exposing (onMouseOver)
 import Keyboard.Event
 import Language.Syntax exposing (node_get, node_location)
 import Pallete
@@ -151,8 +149,6 @@ range_from_toks toks =
             )
 
 
-
-
 main_menu : { items : List (Ui.MenuItem Msg) }
 main_menu =
     { items =
@@ -169,7 +165,6 @@ main_menu =
                     (Ui.default_link { url = "https://github.com/cowsed/Flower", label = Element.text "Documentation" })
                 , Ui.SomeThing
                     (Ui.default_link { url = "https://github.com/cowsed/Flower", label = Element.text "About" })
-                
                 ]
             }
         ]
@@ -179,8 +174,6 @@ main_menu =
 make_output : Model -> Element Msg
 make_output mod =
     let
-
-
         footer =
             Element.row [ Element.width fill, alignBottom, Element.padding 4, Border.widthEach { bottom = 0, left = 0, right = 0, top = 2 } ]
                 [ Element.text ("Compiled in " ++ millis_elapsed mod.last_run_start mod.last_run_end ++ " ms")
@@ -213,7 +206,7 @@ make_output mod =
         , Element.height fill
         , scrollbarY
         ]
-        [ Ui.draw_main_menu main_menu -- title_bar
+        [ Ui.draw_main_menu main_menu
         , Element.row
             [ Element.width fill
             , Element.height Element.fill

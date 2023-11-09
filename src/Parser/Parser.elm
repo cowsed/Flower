@@ -1,7 +1,7 @@
 module Parser.Parser exposing (..)
 
 import Language.Language as Language exposing (Identifier(..))
-import Language.Syntax as Syntax exposing (KeywordType(..), Node, node_get, node_location)
+import Language.Syntax as Syntax exposing (KeywordType(..), Node)
 import Parser.AST as AST exposing (..)
 import Parser.ExpressionParser as ExpressionParser exposing (..)
 import Parser.Lexer as Lexer exposing (Token, TokenType(..), token_type)
