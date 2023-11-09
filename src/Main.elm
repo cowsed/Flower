@@ -9,6 +9,7 @@ import Editor.Util
 import Element exposing (Element, alignBottom, alignRight, alignTop, el, fill, scrollbarY)
 import Element.Background as Background
 import Element.Border as Border
+import Element.Events
 import Element.Font as Font
 import Element.Input
 import File
@@ -16,6 +17,7 @@ import File.Download
 import File.Select
 import Generating.Generator exposing (generate)
 import Html
+import Html.Events exposing (onMouseOver)
 import Keyboard.Event
 import Language.Syntax exposing (node_get, node_location)
 import Pallete
@@ -149,41 +151,40 @@ range_from_toks toks =
             )
 
 
-loadfile : Element Msg
-loadfile =
-    Element.Input.button [ Border.width 2, Border.rounded 4, Element.padding 2, Background.color Pallete.bg_c ]
-        { onPress = Just (FileRequested [ "text" ] FileSelected)
-        , label = Element.text "load"
-        }
 
 
-savefile : Element Msg
-savefile =
-    Element.Input.button [ Border.width 2, Border.rounded 4, Element.padding 2, Background.color Pallete.bg_c ]
-        { onPress = Just (SaveFileAs { name = "editor.flower", mimetype = "text/plain" })
-        , label = Element.text "save"
-        }
+main_menu : { items : List (Ui.MenuItem Msg) }
+main_menu =
+    { items =
+        [ Ui.Menu "File"
+            { items =
+                [ Ui.Button "Save" (Just (SaveFileAs { name = "editor.flower", mimetype = "text/plain" }))
+                , Ui.Button "Open" (Just (FileRequested [ "text" ] FileSelected))
+                , Ui.Menu "More" { items = [ Ui.Button "thing1" Nothing, Ui.Button "thing2" Nothing ] }
+                ]
+            }
+        , Ui.Menu "Help"
+            { items =
+                [ Ui.SomeThing
+                    (Ui.default_link { url = "https://github.com/cowsed/Flower", label = Element.text "Documentation" })
+                , Ui.SomeThing
+                    (Ui.default_link { url = "https://github.com/cowsed/Flower", label = Element.text "About" })
+                
+                ]
+            }
+        ]
+    }
 
 
 make_output : Model -> Element Msg
 make_output mod =
     let
-        title_bar =
-            Element.row
-                [ Font.size 30
-                , Element.width fill
-                , Background.color Pallete.bg1_c
-                , Element.paddingXY 10 3
-                ]
-                [ el [ Element.alignLeft ] (Element.text ("Flower" ++ " v0.0.2"))
-                , loadfile
-                , savefile
-                , el [ alignRight ] (Element.text "About")
-                ]
+
 
         footer =
             Element.row [ Element.width fill, alignBottom, Element.padding 4, Border.widthEach { bottom = 0, left = 0, right = 0, top = 2 } ]
                 [ Element.text ("Compiled in " ++ millis_elapsed mod.last_run_start mod.last_run_end ++ " ms")
+                , el [ Element.centerX ] (Element.text ("Flower" ++ " v0.0.2"))
                 ]
 
         left_pane =
@@ -212,7 +213,7 @@ make_output mod =
         , Element.height fill
         , scrollbarY
         ]
-        [ title_bar
+        [ Ui.draw_main_menu main_menu -- title_bar
         , Element.row
             [ Element.width fill
             , Element.height Element.fill
