@@ -6,7 +6,7 @@ import Browser
 import Compiler exposing (CompilerError(..), compile, explain_error)
 import Editor.CodeEditor as Editor
 import Editor.Util
-import Element exposing (Element, alignBottom, alignTop, el, fill, scrollbarY)
+import Element exposing (Element, alignTop, fill, scrollbarY)
 import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font

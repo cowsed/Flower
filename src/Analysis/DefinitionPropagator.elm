@@ -1,4 +1,4 @@
-module Analysis.DefinitionPropagator exposing (DeclarationName(..), Definition(..), DefinitionPropagator, Dependence(..), Error(..), Unfinished, empty_definition_propogator, from_definitions_and_declarations, to_full_scope)
+module Analysis.DefinitionPropagator exposing (DeclarationName(..), Definition(..), DefinitionPropagator, Error(..), Unfinished, empty_definition_propogator, from_definitions_and_declarations, to_full_scope)
 
 import Analysis.Scope as Scope
 import Language.Language as Language exposing (TypeName(..))
@@ -11,11 +11,6 @@ import Time exposing (Month(..))
 
 type DeclarationName
     = TypeDeclaration TypeName
-
-
-type Dependence
-    = Weak DeclarationName
-    | Strong DeclarationName
 
 
 type Definition
@@ -51,24 +46,49 @@ type Error
     | MultipleErrs (List Error)
 
 
+from_definitions_and_declarations : List ( Syntax.Node DeclarationName, Definition ) -> List Unfinished -> Result Error DefinitionPropagator
+from_definitions_and_declarations defs decls =
+    add_definitions defs empty_definition_propogator
+        |> Result.andThen (catch_duplicates_of_external decls)
+        |> Result.andThen
+            (\dp ->
+                catch_duplicates_and_circular decls
+                    |> Result.andThen (\good_decls -> add_incompletes good_decls dp)
+            )
+        |> Result.andThen insure_weak_needs_completed
+
+
+extract_typedef : ( Node TypeName, Language.TypeDefinition ) -> Node (Language.Named Language.TypeDefinition)
+extract_typedef ( tn, td ) =
+    case node_get tn of
+        CustomTypeName s ->
+            Language.Named s td
+                |> (\td2 -> Syntax.Node td2 (node_location tn))
+
+        _ ->
+            Debug.todo "Something, im not reallu sure"
+
+
 to_full_scope : DefinitionPropagator -> Result Error Scope.FullScope
 to_full_scope dp =
-    dp.complete
-        |> ListDict.to_list
-        |> List.map
-            (\( k, v ) ->
-                case v of
-                    TypeDef t ->
-                        case node_get k of
-                            TypeDeclaration tn ->
-                                case tn of
-                                    CustomTypeName s ->
-                                        Language.Named s t |> (\td -> Syntax.Node td (node_location k))
+    let
+        initial_state =
+            { values = [], types = [] }
 
-                                    _ ->
-                                        Debug.todo "Something, im not reallu sure"
-            )
-        |> (\ts -> Scope.FullScope ts [] [])
+        update ( k, v ) state =
+            case node_get k of
+                TypeDeclaration tn ->
+                    case v of
+                        TypeDef td ->
+                            { state | types = List.append state.types [ ( Node tn (node_location k), td ) ] }
+
+        separated =
+            dp.complete |> ListDict.to_list |> List.foldl update initial_state
+    in
+    Scope.FullScope
+        (separated.types |> List.map extract_typedef)
+        []
+        []
         |> Ok
 
 
@@ -234,28 +254,6 @@ check_recursive ( me, my_dependents ) others off_the_table =
             children_problematic my_dependents |> Maybe.map (\l -> List.append [ me ] l)
 
 
-this_or_err : a -> Maybe err -> Result err a
-this_or_err this maybe_err =
-    case maybe_err of
-        Just err ->
-            Err err
-
-        Nothing ->
-            Ok this
-
-
-from_definitions_and_declarations : List ( Syntax.Node DeclarationName, Definition ) -> List Unfinished -> Result Error DefinitionPropagator
-from_definitions_and_declarations defs decls =
-    add_definitions defs empty_definition_propogator
-        |> Result.andThen (catch_duplicates_of_external decls)
-        |> Result.andThen
-            (\dp ->
-                catch_duplicates_and_circular decls
-                    |> Result.andThen (\good_decls -> add_incompletes_originally good_decls dp)
-            )
-        |> Result.andThen insure_weak_needs_completed
-
-
 insure_weak_needs_completed : DefinitionPropagator -> Result Error DefinitionPropagator
 insure_weak_needs_completed dp =
     let
@@ -298,37 +296,13 @@ insure_weak_needs_completed dp =
                    )
 
         errs =
-            [] |> maybe_cons unfinished_err |> maybe_cons unfulfilled_err
+            [] |> maybe_append unfinished_err |> maybe_append unfulfilled_err
     in
     if List.length errs > 0 then
         errs |> MultipleErrs |> Err
 
     else
         Ok dp
-
-
-maybe_cons : Maybe a -> List a -> List a
-maybe_cons m l =
-    case m of
-        Just el ->
-            el :: l
-
-        Nothing ->
-            l
-
-
-maybe_is_just : Maybe a -> Bool
-maybe_is_just m =
-    case m of
-        Just _ ->
-            True
-
-        _ ->
-            False
-
-
-
--- List.foldl  (\wn l -> if not (dp.completes)) [] dp.weak_needs
 
 
 add_def_to_uf : ( DeclarationName, Definition ) -> Unfinished -> Unfinished
@@ -384,7 +358,7 @@ add_definition_apply ( dname, ddef ) dp =
     List.foldl foldf (Ok dp_with_unfinished) newly_finished
         |> Result.map
             (\dp2 ->
-                { dp2 | weak_needs = ListSet.remove (node_get dname) dp2.weak_needs  }
+                { dp2 | weak_needs = ListSet.remove (node_get dname) dp2.weak_needs }
             )
 
 
@@ -403,18 +377,13 @@ all_needs_met uf =
         (ListDict.values uf.needs)
 
 
-has_definition_for : DefinitionPropagator -> DeclarationName -> Bool
-has_definition_for dp dn =
-    List.any (\el -> node_get el == dn) (dp.complete |> ListDict.keys)
-
-
 definition_of : DefinitionPropagator -> DeclarationName -> Maybe (Node DeclarationName)
 definition_of dp dn =
     List.Extra.find (\el -> node_get el == dn) (dp.complete |> ListDict.keys)
 
 
-add_incomplete_originally : DefinitionPropagator -> Unfinished -> Result Error DefinitionPropagator
-add_incomplete_originally dp uf =
+add_incomplete : DefinitionPropagator -> Unfinished -> Result Error DefinitionPropagator
+add_incomplete dp uf =
     let
         ( finished, nuf ) =
             try_to_complete_incomplete uf (ListDict.to_list dp.complete |> List.map (\( nk, v ) -> ( node_get nk, v )))
@@ -430,7 +399,7 @@ add_incomplete_originally dp uf =
                 []
 
         still_unfinished_weak_needs =
-            uf.weak |> ListSet.filter (not << has_definition_for dp)
+            uf.weak |> ListSet.filter (not << maybe_is_just << definition_of dp)
     in
     if finished then
         ListDict.to_list nuf.needs
@@ -450,11 +419,11 @@ add_incomplete_originally dp uf =
             }
 
 
-add_incompletes_originally : List Unfinished -> DefinitionPropagator -> Result Error DefinitionPropagator
-add_incompletes_originally incos dp =
+add_incompletes : List Unfinished -> DefinitionPropagator -> Result Error DefinitionPropagator
+add_incompletes incos dp =
     incos
         |> List.foldl
-            (\dd res -> res |> Result.andThen (\a -> add_incomplete_originally a dd))
+            (\dd res -> res |> Result.andThen (\a -> add_incomplete a dd))
             (Ok dp)
 
 
@@ -462,3 +431,33 @@ add_definition_simple : ( Syntax.Node DeclarationName, Definition ) -> Definitio
 add_definition_simple ( decl, def ) old_dp =
     Ok
         { old_dp | complete = ListDict.insert decl def old_dp.complete }
+
+
+maybe_append : Maybe a -> List a -> List a
+maybe_append m l =
+    case m of
+        Just el ->
+            List.append l [ el ]
+
+        Nothing ->
+            l
+
+
+maybe_is_just : Maybe a -> Bool
+maybe_is_just m =
+    case m of
+        Just _ ->
+            True
+
+        _ ->
+            False
+
+
+this_or_err : a -> Maybe err -> Result err a
+this_or_err this maybe_err =
+    case maybe_err of
+        Just err ->
+            Err err
+
+        Nothing ->
+            Ok this

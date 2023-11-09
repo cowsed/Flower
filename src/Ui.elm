@@ -50,7 +50,7 @@ draw_menu_item_menu level name mi =
             Element.column
                 [ Background.color Pallete.bg1_c
                 , Element.spacingXY 0 2
-                , Element.paddingXY 0 2
+                , Element.paddingEach {left = 3, right = 0, top = 2, bottom = 2}
                 , Element.width Element.shrink
                 , Border.color Pallete.fg_c
                 , Border.width 1
