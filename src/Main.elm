@@ -11,6 +11,7 @@ import Element.Background as Background
 import Element.Border as Border
 import Element.Font as Font
 import Element.Input
+import Examples
 import File
 import File.Download
 import File.Select
@@ -48,46 +49,6 @@ fn main() -> i32{
     console.print_err("To stderr")
 }
 """
-
-
-
-{--"""module main
-
-// importing the standard library
-import "std"
-
-
-fn add(a: u8, b: u8) {
-    return a + b
-}
-
-
-fn main() -> i32{
-    a: u8 = 1
-    b: u8 = 2
-    var res: u8 = add(a, b)
-    std.println("{a} + {b} = {res}")
-    return 0
-}
-"""
--}
-{-
-   type Positive[N] = N | n >= 0
-
-   struct a{
-       val: u8
-   }
-
-   enum Result[E, T]{
-       Err(E)
-       Res(T)
-   }
-
-   fn sqrt(v: bool ) -> f64{
-       return v/2
-   }
-
--}
 
 
 header : String -> Element msg
@@ -156,7 +117,7 @@ main_menu =
             { items =
                 [ Ui.Button "Save" (Just (SaveFileAs { name = "editor.flower", mimetype = "text/plain" }))
                 , Ui.Button "Open" (Just (FileRequested [ "text" ] FileSelected))
-                , Ui.Menu "More" { items = [ Ui.Button "thing1" Nothing, Ui.Button "thing2" Nothing ] }
+                , Ui.Menu "Examples" { items = [ Ui.Button "Hello World" (Just (FileLoaded Examples.hello_world)), Ui.Button "Arithmetic" (Just (FileLoaded Examples.arithmetic)) ] }
                 ]
             }
         , Ui.Menu "Help"
@@ -202,7 +163,7 @@ make_output mod =
         ]
         [ Element.row [ Element.width fill ]
             [ Ui.draw_main_menu main_menu
-            , Element.el [ Background.color Pallete.bg1_c , Font.color Pallete.gray_c, Font.size 16, Element.height fill, Element.centerY, Element.paddingXY 0 1] <| Element.text ("Compiled in " ++ millis_elapsed mod.last_run_start mod.last_run_end ++ " ms")
+            , Element.el [ Background.color Pallete.bg1_c, Font.color Pallete.gray_c, Font.size 16, Element.height fill, Element.centerY, Element.paddingXY 0 1 ] <| Element.text ("Compiled in " ++ millis_elapsed mod.last_run_start mod.last_run_end ++ " ms")
             ]
         , Element.row
             [ Element.width fill

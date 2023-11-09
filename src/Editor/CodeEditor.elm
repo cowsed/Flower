@@ -347,7 +347,11 @@ update_editor state ke =
                     Backspace ->
                         case state.selection of
                             Nothing ->
-                                { state | text = remove state.text (Range (state.cursor_pos - 1) state.cursor_pos), cursor_pos = state.cursor_pos - 1 }
+                                if state.cursor_pos > 0 then
+                                    { state | text = remove state.text (Range (state.cursor_pos - 1) state.cursor_pos), cursor_pos = state.cursor_pos - 1 }
+
+                                else
+                                    state
 
                             Just r ->
                                 { state | text = remove state.text r, cursor_pos = r.low } |> clear_selection
