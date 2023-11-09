@@ -154,6 +154,7 @@ build_colored_range onchange state ir =
 
                             else
                                 Border.color Pallete.unfocused_cursor_c
+
                           else
                             Border.color (Element.rgba 0.0 0.0 0.0 0.0)
                         , if am_selected (ir.range.low + i) then
@@ -360,7 +361,7 @@ update_editor state ke =
 
                                     Just r ->
                                         insert (remove state.text r) r.low s
-                            , cursor_pos = String.length s + (state.selection |> Maybe.map (\r -> Debug.log "had selection" r.low) |> Maybe.withDefault state.cursor_pos)
+                            , cursor_pos = String.length s + (state.selection |> Maybe.map .low |> Maybe.withDefault state.cursor_pos)
                         }
                             |> clear_selection
 

@@ -60,17 +60,6 @@ llvm_forward_declaration nf =
     "declare " ++ llvm_ret_type_name fheader.rtype ++ " @" ++ name ++ "(" ++ args ++ ")"
 
 
-llvm_type_declaration : TypeName -> String
-llvm_type_declaration typ =
-    case typ of
-        -- Language.IntegerType _ ->
-        --     Debug.log "Declaring builting type, shoudlnt happen" ""
-
-        -- Language.FloatingPointType _ ->
-        --     Debug.log "Declaring builting type, shoudlnt happen" ""
-
-        _ ->
-            Debug.todo "Other Type Declarations"
 
 
 llvm_ret_type_name : Maybe TypeName -> String

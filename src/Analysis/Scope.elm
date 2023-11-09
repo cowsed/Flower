@@ -44,14 +44,14 @@ lookup_type_in_decl_scope fs tn =
     let
         pred : Identifier -> Bool
         pred ntd =
-            case Debug.log "checking decl of " tn of
+            case tn of
                 CustomTypeName id ->
                     ntd == id
 
                 _ ->
                     False
     in
-    List.any pred (Debug.log "type_decls" fs.types)
+    List.any pred fs.types
 
 
 lookup_generic_type_in_decl_scope : TypeDeclarationScope -> Language.TypeName -> Bool
@@ -66,7 +66,7 @@ lookup_generic_type_in_decl_scope fs tn =
                 _ ->
                     False
     in
-    List.any pred (fs.generics |> Debug.log "Gnerices: ")
+    List.any pred (fs.generics )
 
 
 type alias TypeDeclarationScope =

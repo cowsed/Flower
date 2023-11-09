@@ -216,7 +216,6 @@ check_recursive ( me, my_dependents ) others off_the_table =
         im_problematic =
             List.Extra.find (\dn -> ListSet.member dn new_off_the_table) my_dependents
                 |> Maybe.map (\problem -> [ me, problem ])
-                |> Maybe.map (Debug.log "Me being problematic")
 
         children_problematic : List DeclarationName -> Maybe RecursiveDef
         children_problematic deps =
@@ -385,7 +384,7 @@ add_definition_apply ( dname, ddef ) dp =
     List.foldl foldf (Ok dp_with_unfinished) newly_finished
         |> Result.map
             (\dp2 ->
-                { dp2 | weak_needs = ListSet.remove (node_get dname |> Debug.log "removing") dp2.weak_needs |> Debug.log "eak needs" }
+                { dp2 | weak_needs = ListSet.remove (node_get dname) dp2.weak_needs  }
             )
 
 
@@ -447,7 +446,7 @@ add_incomplete_originally dp uf =
         Ok
             { dp
                 | incomplete = List.append dp.incomplete [ nuf ]
-                , weak_needs = ListSet.merge still_unfinished_weak_needs dp.weak_needs |> Debug.log "new weake needs"
+                , weak_needs = ListSet.merge still_unfinished_weak_needs dp.weak_needs
             }
 
 
