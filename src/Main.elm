@@ -174,12 +174,6 @@ main_menu =
 make_output : Model -> Element Msg
 make_output mod =
     let
-        footer =
-            Element.row [ Element.width fill, alignBottom, Element.padding 4, Border.widthEach { bottom = 0, left = 0, right = 0, top = 2 } ]
-                [ Element.text ("Compiled in " ++ millis_elapsed mod.last_run_start mod.last_run_end ++ " ms")
-                , el [ Element.centerX ] (Element.text ("Flower" ++ " v0.0.2"))
-                ]
-
         left_pane =
             Element.el
                 [ Element.width fill
@@ -206,7 +200,10 @@ make_output mod =
         , Element.height fill
         , scrollbarY
         ]
-        [ Ui.draw_main_menu main_menu
+        [ Element.row [ Element.width fill ]
+            [ Ui.draw_main_menu main_menu
+            , Element.el [ Background.color Pallete.bg1_c , Font.color Pallete.gray_c, Font.size 16, Element.height fill, Element.centerY, Element.paddingXY 0 1] <| Element.text ("Compiled in " ++ millis_elapsed mod.last_run_start mod.last_run_end ++ " ms")
+            ]
         , Element.row
             [ Element.width fill
             , Element.height Element.fill
@@ -215,25 +212,28 @@ make_output mod =
             [ left_pane
             , right_pane
             ]
-        , footer
         ]
 
 
-view : Maybe Model -> Html.Html Msg
+view : Maybe Model -> Browser.Document Msg
 view mmod =
-    case mmod of
-        Nothing ->
-            Html.text "Not Loaded Yet"
+    { title = "Flower v0.0.3"
+    , body =
+        [ case mmod of
+            Nothing ->
+                Html.text "Not Loaded Yet"
 
-        Just mod ->
-            Element.row [ Element.height Element.fill, Element.width fill ] [ make_output mod ]
-                |> Element.layout
-                    [ Background.color Pallete.bg_c
-                    , Font.color Pallete.fg_c
-                    , Element.clip
-                    , Element.height Element.fill
-                    , Element.width Element.fill
-                    ]
+            Just mod ->
+                Element.row [ Element.height Element.fill, Element.width fill ] [ make_output mod ]
+                    |> Element.layout
+                        [ Background.color Pallete.bg_c
+                        , Font.color Pallete.fg_c
+                        , Element.clip
+                        , Element.height Element.fill
+                        , Element.width Element.fill
+                        ]
+        ]
+    }
 
 
 type Msg
@@ -380,7 +380,7 @@ type alias Model =
 
 main : Program () (Maybe Model) Msg
 main =
-    Browser.element
+    Browser.document
         { init = init
         , view = view
         , update = update
