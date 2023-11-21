@@ -55,6 +55,7 @@ type Error
     | UnknownTokenInEnumBody Syntax.SourceView
     | ExpectedCloseParenInEnumField Syntax.SourceView
     | ExpectedEqualInTypeDeclaration Syntax.SourceView
+    | EmptyParens Syntax.SourceView
 
 
 type StatementParseError
@@ -79,6 +80,8 @@ type FuncCallParseError
 type ExprParseError
     = IdkExpr Syntax.SourceView String
     | ParenWhereIDidntWantIt Syntax.SourceView
+    | ExpectedEndOfTupleOrComma Syntax.SourceView
+
 
 
 type alias ExprParseTodo =

@@ -584,7 +584,7 @@ parse_statements statements todo_with_block ps =
             parse_statements statements todo_with_block |> next_pfn
 
         _ ->
-            Error (Unimplemented ps.prog ("parsing global function statements like this one:\n" ++ Syntax.show_source_view ps.tok.loc))
+            Error (Unimplemented ps.prog ("parsing  function statements like this one:\n" ++ Syntax.show_source_view ps.tok.loc))
 
 
 parse_global_function_body : Node AST.FullName -> FunctionHeader -> ParseStep -> ParseRes

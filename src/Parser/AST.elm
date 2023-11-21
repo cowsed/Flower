@@ -2,11 +2,8 @@ module Parser.AST exposing (..)
 
 import Keyboard.Key exposing (Key(..))
 import Language.Language as Language exposing (Identifier(..), InfixOpType(..), stringify_identifier)
-import Language.Syntax
-import Parser.Lexer as Lexer
 import Language.Syntax as Syntax exposing (Node)
-
-
+import Parser.Lexer as Lexer
 
 
 with_location : Syntax.SourceView -> a -> Node a
@@ -35,7 +32,7 @@ type TypeDefinitionType
 
 
 type alias AliasDefinition =
-    { name : (Node FullName), alias_to : (Node FullName) }
+    { name : Node FullName, alias_to : Node FullName }
 
 
 append_identifier : Identifier -> String -> Identifier
@@ -62,13 +59,8 @@ type FullName
     = NameWithoutArgs Identifier
     | NameWithArgs { base : Identifier, args : List (Node FullName) }
     | ReferenceToFullName (Node FullName)
-    | Literal Language.Syntax.LiteralType String
+    | Literal Syntax.LiteralType String
     | Constrained (Node FullName) (Node Expression)
-
-
-
-
-
 
 
 stringify_fullname : FullName -> String
@@ -93,7 +85,7 @@ stringify_fullname nwt =
             stringify_fullname typ.thing ++ " | " ++ stringify_expression constraint
 
 
-append_fullname_args : (Node FullName) -> (Node FullName) -> (Node FullName)
+append_fullname_args : Node FullName -> Node FullName -> Node FullName
 append_fullname_args me tn =
     case me.thing of
         NameWithoutArgs n ->
@@ -114,14 +106,12 @@ append_fullname_args me tn =
             Debug.todo "IDK WHAT TO DO HERE"
 
 
-
-
 type alias IdentifierAndLocation =
     Node Identifier
 
 
 type alias UnqualifiedTypeWithName =
-    { name : IdentifierAndLocation, typename : (Node FullName) }
+    { name : IdentifierAndLocation, typename : Node FullName }
 
 
 make_qualified_typewithname : UnqualifiedTypeWithName -> Language.Qualifier -> QualifiedTypeWithName
@@ -130,7 +120,7 @@ make_qualified_typewithname t q =
 
 
 type alias QualifiedTypeWithName =
-    { name : Identifier, typename : (Node FullName), qualifiedness : Language.Qualifier }
+    { name : Identifier, typename : Node FullName, qualifiedness : Language.Qualifier }
 
 
 type alias FunctionHeader =
@@ -138,20 +128,20 @@ type alias FunctionHeader =
 
 
 type alias FunctionDefinition =
-    { name : (Node FullName)
+    { name : Node FullName
     , header : FunctionHeader
     , statements : List Statement
     }
 
 
 type alias StructDefnition =
-    { name : (Node FullName)
+    { name : Node FullName
     , fields : List UnqualifiedTypeWithName
     }
 
 
 type alias EnumDefinition =
-    { name : (Node FullName)
+    { name : Node FullName
     , fields : List EnumField
     }
 
@@ -160,7 +150,7 @@ type alias EnumField =
     { name : String, args : List (Node FullName) }
 
 
-add_arg_to_enum_field : EnumField -> (Node FullName) -> EnumField
+add_arg_to_enum_field : EnumField -> Node FullName -> EnumField
 add_arg_to_enum_field ef fn =
     { ef | args = List.append ef.args [ fn ] }
 
@@ -177,10 +167,9 @@ type Statement
 
 type Expression
     = FunctionCallExpr FunctionCallAndLocation
-    | LiteralExpr Language.Syntax.LiteralType String
+    | LiteralExpr Syntax.LiteralType String
     | NameLookup (Node FullName)
-    | Parenthesized (Node Expression)
-
+    | Tuple (List (Node Expression))
 
 
 name_of_op_function : InfixOpType -> FullName
@@ -228,13 +217,13 @@ name_of_op_function iot =
                     "_op_xor"
 
 
-operator_to_function : InfixOpType -> Syntax.SourceView -> (Node Expression) -> (Node Expression) -> (Node Expression)
+operator_to_function : InfixOpType -> Syntax.SourceView -> Node Expression -> Node Expression -> Node Expression
 operator_to_function ot sv lhs rhs =
-    name_of_op_function ot |> with_location sv |> (\func -> FunctionCall func [ lhs, rhs ]) |> with_location sv|> FunctionCallExpr |> with_location sv
+    name_of_op_function ot |> with_location sv |> (\func -> FunctionCall func [ lhs, rhs ]) |> with_location sv |> FunctionCallExpr |> with_location sv
 
 
 type alias FunctionCall =
-    { fname : (Node FullName)
+    { fname : Node FullName
     , args : List (Node Expression)
     }
 
@@ -243,7 +232,7 @@ type alias FunctionCallAndLocation =
     Node FunctionCall
 
 
-stringify_expression : (Node Expression) -> String
+stringify_expression : Node Expression -> String
 stringify_expression expr =
     case expr.thing of
         NameLookup n ->
@@ -255,5 +244,5 @@ stringify_expression expr =
         LiteralExpr _ s ->
             s
 
-        Parenthesized e ->
-            stringify_expression e
+        Tuple le ->
+            le |> List.map stringify_expression |> String.join ","

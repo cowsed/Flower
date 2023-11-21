@@ -110,38 +110,36 @@ range_from_toks toks =
             )
 
 
-main_menu : { items : List (Ui.MenuItem Msg) }
+main_menu : List (Ui.MenuItem Msg)
 main_menu =
-    { items =
-        [ Ui.Menu "File"
-            { items =
-                [ Ui.Button "Save" (Just (SaveFileAs { name = "editor.flower", mimetype = "text/plain" }))
-                , Ui.Button "Open" (Just (FileRequested [ "text" ] FileSelected))
-                , Ui.Menu "Examples"
-                    { items =
-                        [ Ui.Button "Hello World" (Just (FileLoaded Examples.hello_world))
-                        , Ui.Menu "Types"
-                            { items =
-                                Examples.type_examples |> List.map (\( name, src ) -> Ui.Button name (Just (FileLoaded src)))
-                            }
-                        , Ui.Menu "Errors"
-                            { items =
-                                Examples.error_examples |> List.map (\( name, src ) -> Ui.Button name (Just (FileLoaded src)))
-                            }
-                        ]
-                    }
-                ]
-            }
-        , Ui.Menu "Help"
-            { items =
-                [ Ui.SomeThing
-                    (Ui.default_link { url = "https://github.com/cowsed/Flower", label = Element.text "Documentation" })
-                , Ui.SomeThing
-                    (Ui.default_link { url = "https://github.com/cowsed/Flower", label = Element.text "About" })
-                ]
-            }
+    [ Ui.Menu "File"
+        [ Ui.Button "Save" (Just (SaveFileAs { name = "editor.flower", mimetype = "text/plain" }))
+        , Ui.Button "Open" (Just (FileRequested [ "text" ] FileSelected))
+        , Ui.Spacer
+        , Ui.Menu "Examples"
+            [ Ui.Button "Hello World" (Just (FileLoaded Examples.hello_world))
+            , Ui.Menu "Misc"
+                (Examples.misc_examples
+                    |> List.map (\( name, src ) -> Ui.Button name (Just (FileLoaded src)))
+                )
+            , Ui.Menu "Types"
+                (Examples.type_examples
+                    |> List.map (\( name, src ) -> Ui.Button name (Just (FileLoaded src)))
+                )
+            , Ui.Menu "Errors"
+                (Examples.error_examples
+                    |> List.map (\( name, src ) -> Ui.Button name (Just (FileLoaded src)))
+                )
+            ]
         ]
-    }
+    , Ui.Menu "Help"
+        [ Ui.SomeThing (Ui.default_link { url = "https://github.com/cowsed/Flower/issues", label = Element.text "Open an Issue" })
+        , Ui.SomeThing
+            (Ui.default_link { url = "https://github.com/cowsed/Flower", label = Element.text "Documentation" })
+        , Ui.SomeThing
+            (Ui.default_link { url = "https://github.com/cowsed/Flower", label = Element.text "About" })
+        ]
+    ]
 
 
 make_output : Model -> Element Msg

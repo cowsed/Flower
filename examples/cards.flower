@@ -1,0 +1,35 @@
+module main
+import "std/console"
+
+enum Suit{
+    Diamond
+    Heart
+    Club
+    Spade
+}
+
+enum Number{
+    Ace
+    One
+    Two
+    Three
+    Four
+    Five
+    Six
+    Seven
+    Eight
+    Nine
+    Jack
+    Queen
+    King
+}
+
+struct Card {
+    suit: Suit
+    num: Number
+}
+
+
+fn main(){
+    console.puts("Hello, Flower🌸")
+}

@@ -75,7 +75,43 @@ fn main() -> i32{
 }
 """
 
+cards_example = """module main
+import "std/console"
 
+enum Suit{
+    Diamond
+    Heart
+    Club
+    Spade
+}
+
+enum Number{
+    Ace
+    One
+    Two
+    Three
+    Four
+    Five
+    Six
+    Seven
+    Eight
+    Nine
+    Jack
+    Queen
+    King
+}
+
+struct Card {
+    suit: Suit
+    num: Number
+}
+
+
+"""
+
+
+
+misc_examples = [("Game Input", game_input), ("Cards", cards_example)]
 struct_example =
     """module main
 // a struct of builtins

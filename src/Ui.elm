@@ -11,13 +11,14 @@ import Time exposing (..)
 
 
 type alias MenuConfig msg =
-    { items : List (MenuItem msg) }
+    List (MenuItem msg)
 
 
 type MenuItem msg
     = Menu String (MenuConfig msg)
     | Button String (Maybe msg)
     | SomeThing (Element.Element msg)
+    | Spacer
 
 
 draw_menu_item_menu : Int -> String -> MenuConfig msg -> Element.Element msg
@@ -50,12 +51,12 @@ draw_menu_item_menu level name mi =
             Element.column
                 [ Background.color Pallete.bg1_c
                 , Element.spacingXY 0 2
-                , Element.paddingEach {left = 3, right = 0, top = 2, bottom = 2}
+                , Element.paddingEach { left = 3, right = 0, top = 2, bottom = 2 }
                 , Element.width Element.shrink
                 , Border.color Pallete.fg_c
                 , Border.width 1
                 ]
-                (List.map (draw_menu_item (level + 1)) mi.items)
+                (List.map (draw_menu_item (level + 1)) mi)
 
         title_and_submenu : Element.Element msg
         title_and_submenu =
@@ -67,7 +68,16 @@ draw_menu_item_menu level name mi =
                 , Element.width Element.fill
                 ]
                 title_without_submenu
-        attrs = [Element.inFront title_and_submenu] |> (\l -> if is_top_level then l else List.append l [Element.width Element.fill])
+
+        attrs =
+            [ Element.inFront title_and_submenu ]
+                |> (\l ->
+                        if is_top_level then
+                            l
+
+                        else
+                            List.append l [ Element.width Element.fill ]
+                   )
     in
     Element.el attrs title_without_submenu
 
@@ -90,6 +100,18 @@ draw_menu_item level it =
         SomeThing thing ->
             thing
 
+        Spacer ->
+            Element.el
+                [ Element.width Element.fill
+                , Border.widthEach { left = 0, right = 0, top = 0, bottom = 1 }
+                , Border.color Pallete.fg_c
+                ]
+                Element.none
+                |> Element.el
+                    [ Element.width Element.fill
+                    , Element.paddingEach { left = 2, right = 2, top = 2, bottom = 6 }
+                    ]
+
 
 draw_main_menu : MenuConfig msg -> Element.Element msg
 draw_main_menu mc =
@@ -100,12 +122,12 @@ draw_main_menu mc =
         , Background.color Pallete.bg1_c
         , Element.spacing 5
         ]
-        (mc.items |> List.map (draw_menu_item 0))
+        (mc |> List.map (draw_menu_item 0))
 
 
 default_link : { url : String, label : Element.Element msg } -> Element.Element msg
 default_link conf =
-    Element.link
+    Element.newTabLink
         [ Border.widthEach { top = 0, bottom = 1, left = 0, right = 0 }
         , Border.color (Element.rgba 0 0 0 0)
         , Element.mouseOver [ Border.color Pallete.blue_c ]

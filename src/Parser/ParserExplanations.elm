@@ -1,17 +1,16 @@
 module Parser.ParserExplanations exposing (..)
 
 import Element
+import Element.Border as Border
 import Element.Font as Font
 import Language.Language as Language exposing (Identifier(..))
-import Language.Syntax
+import Language.Syntax as Syntax
 import Pallete as Pallete
 import Parser.AST as AST exposing (AliasDefinition, Expression(..), FullName, TypeDefinitionType(..), stringify_fullname)
 import Parser.Lexer as Lexer
 import Parser.ParserCommon as ParserCommon
-import Ui exposing (color_text)
+import Ui exposing (color_text, comma_space)
 import Util
-import Element.Border as Border
-import Language.Syntax as Syntax
 
 
 
@@ -43,7 +42,7 @@ syntaxify_string_literal s =
 
 syntaxify_number_literal : String -> Syntax.IntegerLiteralType -> Element.Element msg
 syntaxify_number_literal s ilt =
-    color_text Pallete.aqua_c (s++"_"++(Lexer.int_literal_to_string  ilt))
+    color_text Pallete.aqua_c (s ++ "_" ++ Lexer.int_literal_to_string ilt)
 
 
 syntaxify_identifier : Identifier -> Element.Element msg
@@ -56,13 +55,13 @@ syntaxify_identifier id =
             ls |> List.map symbol_highlight |> List.intersperse (Element.text ".") |> Element.row []
 
 
-syntaxify_literal : Language.Syntax.LiteralType -> String -> Element.Element msg
+syntaxify_literal : Syntax.LiteralType -> String -> Element.Element msg
 syntaxify_literal l s =
     case l of
-        Language.Syntax.StringLiteral ->
+        Syntax.StringLiteral ->
             syntaxify_string_literal ("\"" ++ s ++ "\"")
 
-        Language.Syntax.NumberLiteral ilt ->
+        Syntax.NumberLiteral ilt ->
             syntaxify_number_literal s ilt
 
 
@@ -79,7 +78,7 @@ syntaxify_fullname fn =
             Element.row []
                 [ syntaxify_identifier nl.base
                 , Element.text "["
-                , Element.row [] (nl.args |> List.map (\f -> syntaxify_fullname f.thing) |> List.intersperse (Element.text ", "))
+                , Element.row [] (nl.args |> List.map (\f -> syntaxify_fullname f.thing) |> List.intersperse comma_space)
                 , Element.text "]"
                 ]
 
@@ -104,15 +103,21 @@ syntaxify_expression expr =
                 , Element.text ")"
                 ]
 
-        AST.Parenthesized e ->
-            Element.row [] [ Element.text "(", syntaxify_expression e.thing, Element.text ")" ]
+        AST.Tuple le ->
+            Element.row []
+                (List.concat
+                    [ [ Element.text "(" ]
+                    , le |> List.map (syntaxify_expression << Syntax.node_get) |> List.intersperse (Element.text ",")
+                    , [ Element.text ")" ]
+                    ]
+                )
 
         AST.LiteralExpr lt s ->
             case lt of
-                Language.Syntax.StringLiteral ->
+                Syntax.StringLiteral ->
                     syntaxify_string_literal s
 
-                Language.Syntax.NumberLiteral ilt ->
+                Syntax.NumberLiteral ilt ->
                     syntaxify_number_literal s ilt
 
 
@@ -148,7 +153,7 @@ explain_error : ParserCommon.Error -> Element.Element msg
 explain_error e =
     case e of
         ParserCommon.Unimplemented p reason ->
-            Element.column [ Font.color Pallete.red_c ]
+            Element.column [ Font.color Pallete.red_c, Font.family [ Font.monospace ] ]
                 [ Element.text "!!!Unimplemented!!!"
                 , Element.text (reason ++ "\n")
                 , Element.text "Program so far"
@@ -342,6 +347,7 @@ stringify_error e =
 
                 ParserCommon.ParenWhereIDidntWantIt loc ->
                     "I was expecting an expression but I found this parenthesis instead\n" ++ Syntax.show_source_view loc
+                ParserCommon.ExpectedEndOfTupleOrComma loc -> "I was expecting a comma to contiue this tuple or a `)` to end it.\n"++Syntax.show_source_view loc
 
         ParserCommon.ExpectedFunctionBody loc got ->
             "Expected a `{` to start the function body but got `" ++ Lexer.syntaxify_token got ++ "`\n" ++ Syntax.show_source_view loc
@@ -386,29 +392,38 @@ stringify_error e =
         ParserCommon.ExpectedEqualInTypeDeclaration loc ->
             "I expected an = like `type Name =` \n" ++ Syntax.show_source_view loc
 
+        ParserCommon.EmptyParens loc ->
+            "I found () but there should probably be something between them\n" ++ Syntax.show_source_view loc
+
 
 explain_expression : AST.Expression -> Element.Element msg
 explain_expression expr =
-     case expr of
+    case expr of
         AST.NameLookup nwargs ->
-            Element.row [] [ Element.text "name look up of ",Ui.code_text <| stringify_fullname nwargs.thing  ]
+            Element.row [] [ Element.text "name look up of ", Ui.code_text <| stringify_fullname nwargs.thing ]
 
         AST.FunctionCallExpr fcall ->
-            Element.column [Border.width 1]
+            Element.column [ Border.width 1 ]
                 [ Element.row [] [ Element.text "func call: ", Element.text (AST.stringify_fullname fcall.thing.fname.thing) |> Ui.code, Element.text " with args " ]
-                , Element.row [] [Element.text "  ", Element.column [] (fcall.thing.args |> List.map (\a -> explain_expression a.thing))]
+                , Element.row [] [ Element.text "  ", Element.column [] (fcall.thing.args |> List.map (\a -> explain_expression a.thing)) ]
                 ]
 
         AST.LiteralExpr lt s ->
             case lt of
-                Language.Syntax.StringLiteral ->
+                Syntax.StringLiteral ->
                     Element.row [] [ Element.text ("String Literal: " ++ s) ]
 
-                Language.Syntax.NumberLiteral ilt ->
-                    Element.row [] [ Element.text ("Number Literal: " ++ s ++ (Lexer.int_literal_to_string ilt)) ]
+                Syntax.NumberLiteral ilt ->
+                    Element.row [] [ Element.text ("Number Literal: " ++ s ++ Lexer.int_literal_to_string ilt) ]
 
-        AST.Parenthesized e ->
-            Element.row [Border.width 1] [ Element.text "(", explain_expression e.thing, Element.text ")" ]
+        AST.Tuple le ->
+            Element.row [ Border.width 1 ]
+                (List.concat
+                    [ [ Element.text "tuple (" ]
+                    , le |> List.map (explain_expression << .thing) |> List.intersperse comma_space
+                    , [ Element.text ")" ]
+                    ]
+                )
 
 
 explain_statement : AST.Statement -> Element.Element msg
